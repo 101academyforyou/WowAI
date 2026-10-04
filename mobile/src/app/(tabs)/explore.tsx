@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api, type Post, type User } from '../../lib/api';
@@ -53,7 +53,7 @@ export default function ExploreScreen() {
     load();
   }, [load]));
 
-  const title = query ? `搜尋「${query}」` : tag ? `#${tag}` : '探索 AI 工具';
+  const title = query ? `搜尋「${query}」` : tag ? `#${tag}` : '探索別人用 AI 做了什麼酷工具';
   const emptyMessage = query
     ? `找不到${tag ? ` #${tag} 裡` : ''}和「${query}」有關的作品`
     : '這個分類還沒有作品';
@@ -88,7 +88,15 @@ export default function ExploreScreen() {
           ) : null}
         </View>
 
-        <Text style={[styles.title, { color: c.text }]}>{title}</Text>
+        {/* iPhone 小螢幕（例如 SE）自動縮小字體，維持一行 */}
+        <Text
+          style={[styles.title, { color: c.text }]}
+          numberOfLines={Platform.OS === 'web' ? undefined : 1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
+          {title}
+        </Text>
         <View style={styles.chips}>
           <Chip label="全部" active={!tag} onPress={() => router.setParams({ tag: '' })} />
           {tags.map((t) => (
