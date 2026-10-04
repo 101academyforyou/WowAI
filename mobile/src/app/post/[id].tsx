@@ -69,12 +69,12 @@ export default function PostScreen() {
           style={[styles.input, { color: c.text, backgroundColor: c.surface, borderColor: c.border }]}
           value={body}
           onChangeText={setBody}
-          placeholder={user ? '留言給作者…' : '登入後即可留言'}
+          placeholder={user ? '留言給 Cooler…' : '登入後即可留言'}
           placeholderTextColor={c.muted}
           maxLength={1000}
           onFocus={() => { if (!user) router.push('/login'); }}
         />
-        <Button title="發佈" variant="primary" onPress={send} loading={sending} disabled={!body.trim()} />
+        <Button title="留言" variant="primary" onPress={send} loading={sending} disabled={!body.trim()} />
       </View>
     </KeyboardAvoidingView>
   );

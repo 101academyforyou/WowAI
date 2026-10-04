@@ -304,7 +304,7 @@ async function postPage(id) {
     h('p', {}, h('a', { href: `#/u/${encodeURIComponent(c.author.username)}` }, h('b', {}, c.author.username)), c.body));
   list.append(...comments.map(renderComment));
 
-  const input = h('input', { class: 'input', placeholder: state.me ? '留言給作者…' : '登入後即可留言', maxlength: 1000 });
+  const input = h('input', { class: 'input', placeholder: state.me ? '留言給 Cooler…' : '登入後即可留言', maxlength: 1000 });
   const form = h('form', {
     class: 'comment-form',
     onsubmit: async (e) => {
@@ -318,7 +318,7 @@ async function postPage(id) {
         input.value = '';
       } catch (err) { toast(err.message, { error: true }); }
     },
-  }, input, h('button', { class: 'btn btn-primary', type: 'submit' }, '發佈'));
+  }, input, h('button', { class: 'btn btn-primary', type: 'submit' }, '留言'));
 
   view.replaceChildren(
     postCard(post, { full: true, onDeleted: () => { location.hash = '#/me'; } }),
