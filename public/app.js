@@ -27,6 +27,7 @@ const ICONS = {
   play: '<svg viewBox="0 0 24 24" class="fill"><path d="M7 4v16l13-8z"/></svg>',
   stack: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="13" height="13" rx="2"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/></svg>',
   upload: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>',
+  flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg>',
 };
 
@@ -170,13 +171,29 @@ function postCard(post, { full = false, onDeleted } = {}) {
         } catch (err) { toast(err.message, { error: true }); }
       },
     }, icon('trash')) : null,
+    !isMine ? h('button', {
+      class: 'btn-link', 'aria-label': '檢舉貼文',
+      onclick: async () => {
+        if (!requireLogin()) return;
+        const reasons = { 1: 'spam', 2: 'nudity', 3: 'violence', 4: 'harassment', 5: 'ip', 6: 'other' };
+        const pick = prompt('檢舉原因（輸入數字）：\n1 垃圾訊息\n2 色情內容\n3 暴力內容\n4 騷擾或仇恨言論\n5 侵害智慧財產權\n6 其他');
+        if (!pick) return;
+        if (!reasons[pick.trim()]) { toast('請輸入 1–6', { error: true }); return; }
+        try {
+          await api(`/api/posts/${post.id}/report`, { method: 'POST', body: { reason: reasons[pick.trim()] } });
+          toast('已收到檢舉，這則貼文將不再顯示給你');
+          card.remove();
+          if (full) location.hash = '#/';
+        } catch (err) { toast(err.message, { error: true }); }
+      },
+    }, icon('flag')) : null,
   );
 
   const desc = post.description
     ? h('p', { class: full ? 'post-desc' : 'post-desc clamp' }, post.description)
     : null;
 
-  return h('article', { class: 'post' },
+  const card = h('article', { class: 'post' },
     header,
     carousel(post.media, () => setLike(true)),
     h('div', { class: 'post-actions' },
@@ -198,6 +215,7 @@ function postCard(post, { full = false, onDeleted } = {}) {
         : null,
     ),
   );
+  return card;
 }
 
 function postGrid(posts) {
@@ -331,7 +349,20 @@ async function profilePage(username) {
       } catch (err) { toast(err.message, { error: true }); }
     });
     render();
-    actions = h('div', { class: 'profile-actions' }, followBtn);
+    const blockBtn = h('button', {
+      class: 'btn',
+      onclick: async () => {
+        if (!requireLogin()) return;
+        const blocking = !user.blockedByMe;
+        if (blocking && !confirm(`封鎖 @${user.username}？你將不會再看到對方的貼文和留言。`)) return;
+        try {
+          await api(`/api/users/${encodeURIComponent(user.username)}/block`, { method: blocking ? 'POST' : 'DELETE' });
+          toast(blocking ? '已封鎖' : '已解除封鎖');
+          route();
+        } catch (err) { toast(err.message, { error: true }); }
+      },
+    }, user.blockedByMe ? '解除封鎖' : '封鎖');
+    actions = h('div', { class: 'profile-actions' }, user.blockedByMe ? null : followBtn, blockBtn);
   }
 
   view.replaceChildren(
@@ -347,7 +378,7 @@ async function profilePage(username) {
       user.bio ? h('p', {}, user.bio) : null),
     actions,
     posts.length ? postGrid(posts) : h('div', { class: 'empty' },
-      h('p', {}, isMe ? '你還沒有分享任何 AI 工具' : '還沒有作品'),
+      h('p', {}, user.blockedByMe ? '你已封鎖這位使用者' : isMe ? '你還沒有分享任何 AI 工具' : '還沒有作品'),
       isMe ? h('a', { class: 'btn btn-primary', href: '#/new' }, '分享第一個作品') : null),
   );
 }
@@ -373,7 +404,23 @@ async function settingsPage() {
   h('h1', { class: 'page-title' }, '編輯個人檔案'),
   h('div', { class: 'field' }, h('label', {}, '名稱'), displayName),
   h('div', { class: 'field' }, h('label', {}, '自我介紹'), bio),
-  h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, '儲存')));
+  h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, '儲存'),
+  h('p', { class: 'post-meta', style: 'margin-top:32px' },
+    h('a', { href: '/terms.html', target: '_blank' }, '使用條款'), '　·　',
+    h('a', { href: '/privacy.html', target: '_blank' }, '隱私權政策')),
+  h('button', {
+    class: 'btn btn-block', type: 'button', style: 'color:var(--danger);margin-top:8px',
+    onclick: async () => {
+      const password = prompt('刪除帳號後，你的所有作品、留言與追蹤都會永久刪除且無法復原。\n請輸入密碼確認：');
+      if (!password) return;
+      try {
+        await api('/api/me', { method: 'DELETE', body: { password } });
+        state.me = null;
+        toast('帳號已刪除');
+        location.hash = '#/';
+      } catch (err) { toast(err.message, { error: true }); }
+    },
+  }, '刪除帳號')));
 }
 
 function newPostPage() {
@@ -501,6 +548,10 @@ function loginPage(params) {
   const password = h('input', { class: 'input', type: 'password', required: true, placeholder: '密碼' });
   const submit = h('button', { class: 'btn btn-primary btn-block', type: 'submit' });
   const nameField = h('div', { class: 'field' }, displayName);
+  const terms = h('input', { type: 'checkbox' });
+  const termsField = h('label', { class: 'field', style: 'display:flex;gap:8px;align-items:center;font-size:14px' },
+    terms, h('span', {}, '我同意 ', h('a', { href: '/terms.html', target: '_blank', style: 'color:var(--accent)' }, '使用條款'),
+      '，並了解 WowAI 不容許任何令人反感的內容或騷擾行為'));
   const switchText = h('span');
   const switchBtn = h('button', { type: 'button' });
 
@@ -508,6 +559,7 @@ function loginPage(params) {
     const reg = mode === 'register';
     submit.textContent = reg ? '註冊' : '登入';
     nameField.hidden = !reg;
+    termsField.hidden = !reg;
     password.autocomplete = reg ? 'new-password' : 'current-password';
     password.placeholder = reg ? '密碼（至少 8 個字元）' : '密碼';
     switchText.textContent = reg ? '已經有帳號了？' : '還沒有帳號？';
@@ -523,7 +575,9 @@ function loginPage(params) {
       try {
         const { user } = await api(`/api/auth/${mode}`, {
           method: 'POST',
-          body: { username: username.value.trim(), password: password.value, displayName: displayName.value },
+          body: {
+            username: username.value.trim(), password: password.value, displayName: displayName.value, acceptTerms: terms.checked,
+          },
         });
         state.me = user;
         location.hash = next;
@@ -539,6 +593,7 @@ function loginPage(params) {
   h('div', { class: 'field' }, username),
   nameField,
   h('div', { class: 'field' }, password),
+  termsField,
   submit,
   h('p', { class: 'switch' }, switchText, switchBtn));
 

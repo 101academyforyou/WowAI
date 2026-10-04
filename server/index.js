@@ -12,6 +12,7 @@ const app = createApp({
   db: openDatabase(path.join(dataDir, 'wowai.db')),
   uploadDir: path.join(dataDir, 'uploads'),
   publicDir: path.join(root, 'public'),
+  adminUsernames: (process.env.ADMIN_USERNAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
 });
 
 const port = Number(process.env.PORT) || 3000;

@@ -3,6 +3,10 @@
 像 Instagram 一樣的社群 App，但專注於**分享用 AI 開發的工具**。
 每則分享都**必須附上截圖或影片**，讓大家一眼就看到你的作品長什麼樣子。
 
+- **iPhone App**：[`mobile/`](mobile/)（Expo / React Native），上架 App Store 的步驟見 [mobile/README.md](mobile/README.md)
+- **網頁版**：[`public/`](public/)，由後端直接提供
+- **後端 API**：[`server/`](server/)，App 與網頁共用
+
 ## 功能
 
 - **分享 AI 工具**：工具名稱、介紹、試用連結、使用了哪些 AI（例如 Claude、Cursor、v0）
@@ -13,6 +17,7 @@
 - **探索**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽作品
 - **互動**：按讚、留言、追蹤、分享連結
 - **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案
+- **社群安全**（App Store 規定）：註冊需同意使用條款、檢舉貼文、封鎖使用者、在 App 內刪除帳號；被 3 人檢舉的貼文自動隱藏，管理員可審查
 - 手機優先的介面，支援深色模式，可「加入主畫面」當成 App 使用（PWA）
 
 ## 快速開始
@@ -33,6 +38,7 @@ npm test           # 執行 API 測試
 | `PORT` | `3000` | 伺服器埠號 |
 | `DATA_DIR` | `./data` | SQLite 資料庫與上傳檔案的存放位置 |
 | `NODE_ENV` | — | 設為 `production` 時 cookie 會加上 `Secure` |
+| `ADMIN_USERNAMES` | — | 管理員帳號（逗號分隔），可查看檢舉、刪除或恢復貼文 |
 
 ## 專案結構
 
@@ -42,7 +48,8 @@ server/
   app.js     Express 路由與 API
   db.js      SQLite 資料表
   media.js   圖片／影片格式驗證
-public/      前端（原生 JavaScript 單頁應用，不需要建置）
+mobile/      iPhone App（Expo / React Native）
+public/      網頁版前端（原生 JavaScript 單頁應用，不需要建置）、使用條款、隱私權政策
 test/        API 測試（node:test）
 ```
 
@@ -50,13 +57,19 @@ test/        API 測試（node:test）
 
 | 方法 | 路徑 | 說明 |
 | --- | --- | --- |
-| POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊／登入／登出 |
-| GET / PATCH | `/api/me` | 目前登入者／更新名稱與自我介紹 |
+| POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
+| GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱與自我介紹／刪除帳號（需密碼） |
 | GET | `/api/posts?feed=following&tag=Claude&before=<id>` | 動態牆（分頁） |
 | POST | `/api/posts` | 分享（multipart，`media` 欄位至少一個檔案） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |
 | POST / DELETE | `/api/posts/:id/like` | 按讚／取消讚 |
+| POST | `/api/posts/:id/report` | 檢舉（`reason`: spam、nudity、violence、harassment、ip、other） |
 | GET / POST | `/api/posts/:id/comments` | 留言 |
 | GET | `/api/users/:username` | 個人頁與作品 |
 | POST / DELETE | `/api/users/:username/follow` | 追蹤／取消追蹤 |
+| POST / DELETE | `/api/users/:username/block` | 封鎖／解除封鎖 |
+| GET | `/api/admin/reports` | 管理員：被檢舉的貼文 |
+| POST | `/api/admin/posts/:id/restore` | 管理員：檢舉不成立，恢復貼文 |
 | GET | `/api/tags` | 熱門 AI 工具標籤 |
+
+登入方式：網頁用 HttpOnly cookie，iPhone App 用 `Authorization: Bearer <token>`。

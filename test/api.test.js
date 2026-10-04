@@ -18,6 +18,7 @@ before(async () => {
   const app = createApp({
     db: openDatabase(':memory:'),
     uploadDir: path.join(tmpDir, 'uploads'),
+    adminUsernames: ['admin'],
   });
   await new Promise((resolve) => {
     server = app.listen(0, resolve);
@@ -34,7 +35,7 @@ async function register(username) {
   const res = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password: 'password123' }),
+    body: JSON.stringify({ username, password: 'password123', acceptTerms: true }),
   });
   assert.equal(res.status, 201);
   return res.headers.get('set-cookie').split(';')[0];
@@ -137,4 +138,101 @@ test('工具連結只接受 http/https', async () => {
   const cookie = await register('linker');
   const res = await createPost(cookie, { title: 'x', toolUrl: 'javascript:alert(1)' }, [{ name: 'a.png', data: PNG }]);
   assert.equal(res.status, 400);
+});
+
+test('註冊必須同意使用條款', async () => {
+  const res = await fetch(`${base}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'noterms', password: 'password123' }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test('iPhone App 用 Bearer token 登入', async () => {
+  await register('mobileuser');
+  const login = await (await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'mobileuser', password: 'password123' }),
+  })).json();
+  assert.ok(login.token);
+  const me = await (await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${login.token}` } })).json();
+  assert.equal(me.user.username, 'mobileuser');
+  await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { authorization: `Bearer ${login.token}` } });
+  const after = await (await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${login.token}` } })).json();
+  assert.equal(after.user, null);
+});
+
+test('檢舉：檢舉者不再看到貼文，3 人檢舉後自動隱藏，管理員可恢復', async () => {
+  const author = await register('spammer');
+  const { post } = await (await createPost(author, { title: '可疑工具' }, [{ name: 'a.png', data: PNG }])).json();
+  const visibleTo = async (cookie) => (await fetch(`${base}/api/posts/${post.id}`, { headers: { cookie } })).status;
+
+  const r1 = await register('reporter1');
+  const bad = await fetch(`${base}/api/posts/${post.id}/report`, {
+    method: 'POST', headers: { cookie: r1, 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'nope' }),
+  });
+  assert.equal(bad.status, 400);
+
+  const report = (cookie) => fetch(`${base}/api/posts/${post.id}/report`, {
+    method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'spam' }),
+  });
+  assert.equal((await report(r1)).status, 201);
+  assert.equal(await visibleTo(r1), 404);
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 200);
+
+  await report(await register('reporter2'));
+  await report(await register('reporter3'));
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 404);
+  assert.equal(await visibleTo(author), 200, '作者仍看得到自己的貼文');
+
+  const admin = await register('admin');
+  const { reports } = await (await fetch(`${base}/api/admin/reports`, { headers: { cookie: admin } })).json();
+  const entry = reports.find((r) => r.post.id === post.id);
+  assert.equal(entry.reportCount, 3);
+  assert.equal(entry.hidden, true);
+  assert.equal((await fetch(`${base}/api/admin/reports`, { headers: { cookie: author } })).status, 403);
+  await fetch(`${base}/api/admin/posts/${post.id}/restore`, { method: 'POST', headers: { cookie: admin } });
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 200);
+});
+
+test('封鎖：看不到對方的貼文與留言，並解除追蹤', async () => {
+  const troll = await register('troll');
+  const victim = await register('victim');
+  const { post } = await (await createPost(victim, { title: '我的工具' }, [{ name: 'a.png', data: PNG }])).json();
+  await fetch(`${base}/api/posts/${post.id}/comments`, {
+    method: 'POST', headers: { cookie: troll, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: '難聽的話' }),
+  });
+  const { post: trollPost } = await (await createPost(troll, { title: '洗版' }, [{ name: 'a.png', data: PNG }])).json();
+  await fetch(`${base}/api/users/troll/follow`, { method: 'POST', headers: { cookie: victim } });
+
+  const block = await fetch(`${base}/api/users/troll/block`, { method: 'POST', headers: { cookie: victim } });
+  assert.deepEqual(await block.json(), { blockedByMe: true });
+
+  const feed = await (await fetch(`${base}/api/posts`, { headers: { cookie: victim } })).json();
+  assert.ok(!feed.posts.some((p) => p.id === trollPost.id));
+  const { comments } = await (await fetch(`${base}/api/posts/${post.id}/comments`, { headers: { cookie: victim } })).json();
+  assert.equal(comments.length, 0);
+  const profile = await (await fetch(`${base}/api/users/troll`, { headers: { cookie: victim } })).json();
+  assert.equal(profile.user.blockedByMe, true);
+  assert.equal(profile.user.followerCount, 0);
+  assert.equal(profile.posts.length, 0);
+
+  await fetch(`${base}/api/users/troll/block`, { method: 'DELETE', headers: { cookie: victim } });
+  const again = await (await fetch(`${base}/api/posts`, { headers: { cookie: victim } })).json();
+  assert.ok(again.posts.some((p) => p.id === trollPost.id));
+});
+
+test('在 App 內刪除帳號，會一併刪除貼文與媒體檔', async () => {
+  const cookie = await register('leaver');
+  const { post } = await (await createPost(cookie, { title: '再見' }, [{ name: 'a.png', data: PNG }])).json();
+  const del = (password) => fetch(`${base}/api/me`, {
+    method: 'DELETE', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+  });
+  assert.equal((await del('wrong-password')).status, 401);
+  assert.equal((await del('password123')).status, 204);
+  assert.equal((await fetch(`${base}/api/users/leaver`)).status, 404);
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 404);
+  assert.equal((await fetch(`${base}${post.media[0].url}`)).status, 404);
 });

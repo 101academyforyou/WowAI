@@ -27,6 +27,7 @@ export function openDatabase(file) {
       title       TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       tool_url    TEXT NOT NULL DEFAULT '',
+      hidden      INTEGER NOT NULL DEFAULT 0,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -66,11 +67,32 @@ export function openDatabase(file) {
       PRIMARY KEY (follower_id, followee_id)
     );
 
+    -- 檢舉與封鎖：App Store 對使用者生成內容（UGC）的要求
+    CREATE TABLE IF NOT EXISTS reports (
+      reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      post_id     INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      reason      TEXT NOT NULL,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (reporter_id, post_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS blocks (
+      blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      PRIMARY KEY (blocker_id, blocked_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id, id DESC);
     CREATE INDEX IF NOT EXISTS idx_media_post ON post_media(post_id, position);
     CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, id);
     CREATE INDEX IF NOT EXISTS idx_ai_tools_name ON post_ai_tools(name);
   `);
+
+  // 舊資料庫升級
+  const postColumns = db.prepare('PRAGMA table_info(posts)').all().map((c) => c.name);
+  if (!postColumns.includes('hidden')) {
+    db.exec('ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+  }
   return db;
 }
 

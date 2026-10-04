@@ -9,6 +9,9 @@ import { sniffMedia, MEDIA_TYPES } from './media.js';
 const MAX_MEDIA_PER_POST = 10;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const PAGE_SIZE = 12;
+// 被不同使用者檢舉達到這個次數的貼文會自動隱藏，等待管理員處理
+const AUTO_HIDE_REPORTS = 3;
+const REPORT_REASONS = ['spam', 'nudity', 'violence', 'harassment', 'ip', 'other'];
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -72,7 +75,14 @@ function parseAiTools(value) {
   return names;
 }
 
-export function createApp({ db, uploadDir, publicDir }) {
+function sessionToken(req) {
+  const auth = req.headers.authorization ?? '';
+  if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  return parseCookies(req.headers.cookie).sid;
+}
+
+export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
+  const admins = new Set(adminUsernames.map((u) => u.toLowerCase()));
   fs.mkdirSync(uploadDir, { recursive: true });
 
   const app = express();
@@ -100,7 +110,35 @@ export function createApp({ db, uploadDir, publicDir }) {
     commentCount: db.prepare('SELECT COUNT(*) AS n FROM comments WHERE post_id = ?'),
     liked: db.prepare('SELECT 1 FROM likes WHERE user_id = ? AND post_id = ?'),
     userById: db.prepare('SELECT id, username, display_name FROM users WHERE id = ?'),
+    blocked: db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?'),
   };
+
+  const isAdmin = (user) => Boolean(user && admins.has(user.username.toLowerCase()));
+
+  // 貼文對某位使用者是否可見：被隱藏、作者被封鎖、或自己檢舉過的貼文都不顯示
+  function visibleSql(viewer, alias = 'p') {
+    if (!viewer) return { sql: ` AND ${alias}.hidden = 0`, params: [] };
+    return {
+      sql: ` AND (${alias}.user_id = ? OR (${alias}.hidden = 0
+        AND ${alias}.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
+        AND ${alias}.id NOT IN (SELECT post_id FROM reports WHERE reporter_id = ?)))`,
+      params: [viewer.id, viewer.id, viewer.id],
+    };
+  }
+
+  function canSee(post, viewer) {
+    if (viewer && (viewer.id === post.user_id || isAdmin(viewer))) return true;
+    if (post.hidden) return false;
+    if (!viewer) return true;
+    if (q.blocked.get(viewer.id, post.user_id)) return false;
+    return !db.prepare('SELECT 1 FROM reports WHERE reporter_id = ? AND post_id = ?').get(viewer.id, post.id);
+  }
+
+  function deletePostAndMedia(postId) {
+    const media = q.mediaForPost.all(postId);
+    db.prepare('DELETE FROM posts WHERE id = ?').run(postId);
+    media.forEach((m) => fs.rmSync(path.join(uploadDir, m.filename), { force: true }));
+  }
 
   function publicUser(u) {
     return { id: u.id, username: u.username, displayName: u.display_name };
@@ -122,9 +160,9 @@ export function createApp({ db, uploadDir, publicDir }) {
     };
   }
 
-  function getPostOr404(id) {
+  function getPostOr404(id, viewer) {
     const post = q.postById.get(Number(id));
-    if (!post) throw new HttpError(404, '找不到這則貼文');
+    if (!post || !canSee(post, viewer)) throw new HttpError(404, '找不到這則貼文');
     return post;
   }
 
@@ -136,7 +174,7 @@ export function createApp({ db, uploadDir, publicDir }) {
 
   // ---- 驗證 ----
   app.use((req, _res, next) => {
-    const token = parseCookies(req.headers.cookie).sid;
+    const token = sessionToken(req);
     req.user = token ? q.userBySession.get(token) ?? null : null;
     next();
   });
@@ -155,6 +193,7 @@ export function createApp({ db, uploadDir, publicDir }) {
       secure: process.env.NODE_ENV === 'production',
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
+    return token;
   }
 
   app.post('/api/auth/register', (req, res) => {
@@ -164,14 +203,15 @@ export function createApp({ db, uploadDir, publicDir }) {
     }
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     if (password.length < 8) throw new HttpError(400, '密碼至少 8 個字元');
+    if (req.body?.acceptTerms !== true) throw new HttpError(400, '請先同意使用條款');
     const displayName = cleanText(req.body?.displayName, { max: 50, field: '名稱' }) || username;
     if (q.userByName.get(username)) throw new HttpError(409, '這個帳號已經有人使用');
 
     const { lastInsertRowid } = db
       .prepare('INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, ?)')
       .run(username, displayName, hashPassword(password));
-    startSession(res, Number(lastInsertRowid));
-    res.status(201).json({ user: publicUser(q.userById.get(lastInsertRowid)) });
+    const token = startSession(res, Number(lastInsertRowid));
+    res.status(201).json({ user: publicUser(q.userById.get(lastInsertRowid)), token });
   });
 
   app.post('/api/auth/login', (req, res) => {
@@ -180,19 +220,32 @@ export function createApp({ db, uploadDir, publicDir }) {
     if (!user || !verifyPassword(password, user.password_hash)) {
       throw new HttpError(401, '帳號或密碼錯誤');
     }
-    startSession(res, user.id);
-    res.json({ user: publicUser(user) });
+    const token = startSession(res, user.id);
+    res.json({ user: publicUser(user), token });
   });
 
   app.post('/api/auth/logout', (req, res) => {
-    const token = parseCookies(req.headers.cookie).sid;
+    const token = sessionToken(req);
     if (token) db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
     res.clearCookie('sid');
     res.status(204).end();
   });
 
   app.get('/api/me', (req, res) => {
-    res.json({ user: req.user ? publicUser(req.user) : null });
+    res.json({ user: req.user ? { ...publicUser(req.user), isAdmin: isAdmin(req.user) } : null });
+  });
+
+  // 刪除帳號（App Store 規定：可以建立帳號的 App 必須能在 App 內刪除帳號）
+  app.delete('/api/me', requireAuth, (req, res) => {
+    const password = String(req.body?.password ?? '');
+    if (!verifyPassword(password, req.user.password_hash)) throw new HttpError(401, '密碼錯誤');
+    const media = db.prepare(
+      'SELECT m.filename FROM post_media m JOIN posts p ON p.id = m.post_id WHERE p.user_id = ?',
+    ).all(req.user.id);
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
+    media.forEach((m) => fs.rmSync(path.join(uploadDir, m.filename), { force: true }));
+    res.clearCookie('sid');
+    res.status(204).end();
   });
 
   // ---- 貼文 ----
@@ -202,8 +255,9 @@ export function createApp({ db, uploadDir, publicDir }) {
     const following = req.query.feed === 'following';
     if (following && !req.user) throw new HttpError(401, '請先登入');
 
-    let sql = 'SELECT p.* FROM posts p WHERE p.id < ?';
-    const params = [before];
+    const visible = visibleSql(req.user);
+    let sql = `SELECT p.* FROM posts p WHERE p.id < ?${visible.sql}`;
+    const params = [before, ...visible.params];
     if (tag) {
       sql += ' AND EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name = ?)';
       params.push(tag);
@@ -220,7 +274,7 @@ export function createApp({ db, uploadDir, publicDir }) {
   });
 
   app.get('/api/posts/:id', (req, res) => {
-    res.json({ post: serializePost(getPostOr404(req.params.id), req.user) });
+    res.json({ post: serializePost(getPostOr404(req.params.id, req.user), req.user) });
   });
 
   app.post('/api/posts', requireAuth, upload.array('media', MAX_MEDIA_PER_POST), (req, res) => {
@@ -267,32 +321,44 @@ export function createApp({ db, uploadDir, publicDir }) {
   });
 
   app.delete('/api/posts/:id', requireAuth, (req, res) => {
-    const post = getPostOr404(req.params.id);
-    if (post.user_id !== req.user.id) throw new HttpError(403, '只能刪除自己的貼文');
-    const media = q.mediaForPost.all(post.id);
-    db.prepare('DELETE FROM posts WHERE id = ?').run(post.id);
-    media.forEach((m) => fs.rmSync(path.join(uploadDir, m.filename), { force: true }));
+    const post = getPostOr404(req.params.id, req.user);
+    if (post.user_id !== req.user.id && !isAdmin(req.user)) throw new HttpError(403, '只能刪除自己的貼文');
+    deletePostAndMedia(post.id);
     res.status(204).end();
   });
 
+  app.post('/api/posts/:id/report', requireAuth, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    if (post.user_id === req.user.id) throw new HttpError(400, '不能檢舉自己的貼文');
+    const reason = String(req.body?.reason ?? '');
+    if (!REPORT_REASONS.includes(reason)) throw new HttpError(400, '請選擇檢舉原因');
+    db.prepare('INSERT OR IGNORE INTO reports (reporter_id, post_id, reason) VALUES (?, ?, ?)')
+      .run(req.user.id, post.id, reason);
+    const { n } = db.prepare('SELECT COUNT(*) AS n FROM reports WHERE post_id = ?').get(post.id);
+    if (n >= AUTO_HIDE_REPORTS) db.prepare('UPDATE posts SET hidden = 1 WHERE id = ?').run(post.id);
+    res.status(201).json({ ok: true });
+  });
+
   app.post('/api/posts/:id/like', requireAuth, (req, res) => {
-    const post = getPostOr404(req.params.id);
+    const post = getPostOr404(req.params.id, req.user);
     db.prepare('INSERT OR IGNORE INTO likes (user_id, post_id) VALUES (?, ?)').run(req.user.id, post.id);
     res.json({ likeCount: q.likeCount.get(post.id).n, likedByMe: true });
   });
 
   app.delete('/api/posts/:id/like', requireAuth, (req, res) => {
-    const post = getPostOr404(req.params.id);
+    const post = getPostOr404(req.params.id, req.user);
     db.prepare('DELETE FROM likes WHERE user_id = ? AND post_id = ?').run(req.user.id, post.id);
     res.json({ likeCount: q.likeCount.get(post.id).n, likedByMe: false });
   });
 
   app.get('/api/posts/:id/comments', (req, res) => {
-    const post = getPostOr404(req.params.id);
+    const post = getPostOr404(req.params.id, req.user);
     const rows = db.prepare(
       `SELECT c.id, c.body, c.created_at, u.id AS uid, u.username, u.display_name
-       FROM comments c JOIN users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.id`,
-    ).all(post.id);
+       FROM comments c JOIN users u ON u.id = c.user_id
+       WHERE c.post_id = ? AND c.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
+       ORDER BY c.id`,
+    ).all(post.id, req.user?.id ?? 0);
     res.json({
       comments: rows.map((r) => ({
         id: r.id,
@@ -304,7 +370,7 @@ export function createApp({ db, uploadDir, publicDir }) {
   });
 
   app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
-    const post = getPostOr404(req.params.id);
+    const post = getPostOr404(req.params.id, req.user);
     const body = cleanText(req.body?.body, { max: 1000, field: '留言', required: true });
     const { lastInsertRowid } = db
       .prepare('INSERT INTO comments (post_id, user_id, body) VALUES (?, ?, ?)')
@@ -318,7 +384,11 @@ export function createApp({ db, uploadDir, publicDir }) {
   app.get('/api/users/:username', (req, res) => {
     const user = getUserOr404(req.params.username);
     const count = (sql) => db.prepare(sql).get(user.id).n;
-    const posts = db.prepare('SELECT * FROM posts WHERE user_id = ? ORDER BY id DESC').all(user.id);
+    const blockedByMe = req.user ? Boolean(q.blocked.get(req.user.id, user.id)) : false;
+    const visible = visibleSql(req.user);
+    const posts = blockedByMe ? [] : db.prepare(
+      `SELECT p.* FROM posts p WHERE p.user_id = ?${visible.sql} ORDER BY p.id DESC`,
+    ).all(user.id, ...visible.params);
     res.json({
       user: {
         ...publicUser(user),
@@ -326,6 +396,7 @@ export function createApp({ db, uploadDir, publicDir }) {
         postCount: posts.length,
         followerCount: count('SELECT COUNT(*) AS n FROM follows WHERE followee_id = ?'),
         followingCount: count('SELECT COUNT(*) AS n FROM follows WHERE follower_id = ?'),
+        blockedByMe,
         followedByMe: req.user
           ? Boolean(db.prepare('SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?').get(req.user.id, user.id))
           : false,
@@ -344,6 +415,9 @@ export function createApp({ db, uploadDir, publicDir }) {
   app.post('/api/users/:username/follow', requireAuth, (req, res) => {
     const target = getUserOr404(req.params.username);
     if (target.id === req.user.id) throw new HttpError(400, '不能追蹤自己');
+    if (q.blocked.get(req.user.id, target.id) || q.blocked.get(target.id, req.user.id)) {
+      throw new HttpError(403, '無法追蹤這位使用者');
+    }
     db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(req.user.id, target.id);
     res.json({ followedByMe: true });
   });
@@ -354,10 +428,57 @@ export function createApp({ db, uploadDir, publicDir }) {
     res.json({ followedByMe: false });
   });
 
+  app.post('/api/users/:username/block', requireAuth, (req, res) => {
+    const target = getUserOr404(req.params.username);
+    if (target.id === req.user.id) throw new HttpError(400, '不能封鎖自己');
+    transaction(db, () => {
+      db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(req.user.id, target.id);
+      db.prepare('DELETE FROM follows WHERE (follower_id = ? AND followee_id = ?) OR (follower_id = ? AND followee_id = ?)')
+        .run(req.user.id, target.id, target.id, req.user.id);
+    });
+    res.json({ blockedByMe: true });
+  });
+
+  app.delete('/api/users/:username/block', requireAuth, (req, res) => {
+    const target = getUserOr404(req.params.username);
+    db.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?').run(req.user.id, target.id);
+    res.json({ blockedByMe: false });
+  });
+
+  // 管理員：查看被檢舉的貼文（App Store 要求開發者處理檢舉）
+  app.get('/api/admin/reports', requireAuth, (req, res) => {
+    if (!isAdmin(req.user)) throw new HttpError(403, '需要管理員權限');
+    const rows = db.prepare(
+      `SELECT p.*, COUNT(r.reporter_id) AS report_count, GROUP_CONCAT(DISTINCT r.reason) AS reasons
+       FROM reports r JOIN posts p ON p.id = r.post_id
+       GROUP BY p.id ORDER BY report_count DESC, p.id DESC LIMIT 100`,
+    ).all();
+    res.json({
+      reports: rows.map((r) => ({
+        post: serializePost(r, req.user),
+        reportCount: r.report_count,
+        reasons: r.reasons.split(','),
+        hidden: Boolean(r.hidden),
+      })),
+    });
+  });
+
+  // 管理員：檢舉不成立時恢復貼文
+  app.post('/api/admin/posts/:id/restore', requireAuth, (req, res) => {
+    if (!isAdmin(req.user)) throw new HttpError(403, '需要管理員權限');
+    const post = getPostOr404(req.params.id, req.user);
+    transaction(db, () => {
+      db.prepare('DELETE FROM reports WHERE post_id = ?').run(post.id);
+      db.prepare('UPDATE posts SET hidden = 0 WHERE id = ?').run(post.id);
+    });
+    res.json({ ok: true });
+  });
+
   // 熱門 AI 工具標籤（探索頁）
   app.get('/api/tags', (_req, res) => {
     const tags = db.prepare(
-      'SELECT name, COUNT(*) AS count FROM post_ai_tools GROUP BY name COLLATE NOCASE ORDER BY count DESC, name LIMIT 30',
+      `SELECT t.name, COUNT(*) AS count FROM post_ai_tools t JOIN posts p ON p.id = t.post_id
+       WHERE p.hidden = 0 GROUP BY t.name ORDER BY count DESC, t.name LIMIT 30`,
     ).all();
     res.json({ tags: tags.map((t) => ({ name: t.name, count: t.count })) });
   });
