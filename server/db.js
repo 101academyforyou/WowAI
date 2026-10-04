@@ -100,6 +100,10 @@ export function openDatabase(file) {
     // 大頭貼檔名（存在 uploads 資料夾），空字串代表沒有
     db.exec("ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''");
   }
+  if (!userColumns.includes('contacts')) {
+    // 「聯繫我」的社群／通訊方式，JSON 物件，例如 {"instagram":"amy"}
+    db.exec("ALTER TABLE users ADD COLUMN contacts TEXT NOT NULL DEFAULT '{}'");
+  }
   // 舊版的「愛心」改成 Cool 票
   if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'likes'").get()) {
     transaction(db, () => {

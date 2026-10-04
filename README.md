@@ -20,7 +20,8 @@
 - **Cool／Not Cool 投票**：每人每則一票，可以改票或取消；取代傳統的「愛心」
 - **互動**：留言、追蹤、分享連結
 - **科技風介面**：深色底、霓虹青色、等寬字體
-- **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案
+- **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案、大頭貼
+- **聯繫我**：在個人頁放上 Facebook、Instagram、Threads、LINE、Email、X、個人網站；填帳號或網址都可以，伺服器會驗證並轉成正確連結
 - **社群安全**（App Store 規定）：註冊需同意使用條款、檢舉貼文、封鎖使用者、在 App 內刪除帳號；被 3 人檢舉的貼文自動隱藏，管理員可審查
 - 網站可以在手機瀏覽器「加入主畫面」當成 App 使用；每則貼文都有自己的網址（例如 `/post/12`），可以直接分享
 
@@ -74,7 +75,8 @@ test/        API 測試（node:test）
 | 方法 | 路徑 | 說明 |
 | --- | --- | --- |
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
-| GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱與自我介紹／刪除帳號（需密碼） |
+| GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（需密碼） |
+| PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
 | GET | `/api/posts?feed=following&tag=Claude&before=<id>` | 動態牆（分頁） |
 | POST | `/api/posts` | 分享（multipart，`media` 欄位至少一個檔案） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |

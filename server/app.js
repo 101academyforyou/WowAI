@@ -5,6 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import { transaction } from './db.js';
 import { sniffMedia, MEDIA_TYPES } from './media.js';
+import { cleanContacts, serializeContacts } from './contacts.js';
 
 const MAX_MEDIA_PER_POST = 10;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -442,6 +443,7 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
       user: {
         ...publicUser(user),
         bio: user.bio,
+        contacts: serializeContacts(user.contacts),
         postCount: posts.length,
         followerCount: count('SELECT COUNT(*) AS n FROM follows WHERE followee_id = ?'),
         followingCount: count('SELECT COUNT(*) AS n FROM follows WHERE follower_id = ?'),
@@ -457,7 +459,10 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
   app.patch('/api/me', requireAuth, (req, res) => {
     const displayName = cleanText(req.body?.displayName, { max: 50, field: '名稱', required: true });
     const bio = cleanText(req.body?.bio, { max: 300, field: '自我介紹' });
-    db.prepare('UPDATE users SET display_name = ?, bio = ? WHERE id = ?').run(displayName, bio, req.user.id);
+    // 沒送 contacts 就保留原本的
+    const contacts = cleanContacts(req.body?.contacts);
+    db.prepare('UPDATE users SET display_name = ?, bio = ?, contacts = ? WHERE id = ?')
+      .run(displayName, bio, contacts ? JSON.stringify(contacts) : req.user.contacts, req.user.id);
     res.json({ user: publicUser(q.userById.get(req.user.id)) });
   });
 

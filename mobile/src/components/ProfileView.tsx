@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { api, type Post, type Profile } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { contactField } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
 import { PostGrid } from './PostGrid';
 import { Avatar, Button, Empty, Loading, confirmAction, notify } from './ui';
@@ -85,6 +87,28 @@ export function ProfileView({ username }: { username: string }) {
         <Text style={{ color: c.muted, fontFamily: fonts.mono }}>@{user.username}</Text>
         {user.bio ? <Text style={{ color: c.text, marginTop: 6, lineHeight: 21 }}>{user.bio}</Text> : null}
       </View>
+      {user.contacts.length > 0 && !user.blockedByMe ? (
+        <View style={styles.contacts}>
+          <Text style={[styles.contactsTitle, { color: c.muted }]}>{'// 聯繫我'}</Text>
+          <View style={styles.contactRow}>
+            {user.contacts.map((ct) => {
+              const field = contactField(ct.type);
+              return (
+                <Pressable
+                  key={ct.type}
+                  onPress={() => Linking.openURL(ct.url)}
+                  accessibilityRole="link"
+                  accessibilityLabel={`${ct.label}：${ct.value}`}
+                  style={({ pressed }) => [styles.contact, { borderColor: c.border, backgroundColor: c.surface, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Ionicons name={field.icon} size={17} color={field.color} />
+                  <Text style={[styles.contactLabel, { color: c.text }]}>{ct.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
       <View style={styles.actions}>
         {isMe ? (
           <Button title="編輯個人檔案" onPress={() => router.push('/settings')} style={{ flex: 1 }} />
@@ -121,4 +145,9 @@ const styles = StyleSheet.create({
   info: { paddingHorizontal: 16, paddingBottom: 14 },
   name: { fontSize: 16, fontWeight: '800' },
   actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  contacts: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
+  contactsTitle: { fontFamily: fonts.mono, fontSize: 12, fontWeight: '700' },
+  contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  contact: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  contactLabel: { fontWeight: '700', fontSize: 13, fontFamily: fonts.mono },
 });
