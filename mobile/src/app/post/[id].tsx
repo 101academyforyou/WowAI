@@ -73,6 +73,8 @@ export default function PostScreen() {
           placeholderTextColor={c.muted}
           maxLength={1000}
           onFocus={() => { if (!user) router.push('/login'); }}
+          onSubmitEditing={send}
+          returnKeyType="send"
         />
         <Button title="留言" variant="primary" onPress={send} loading={sending} disabled={!body.trim()} />
       </View>

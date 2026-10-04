@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { API_URL } from '../lib/api';
+import { siteUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fonts, useColors } from '../lib/theme';
 import { Button, Logo, notify } from '../components/ui';
@@ -70,7 +70,7 @@ export default function LoginScreen() {
             <Ionicons name={acceptTerms ? 'checkbox' : 'square-outline'} size={22} color={acceptTerms ? c.accent : c.muted} />
             <Text style={{ color: c.text, flex: 1, lineHeight: 20 }}>
               我同意
-              <Text style={{ color: c.accent, fontWeight: '700' }} onPress={() => Linking.openURL(`${API_URL}/terms.html`)}> 使用條款 </Text>
+              <Text style={{ color: c.accent, fontWeight: '700' }} onPress={() => Linking.openURL(siteUrl('/terms.html'))}> 使用條款 </Text>
               ，並了解 YourWowAI 不容許任何令人反感的內容或騷擾行為。
             </Text>
           </Pressable>

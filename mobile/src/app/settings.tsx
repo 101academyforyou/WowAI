@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { API_URL, api, type Profile, type User } from '../lib/api';
+import { api, siteUrl, type Profile, type User } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fonts, useColors } from '../lib/theme';
 import { Button, Loading, confirmAction, notify } from '../components/ui';
@@ -72,8 +72,8 @@ export default function SettingsScreen() {
       <Button title="儲存" variant="primary" onPress={save} loading={saving} style={{ marginTop: 8 }} />
 
       <View style={[styles.section, { borderColor: c.border }]}>
-        <Button title="使用條款" onPress={() => Linking.openURL(`${API_URL}/terms.html`)} />
-        <Button title="隱私權政策" onPress={() => Linking.openURL(`${API_URL}/privacy.html`)} />
+        <Button title="使用條款" onPress={() => Linking.openURL(siteUrl('/terms.html'))} />
+        <Button title="隱私權政策" onPress={() => Linking.openURL(siteUrl('/privacy.html'))} />
         <Button title="登出" onPress={async () => { await logout(); router.dismissAll(); }} />
       </View>
 

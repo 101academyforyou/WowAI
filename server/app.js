@@ -81,13 +81,31 @@ function sessionToken(req) {
   return parseCookies(req.headers.cookie).sid;
 }
 
-export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
+// 開發時允許本機與區網的網址呼叫 API（例如 expo start --web 跑在 8081 埠）
+const DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})(:\d+)?$/;
+
+// webAppDir：App 用 expo export 編譯出的網頁版；publicDir：使用條款等靜態頁
+export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [] }) {
   const admins = new Set(adminUsernames.map((u) => u.toLowerCase()));
   fs.mkdirSync(uploadDir, { recursive: true });
 
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '100kb' }));
+
+  if (devCors) {
+    app.use((req, res, next) => {
+      const origin = req.headers.origin;
+      if (origin && DEV_ORIGIN.test(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        if (req.method === 'OPTIONS') return res.status(204).end();
+      }
+      next();
+    });
+  }
 
   const upload = multer({
     storage: multer.diskStorage({
@@ -509,8 +527,21 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     },
   }));
   app.use('/uploads', (_req, _res, next) => next(new HttpError(404, '找不到檔案')));
-  if (publicDir) {
-    app.use(express.static(publicDir));
+  if (webAppDir) app.use(express.static(webAppDir));
+  if (publicDir) app.use(express.static(publicDir));
+
+  // 網頁版是單頁應用：/post/3、/user/amy 這類網址都回傳 App 的 index.html，交給前端路由
+  if (webAppDir) {
+    const indexHtml = path.join(webAppDir, 'index.html');
+    app.use((req, res, next) => {
+      const isPage = (req.method === 'GET' || req.method === 'HEAD')
+        && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/') && !path.extname(req.path);
+      if (!isPage) return next();
+      if (fs.existsSync(indexHtml)) return res.sendFile(indexHtml);
+      res.status(503).type('html').send(
+        '<meta charset="utf-8"><p style="font-family:sans-serif">網頁版還沒有建置，請先執行 <code>npm run build:web</code>。</p>',
+      );
+    });
   }
 
   app.use('/api', (_req, _res, next) => next(new HttpError(404, '找不到這個 API')));

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { mediaUri, type Media } from '../lib/api';
-import { fonts, glow, useColors } from '../lib/theme';
+import { fonts, glow, useColors, useContentWidth } from '../lib/theme';
 
 function VideoItem({ uri, active, size }: { uri: string; active: boolean; size: { width: number; height: number } }) {
   const player = useVideoPlayer(uri, (p) => {
@@ -18,7 +18,7 @@ function VideoItem({ uri, active, size }: { uri: string; active: boolean; size: 
 }
 
 export function MediaCarousel({ media, onDoubleTap }: { media: Media[]; onDoubleTap?: () => void }) {
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const c = useColors();
   const size = { width, height: Math.round(width * 1.25) };
   const [index, setIndex] = useState(0);

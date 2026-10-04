@@ -30,7 +30,13 @@
       "package": "com.yourwowai.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "YourWowAI",
+      "shortName": "YourWowAI",
+      "lang": "zh-Hant",
+      "description": "YourWowAI：分享你用 AI 開發的工具，每則分享都附上截圖或影片。",
+      "themeColor": "#05070d",
+      "backgroundColor": "#05070d"
     },
     "plugins": [
       "expo-router",

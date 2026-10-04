@@ -12,6 +12,8 @@ const app = createApp({
   db: openDatabase(path.join(dataDir, 'wowai.db')),
   uploadDir: path.join(dataDir, 'uploads'),
   publicDir: path.join(root, 'public'),
+  webAppDir: path.join(root, 'web-dist'),
+  devCors: process.env.NODE_ENV !== 'production',
   adminUsernames: (process.env.ADMIN_USERNAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
 });
 

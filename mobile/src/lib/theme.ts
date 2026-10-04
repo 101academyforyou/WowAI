@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 
 // 科技風：深色底、霓虹青色主色、等寬字體
 const colors = {
@@ -26,6 +26,14 @@ export function useColors(): Colors {
 export const fonts = {
   mono: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, SFMono-Regular, Menlo, monospace' }),
 };
+
+// 網頁版在電腦上把 App 置中成一欄，避免圖片被拉得太大
+export const MAX_CONTENT_WIDTH = 600;
+
+export function useContentWidth() {
+  const { width } = useWindowDimensions();
+  return Platform.OS === 'web' ? Math.min(width, MAX_CONTENT_WIDTH) : width;
+}
 
 // 霓虹光暈（iOS 用 shadow 呈現）
 export function glow(color: string, radius = 10) {

@@ -1,4 +1,5 @@
-import { ActivityIndicator, ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ActionSheetIOS, Alert, Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { fonts, glow, useColors } from '../lib/theme';
 import type { User } from '../lib/api';
 
@@ -84,17 +85,73 @@ export function Loading() {
 }
 
 // iOS 用原生的 Action Sheet，其他平台退回 Alert / confirm
+// ---- 對話框：iPhone 用原生 Action Sheet／Alert，網頁版用 App 內的科技風對話框 ----
+
+type DialogOption = { label: string; destructive?: boolean };
+type DialogRequest = {
+  title: string;
+  message?: string;
+  options: DialogOption[];
+  cancelLabel: string | null;
+  resolve: (index: number | null) => void;
+};
+
+let showWebDialog: ((req: DialogRequest) => void) | null = null;
+
+function openWebDialog(req: Omit<DialogRequest, 'resolve'>): Promise<number | null> {
+  return new Promise((resolve) => {
+    if (showWebDialog) showWebDialog({ ...req, resolve });
+    else resolve(null);
+  });
+}
+
+// 放在 App 最外層，網頁版的對話框會顯示在這裡
+export function DialogHost() {
+  const c = useColors();
+  const [req, setReq] = useState<DialogRequest | null>(null);
+  useEffect(() => {
+    showWebDialog = setReq;
+    return () => {
+      showWebDialog = null;
+    };
+  }, []);
+  if (!req) return null;
+  const close = (index: number | null) => {
+    setReq(null);
+    req.resolve(index);
+  };
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={() => close(null)}>
+      <Pressable style={styles.overlay} onPress={() => close(null)} accessibilityLabel="關閉">
+        <Pressable style={[styles.dialog, { backgroundColor: c.surface, borderColor: c.border }, glow(c.accent, 18)]} onPress={() => {}}>
+          <Text style={[styles.dialogTitle, { color: c.text }]}>{req.title}</Text>
+          {req.message ? <Text style={{ color: c.muted, lineHeight: 21 }}>{req.message}</Text> : null}
+          <View style={styles.dialogButtons}>
+            {req.options.map((o, i) => (
+              <Button key={o.label} title={o.label} variant={o.destructive ? 'danger' : 'primary'} onPress={() => close(i)} />
+            ))}
+            {req.cancelLabel ? <Button title={req.cancelLabel} onPress={() => close(null)} /> : null}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export function chooseOption(title: string, options: string[], { destructiveIndex }: { destructiveIndex?: number } = {}): Promise<number | null> {
+  if (Platform.OS === 'web') {
+    return openWebDialog({
+      title,
+      options: options.map((label, i) => ({ label, destructive: i === destructiveIndex })),
+      cancelLabel: '取消',
+    });
+  }
   return new Promise((resolve) => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         { title, options: [...options, '取消'], cancelButtonIndex: options.length, destructiveButtonIndex: destructiveIndex },
         (i) => resolve(i === options.length ? null : i),
       );
-    } else if (Platform.OS === 'web') {
-      const answer = globalThis.prompt?.(`${title}\n${options.map((o, i) => `${i + 1}. ${o}`).join('\n')}`);
-      const i = Number(answer) - 1;
-      resolve(Number.isInteger(i) && i >= 0 && i < options.length ? i : null);
     } else {
       Alert.alert(title, undefined, [
         ...options.map((o, i) => ({ text: o, onPress: () => resolve(i) })),
@@ -105,7 +162,10 @@ export function chooseOption(title: string, options: string[], { destructiveInde
 }
 
 export function confirmAction(title: string, message: string, confirmText: string): Promise<boolean> {
-  if (Platform.OS === 'web') return Promise.resolve(Boolean(globalThis.confirm?.(`${title}\n${message}`)));
+  if (Platform.OS === 'web') {
+    return openWebDialog({ title, message, options: [{ label: confirmText, destructive: true }], cancelLabel: '取消' })
+      .then((i) => i === 0);
+  }
   return new Promise((resolve) => {
     Alert.alert(title, message, [
       { text: '取消', style: 'cancel', onPress: () => resolve(false) },
@@ -115,7 +175,7 @@ export function confirmAction(title: string, message: string, confirmText: strin
 }
 
 export function notify(title: string, message?: string) {
-  if (Platform.OS === 'web') globalThis.alert?.(message ? `${title}\n${message}` : title);
+  if (Platform.OS === 'web') openWebDialog({ title, message, options: [{ label: '好' }], cancelLabel: null });
   else Alert.alert(title, message);
 }
 
@@ -126,4 +186,8 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
   empty: { alignItems: 'center', paddingVertical: 64, paddingHorizontal: 24, gap: 10 },
   emptyTitle: { fontSize: 20, fontWeight: '800' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  dialog: { width: '100%', maxWidth: 380, borderRadius: 12, borderWidth: 1, padding: 20, gap: 10 },
+  dialogTitle: { fontSize: 17, fontWeight: '800', fontFamily: fonts.mono },
+  dialogButtons: { gap: 8, marginTop: 8 },
 });

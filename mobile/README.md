@@ -17,7 +17,7 @@
 
 4. iPhone 安裝 App Store 上的 **Expo Go**，用相機掃終端機上的 QR code 即可開啟
 
-其他指令：`npm run typecheck`、`npm run lint`、`npm run web`（在瀏覽器預覽）。
+其他指令：`npm run typecheck`、`npm run lint`、`npm run build:web`（把 App 編譯成網站，輸出到 `../web-dist`）。
 
 ## App 功能
 

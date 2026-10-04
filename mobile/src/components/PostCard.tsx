@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Linking, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { API_URL, REPORT_REASONS, api, timeAgo, type Post, type Vote } from '../lib/api';
+import { REPORT_REASONS, api, siteUrl, timeAgo, type Post, type Vote } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fonts, glow, useColors } from '../lib/theme';
 import { MediaCarousel } from './MediaCarousel';
@@ -80,6 +80,25 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
 
   const openPost = () => router.push(`/post/${post.id}`);
 
+  async function sharePost() {
+    const url = siteUrl(`/post/${post.id}`);
+    if (Platform.OS !== 'web') {
+      Share.share({ message: `${post.title} — 在 YourWowAI 上看這個 AI 工具：${url}` });
+      return;
+    }
+    // 網頁版：手機瀏覽器用系統分享，電腦則複製連結
+    const nav = globalThis.navigator;
+    try {
+      if (nav?.share) await nav.share({ title: post.title, url });
+      else {
+        await nav?.clipboard?.writeText(url);
+        notify('已複製連結', url);
+      }
+    } catch {
+      // 使用者取消分享
+    }
+  }
+
   return (
     <View style={[styles.card, { borderColor: c.border }]}>
       <View style={styles.header}>
@@ -105,7 +124,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         <Pressable
           hitSlop={8}
           accessibilityLabel="分享"
-          onPress={() => Share.share({ message: `${post.title} — 在 YourWowAI 上看這個 AI 工具：${API_URL}/#/p/${post.id}` })}
+          onPress={sharePost}
         >
           <Ionicons name="paper-plane-outline" size={24} color={c.text} />
         </Pressable>

@@ -10,7 +10,9 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
-    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "build:web": "npm --prefix mobile run build:web",
+    "web": "npm run build:web && npm start"
   },
   "dependencies": {
     "express": "^5.2.1",

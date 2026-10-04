@@ -1,8 +1,9 @@
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../lib/auth';
-import { fonts, useColors } from '../lib/theme';
-import { Loading } from '../components/ui';
+import { MAX_CONTENT_WIDTH, fonts, useColors } from '../lib/theme';
+import { DialogHost, Loading } from '../components/ui';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 function RootStack() {
   const { ready } = useAuth();
@@ -29,14 +30,31 @@ function RootStack() {
 
 export default function RootLayout() {
   const c = useColors();
+  const { width } = useWindowDimensions();
+  const wide = width > MAX_CONTENT_WIDTH + 2;
   // 科技風固定使用深色主題
   const theme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: c.bg, card: c.bg, border: c.border, primary: c.accent, text: c.text } };
   return (
     <ThemeProvider value={theme}>
       <AuthProvider>
-        <RootStack />
+        {Platform.OS === 'web' ? (
+          // 網頁版：電腦上置中成一欄
+          <View style={[styles.page, { backgroundColor: c.bg }]}>
+            <View style={[styles.column, wide && { borderColor: c.border, borderLeftWidth: 1, borderRightWidth: 1 }]}>
+              <RootStack />
+            </View>
+          </View>
+        ) : (
+          <RootStack />
+        )}
+        <DialogHost />
         <StatusBar style="light" />
       </AuthProvider>
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  page: { flex: 1, alignItems: 'center' },
+  column: { flex: 1, width: '100%', maxWidth: MAX_CONTENT_WIDTH + 2 },
+});

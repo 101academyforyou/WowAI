@@ -2,13 +2,29 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-// 開發時用 EXPO_PUBLIC_API_URL 指向自己的電腦（例如 http://192.168.1.10:3000），
-// 正式版則用 app.json 的 extra.apiUrl（必須是 https）。
-export const API_URL = (
-  process.env.EXPO_PUBLIC_API_URL ??
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
-  'http://localhost:3000'
-).replace(/\/$/, '');
+function resolveApiUrl() {
+  if (Platform.OS === 'web') {
+    // 網頁版和後端放在同一個網址，直接用相對路徑。
+    // 用 `npx expo start --web` 開發時網頁跑在 8081 埠，後端則在同一台電腦的 3000 埠。
+    const loc = globalThis.location;
+    return __DEV__ && loc ? `${loc.protocol}//${loc.hostname}:3000` : '';
+  }
+  // iPhone：開發時用 EXPO_PUBLIC_API_URL 指向自己的電腦（例如 http://192.168.1.10:3000），
+  // 正式版則用 app.json 的 extra.apiUrl（必須是 https）。
+  return (
+    process.env.EXPO_PUBLIC_API_URL ??
+    (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
+    'http://localhost:3000'
+  ).replace(/\/$/, '');
+}
+
+export const API_URL = resolveApiUrl();
+
+// 給人看的網址（分享連結、使用條款）：網頁版用目前網站，iPhone 用後端網址（後端也提供網頁版）
+export function siteUrl(path: string) {
+  const origin = Platform.OS === 'web' && globalThis.location ? globalThis.location.origin : API_URL;
+  return `${origin}${path}`;
+}
 
 export const MAX_MEDIA = 10;
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
