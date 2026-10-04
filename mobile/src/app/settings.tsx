@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { api, siteUrl, type Profile, type User } from '../lib/api';
+import { api, siteUrl, uploadAvatar, type Profile, type User } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fonts, useColors } from '../lib/theme';
-import { Button, Loading, confirmAction, notify } from '../components/ui';
+import { Avatar, Button, Loading, chooseOption, confirmAction, notify } from '../components/ui';
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -14,6 +18,7 @@ export default function SettingsScreen() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [password, setPassword] = useState('');
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -40,9 +45,53 @@ export default function SettingsScreen() {
     }
   }
 
+  async function changeAvatar() {
+    const source = Platform.OS === 'web' ? 0 : await chooseOption('更換大頭貼', ['從相簿選擇', '拍照']);
+    if (source === null) return;
+    // 裁成正方形、壓縮成 JPEG，上傳很快
+    const options: ImagePicker.ImagePickerOptions = {
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    };
+    if (source === 1) {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) return notify('需要相機權限', '請到「設定」>「YourWowAI」開啟相機權限。');
+    }
+    const result = source === 1 ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if ((asset.fileSize ?? 0) > MAX_AVATAR_BYTES) return notify('圖片太大', '大頭貼需在 5MB 以內。');
+    setAvatarBusy(true);
+    try {
+      const updated = await uploadAvatar({
+        uri: asset.uri,
+        name: asset.fileName ?? 'avatar.jpg',
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      });
+      setUser({ ...user!, ...updated });
+    } catch (err) {
+      notify('上傳失敗', (err as Error).message);
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function removeAvatar() {
+    if (!(await confirmAction('移除大頭貼？', '會改回顯示名稱的第一個字。', '移除'))) return;
+    try {
+      const res = await api<{ user: User }>('/api/me/avatar', { method: 'DELETE' });
+      setUser({ ...user!, ...res.user });
+    } catch (err) {
+      notify((err as Error).message);
+    }
+  }
+
   // App Store 規定：可以註冊帳號的 App 必須能在 App 內刪除帳號
   async function removeAccount() {
-    const ok = await confirmAction('永久刪除帳號？', '你的所有作品、留言、追蹤與按讚都會永久刪除，無法復原。', '刪除帳號');
+    const ok = await confirmAction('永久刪除帳號？', '你的所有作品、留言、追蹤、投票與大頭貼都會永久刪除，無法復原。', '刪除帳號');
     if (!ok) return;
     try {
       await deleteAccount(password);
@@ -57,6 +106,19 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <View style={styles.avatarSection}>
+        <Pressable onPress={changeAvatar} disabled={avatarBusy} accessibilityRole="button" accessibilityLabel="更換大頭貼">
+          <Avatar user={user} size={96} />
+          <View style={[styles.avatarBadge, { backgroundColor: c.accent, borderColor: c.bg }]}>
+            {avatarBusy ? <ActivityIndicator size="small" color={c.accentText} /> : <Ionicons name="camera" size={16} color={c.accentText} />}
+          </View>
+        </Pressable>
+        <View style={styles.avatarButtons}>
+          <Button title={user.avatarUrl ? '更換大頭貼' : '上傳大頭貼'} onPress={changeAvatar} loading={avatarBusy} />
+          {user.avatarUrl ? <Button title="移除" variant="danger" onPress={removeAvatar} disabled={avatarBusy} /> : null}
+        </View>
+      </View>
+
       <Text style={[styles.label, { color: c.text }]}>名稱</Text>
       <TextInput style={inputStyle} value={displayName} onChangeText={setDisplayName} maxLength={50} />
       <Text style={[styles.label, { color: c.text }]}>自我介紹</Text>
@@ -97,6 +159,9 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   page: { padding: 16, gap: 8, paddingBottom: 48 },
+  avatarSection: { alignItems: 'center', gap: 14, paddingVertical: 8 },
+  avatarBadge: { position: 'absolute', right: 0, bottom: 0, width: 30, height: 30, borderRadius: 15, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  avatarButtons: { flexDirection: 'row', gap: 8 },
   label: { fontWeight: '700', marginTop: 8, fontFamily: fonts.mono, fontSize: 13 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   section: { marginTop: 28, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ActionSheetIOS, Alert, Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { fonts, glow, useColors } from '../lib/theme';
-import type { User } from '../lib/api';
+import { Image } from 'expo-image';
+import { mediaUri, type User } from '../lib/api';
 
 export function Button({
   title, onPress, variant = 'secondary', disabled, loading, style,
@@ -34,8 +35,19 @@ export function Button({
   );
 }
 
-export function Avatar({ user, size = 34 }: { user: Pick<User, 'username' | 'displayName'>; size?: number }) {
+export function Avatar({ user, size = 34 }: { user: Pick<User, 'username' | 'displayName' | 'avatarUrl'>; size?: number }) {
   const c = useColors();
+  const circle = { width: size, height: size, borderRadius: size / 2 };
+  if (user.avatarUrl) {
+    return (
+      <Image
+        source={{ uri: mediaUri(user.avatarUrl) }}
+        style={[circle, styles.avatar, { borderColor: c.accent, backgroundColor: c.surface2 }]}
+        contentFit="cover"
+        accessibilityLabel={`${user.username} 的大頭貼`}
+      />
+    );
+  }
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: c.surface2, borderColor: c.accent }]}>
       <Text style={{ color: c.accent, fontWeight: '700', fontSize: size * 0.42, fontFamily: fonts.mono }}>

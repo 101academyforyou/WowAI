@@ -29,7 +29,7 @@ export function siteUrl(path: string) {
 export const MAX_MEDIA = 10;
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
-export type User = { id: number; username: string; displayName: string; isAdmin?: boolean };
+export type User = { id: number; username: string; displayName: string; avatarUrl?: string | null; isAdmin?: boolean };
 export type Media = { url: string; kind: 'image' | 'video' };
 export type Post = {
   id: number;
@@ -121,6 +121,30 @@ export function mediaUri(url: string) {
 
 export type PickedMedia = { uri: string; kind: 'image' | 'video'; name: string; mimeType: string };
 
+async function appendFile(form: FormData, field: string, m: Pick<PickedMedia, 'uri' | 'name' | 'mimeType'>) {
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(m.uri)).blob();
+    form.append(field, blob, m.name);
+  } else {
+    // React Native 的 FormData 接受 { uri, name, type } 物件
+    form.append(field, { uri: m.uri, name: m.name, type: m.mimeType } as unknown as Blob);
+  }
+}
+
+export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mimeType'>): Promise<User> {
+  const form = new FormData();
+  await appendFile(form, 'avatar', file);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/me/avatar`, { method: 'PUT', headers: authHeaders(), body: form });
+  } catch {
+    throw new ApiError('無法連線到伺服器，請檢查網路', 0);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data.error || '上傳失敗，請再試一次', res.status);
+  return data.user;
+}
+
 // 用 XMLHttpRequest 上傳，才能顯示上傳進度（影片可能很大）
 export async function uploadPost(
   fields: { title: string; description: string; toolUrl: string; aiTools: string },
@@ -129,15 +153,7 @@ export async function uploadPost(
 ): Promise<Post> {
   const form = new FormData();
   Object.entries(fields).forEach(([k, v]) => form.append(k, v));
-  for (const m of media) {
-    if (Platform.OS === 'web') {
-      const blob = await (await fetch(m.uri)).blob();
-      form.append('media', blob, m.name);
-    } else {
-      // React Native 的 FormData 接受 { uri, name, type } 物件
-      form.append('media', { uri: m.uri, name: m.name, type: m.mimeType } as unknown as Blob);
-    }
-  }
+  for (const m of media) await appendFile(form, 'media', m);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();

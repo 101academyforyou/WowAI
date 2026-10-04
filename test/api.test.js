@@ -267,3 +267,56 @@ test('舊資料庫的愛心會轉成 Cool 票', async () => {
   assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'likes'").get(), undefined);
   db.close();
 });
+
+test('大頭貼：上傳、更換會刪掉舊檔、拒絕非圖片、到處都看得到、可移除', async () => {
+  const cookie = await register('avatarist');
+  const putAvatar = (data, name = 'me.png') => {
+    const form = new FormData();
+    form.append('avatar', new Blob([data]), name);
+    return fetch(`${base}/api/me/avatar`, { method: 'PUT', headers: { cookie }, body: form });
+  };
+
+  const bad = await putAvatar(MP4, 'clip.mp4');
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /大頭貼只能是/);
+
+  const first = await (await putAvatar(PNG)).json();
+  assert.match(first.user.avatarUrl, /^\/uploads\/avatar-.+\.png$/);
+  assert.equal((await fetch(`${base}${first.user.avatarUrl}`)).status, 200);
+
+  const second = await (await putAvatar(PNG)).json();
+  assert.notEqual(second.user.avatarUrl, first.user.avatarUrl);
+  assert.equal((await fetch(`${base}${first.user.avatarUrl}`)).status, 404, '舊的大頭貼檔案要刪掉');
+
+  const { post } = await (await createPost(cookie, { title: '有大頭貼' }, [{ name: 'a.png', data: PNG }])).json();
+  assert.equal(post.author.avatarUrl, second.user.avatarUrl);
+  await fetch(`${base}/api/posts/${post.id}/comments`, {
+    method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: 'hi' }),
+  });
+  const { comments } = await (await fetch(`${base}/api/posts/${post.id}/comments`)).json();
+  assert.equal(comments[0].author.avatarUrl, second.user.avatarUrl);
+  const profile = await (await fetch(`${base}/api/users/avatarist`)).json();
+  assert.equal(profile.user.avatarUrl, second.user.avatarUrl);
+  const me = await (await fetch(`${base}/api/me`, { headers: { cookie } })).json();
+  assert.equal(me.user.avatarUrl, second.user.avatarUrl);
+
+  const removed = await (await fetch(`${base}/api/me/avatar`, { method: 'DELETE', headers: { cookie } })).json();
+  assert.equal(removed.user.avatarUrl, null);
+  assert.equal((await fetch(`${base}${second.user.avatarUrl}`)).status, 404);
+
+  // 刪除帳號時大頭貼一起刪
+  const third = await (await putAvatar(PNG)).json();
+  await fetch(`${base}/api/me`, {
+    method: 'DELETE', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'password123' }),
+  });
+  assert.equal((await fetch(`${base}${third.user.avatarUrl}`)).status, 404);
+});
+
+test('大頭貼不可超過 5MB', async () => {
+  const cookie = await register('bigavatar');
+  const form = new FormData();
+  form.append('avatar', new Blob([PNG, Buffer.alloc(5 * 1024 * 1024)]), 'big.png');
+  const res = await fetch(`${base}/api/me/avatar`, { method: 'PUT', headers: { cookie }, body: form });
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error, '大頭貼不可超過 5MB');
+});
