@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "YourWowAI",
+    "slug": "yourwowai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.yourwowai.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "zh_TW",
+        "CFBundleLocalizations": [
+          "zh_TW"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#05070d",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yourwowai.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "YourWowAI",
+      "shortName": "YourWowAI",
+      "lang": "zh-Hant",
+      "description": "YourWowAI：分享你用 AI 開發的工具，每則分享都附上截圖或影片。",
+      "themeColor": "#05070d",
+      "backgroundColor": "#05070d"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-video",
+      "expo-secure-store",
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "YourWowAI 需要存取你的相簿，才能讓你選擇要分享的截圖或影片。",
+          "cameraPermission": "YourWowAI 需要使用相機，才能讓你拍攝要分享的作品照片或影片。",
+          "microphonePermission": "YourWowAI 需要使用麥克風，才能在你錄製示範影片時收錄聲音。"
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#05070d"
+        }
+      ]
+    ],
+    "scheme": "yourwowai",
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiUrl": "https://api.your-domain.example"
+    },
+    "backgroundColor": "#05070d"
+  }
+}

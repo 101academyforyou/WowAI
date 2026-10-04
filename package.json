@@ -1,0 +1,21 @@
+{
+  "name": "yourwowai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "YourWowAI — 像 IG 一樣分享用 AI 開發的工具，每則分享都必須附上截圖或影片",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "build:web": "npm --prefix mobile run build:web",
+    "web": "npm run build:web && npm start"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "multer": "^2.0.2"
+  }
+}
