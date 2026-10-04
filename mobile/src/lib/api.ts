@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import type { Contact } from './contacts';
 
 // 開發時用 EXPO_PUBLIC_API_URL 指向自己的電腦（例如 http://192.168.1.10:3000），
 // 正式版則用 app.json 的 extra.apiUrl（必須是 https）。
@@ -38,6 +39,7 @@ export type Profile = User & {
   followingCount: number;
   followedByMe: boolean;
   blockedByMe: boolean;
+  contacts: Contact[];
 };
 
 export const REPORT_REASONS = [

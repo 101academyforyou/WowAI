@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { API_URL, api, uploadAvatar, type Profile, type User } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { CONTACT_FIELDS, type ContactType } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
 import { Avatar, Button, Loading, chooseOption, confirmAction, notify } from '../components/ui';
 
@@ -15,6 +16,7 @@ export default function SettingsScreen() {
   const { user, setUser, logout, deleteAccount } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
+  const [contacts, setContacts] = useState<Partial<Record<ContactType, string>>>({});
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [password, setPassword] = useState('');
@@ -25,6 +27,7 @@ export default function SettingsScreen() {
     api<{ user: Profile }>(`/api/users/${encodeURIComponent(user.username)}`).then(({ user: p }) => {
       setDisplayName(p.displayName);
       setBio(p.bio);
+      setContacts(Object.fromEntries(p.contacts.map((ct) => [ct.type, ct.value])));
       setLoaded(true);
     }).catch((err) => notify(err.message));
   }, [user]);
@@ -35,7 +38,7 @@ export default function SettingsScreen() {
   async function save() {
     setSaving(true);
     try {
-      const res = await api<{ user: User }>('/api/me', { method: 'PATCH', body: { displayName, bio } });
+      const res = await api<{ user: User }>('/api/me', { method: 'PATCH', body: { displayName, bio, contacts } });
       setUser({ ...user!, ...res.user });
       router.back();
     } catch (err) {
@@ -131,6 +134,27 @@ export default function SettingsScreen() {
         placeholder="介紹一下你自己、擅長用哪些 AI 工具…"
         placeholderTextColor={c.muted}
       />
+
+      <Text style={[styles.label, { color: c.text, marginTop: 20 }]}>聯繫我</Text>
+      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>填了的才會出現在你的個人頁，所有人都看得到。可以填帳號或貼上網址。</Text>
+      {CONTACT_FIELDS.map((f) => (
+        <View key={f.type} style={[styles.contactInput, { backgroundColor: c.surface, borderColor: c.border }]}>
+          <Ionicons name={f.icon} size={20} color={f.color} style={styles.contactIcon} />
+          <TextInput
+            style={[styles.contactText, { color: c.text }]}
+            value={contacts[f.type] ?? ''}
+            onChangeText={(v) => setContacts((prev) => ({ ...prev, [f.type]: v }))}
+            placeholder={`${f.label}：${f.placeholder}`}
+            placeholderTextColor={c.muted}
+            keyboardType={f.keyboardType}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={200}
+            accessibilityLabel={f.label}
+          />
+        </View>
+      ))}
+
       <Button title="儲存" variant="primary" onPress={save} loading={saving} style={{ marginTop: 8 }} />
 
       <View style={[styles.section, { borderColor: c.border }]}>
@@ -159,6 +183,9 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   page: { padding: 16, gap: 8, paddingBottom: 48 },
+  contactInput: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingLeft: 12 },
+  contactIcon: { width: 22 },
+  contactText: { flex: 1, paddingHorizontal: 10, paddingVertical: 12, fontSize: 15 },
   avatarSection: { alignItems: 'center', gap: 14, paddingVertical: 8 },
   avatarBadge: { position: 'absolute', right: 0, bottom: 0, width: 30, height: 30, borderRadius: 15, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
   avatarButtons: { flexDirection: 'row', gap: 8 },

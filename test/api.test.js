@@ -320,3 +320,60 @@ test('大頭貼不可超過 5MB', async () => {
   assert.equal(res.status, 400);
   assert.equal((await res.json()).error, '大頭貼不可超過 5MB');
 });
+
+test('聯繫我：帳號或網址都能轉成連結，格式錯誤會擋下', async () => {
+  const cookie = await register('contactme');
+  const patch = (contacts) => fetch(`${base}/api/me`, {
+    method: 'PATCH',
+    headers: { cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ displayName: 'Contact Me', bio: '', contacts }),
+  });
+
+  const ok = await patch({
+    facebook: 'https://www.facebook.com/amy.chen',
+    instagram: '@amy.codes',
+    threads: 'amy.codes',
+    line: 'amy123',
+    email: 'amy@example.com',
+    x: 'https://twitter.com/amy',
+    website: 'https://amy.dev',
+  });
+  assert.equal(ok.status, 200);
+  const { user } = await (await fetch(`${base}/api/users/contactme`)).json();
+  assert.deepEqual(user.contacts.map((c) => [c.type, c.url]), [
+    ['facebook', 'https://www.facebook.com/amy.chen'],
+    ['instagram', 'https://www.instagram.com/amy.codes'],
+    ['threads', 'https://www.threads.net/@amy.codes'],
+    ['line', 'https://line.me/ti/p/~amy123'],
+    ['email', 'mailto:amy@example.com'],
+    ['x', 'https://twitter.com/amy'],
+    ['website', 'https://amy.dev/'],
+  ]);
+  assert.equal(user.contacts[1].value, '@amy.codes', '保留使用者輸入的原文，方便編輯');
+
+  // LINE 官方帳號
+  await patch({ line: '@yourwowai' });
+  const line = (await (await fetch(`${base}/api/users/contactme`)).json()).user.contacts;
+  assert.deepEqual(line, [{ type: 'line', label: 'LINE', value: '@yourwowai', url: 'https://line.me/R/ti/p/%40yourwowai' }]);
+
+  // 錯誤格式
+  for (const [contacts, message] of [
+    [{ instagram: 'https://evil.example/amy' }, /Instagram/],
+    [{ email: 'not-an-email' }, /Email/],
+    [{ website: 'javascript:alert(1)' }, /個人網站/],
+    [{ facebook: 'amy chen' }, /Facebook/],
+    [{ tiktok: 'amy' }, /不支援/],
+  ]) {
+    const res = await patch(contacts);
+    assert.equal(res.status, 400, JSON.stringify(contacts));
+    assert.match((await res.json()).error, message);
+  }
+
+  // 沒送 contacts 時保留；送空字串就清除
+  await fetch(`${base}/api/me`, {
+    method: 'PATCH', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: 'X', bio: '' }),
+  });
+  assert.equal((await (await fetch(`${base}/api/users/contactme`)).json()).user.contacts.length, 1);
+  await patch({ line: '' });
+  assert.equal((await (await fetch(`${base}/api/users/contactme`)).json()).user.contacts.length, 0);
+});

@@ -70,6 +70,21 @@ function timeAgo(sqlDate) {
   return then.toLocaleDateString('zh-TW');
 }
 
+// 「聯繫我」的平台，順序與後端 server/contacts.js 一致
+const CONTACTS = [
+  { type: 'facebook', label: 'Facebook', mark: 'f', color: '#1877f2', placeholder: '帳號或 facebook.com/… 網址' },
+  { type: 'instagram', label: 'Instagram', mark: 'IG', color: '#e4405f', placeholder: '@帳號' },
+  { type: 'threads', label: 'Threads', mark: '@', color: '#e6f1ff', placeholder: '@帳號' },
+  { type: 'line', label: 'LINE', mark: 'L', color: '#06c755', placeholder: 'LINE ID 或 line.me 加好友網址' },
+  { type: 'email', label: 'Email', mark: '✉', color: '#00e5ff', placeholder: 'you@example.com' },
+  { type: 'x', label: 'X', mark: '𝕏', color: '#e6f1ff', placeholder: '@帳號' },
+  { type: 'website', label: '個人網站', mark: '⌂', color: '#7c4dff', placeholder: 'https://…' },
+];
+const contactMark = (type) => {
+  const c = CONTACTS.find((x) => x.type === type);
+  return h('span', { class: 'contact-mark', style: `color:${c.color}` }, c.mark);
+};
+
 function avatar(user, cls = '') {
   if (user.avatarUrl) return h('img', { class: `avatar ${cls}`, src: user.avatarUrl, alt: `${user.username} 的大頭貼` });
   return h('span', { class: `avatar ${cls}` }, (user.displayName || user.username).slice(0, 1));
@@ -391,6 +406,12 @@ async function profilePage(username) {
       h('h1', {}, user.displayName),
       h('div', { class: 'handle' }, `@${user.username}`),
       user.bio ? h('p', {}, user.bio) : null),
+    user.contacts.length > 0 && !user.blockedByMe ? h('div', { class: 'contacts' },
+      h('div', { class: 'contacts-title' }, '// 聯繫我'),
+      h('div', { class: 'contact-row' }, user.contacts.map((ct) => h('a', {
+        class: 'contact', href: ct.url, target: ct.type === 'email' ? null : '_blank', rel: 'noopener noreferrer nofollow',
+        title: ct.value,
+      }, contactMark(ct.type), ct.label)))) : null,
     actions,
     posts.length ? postGrid(posts) : h('div', { class: 'empty' },
       h('p', {}, user.blockedByMe ? '你已封鎖這位使用者' : isMe ? '你還沒有分享任何 AI 工具' : '還沒有作品'),
@@ -404,6 +425,12 @@ async function settingsPage() {
   const displayName = h('input', { class: 'input', value: user.displayName, maxlength: 50, required: true });
   const bio = h('textarea', { class: 'input', maxlength: 300, placeholder: '介紹一下你自己、擅長用哪些 AI 工具…' });
   bio.value = user.bio;
+  const contactValues = Object.fromEntries(user.contacts.map((ct) => [ct.type, ct.value]));
+  const contactInputs = CONTACTS.map((c) => h('input', {
+    class: 'input', name: c.type, value: contactValues[c.type] ?? '', maxlength: 200,
+    placeholder: `${c.label}：${c.placeholder}`, 'aria-label': c.label, autocapitalize: 'off', autocomplete: 'off',
+    type: c.type === 'email' ? 'email' : 'text',
+  }));
 
   // 大頭貼：選了就直接上傳
   const avatarBox = h('div', { class: 'avatar-edit' });
@@ -446,7 +473,8 @@ async function settingsPage() {
     onsubmit: async (e) => {
       e.preventDefault();
       try {
-        const res = await api('/api/me', { method: 'PATCH', body: { displayName: displayName.value, bio: bio.value } });
+        const contacts = Object.fromEntries(contactInputs.map((i) => [i.name, i.value]));
+        const res = await api('/api/me', { method: 'PATCH', body: { displayName: displayName.value, bio: bio.value, contacts } });
         state.me = res.user;
         toast('已更新');
         location.hash = '#/me';
@@ -457,6 +485,10 @@ async function settingsPage() {
   avatarBox,
   h('div', { class: 'field' }, h('label', {}, '名稱'), displayName),
   h('div', { class: 'field' }, h('label', {}, '自我介紹'), bio),
+  h('div', { class: 'field' },
+    h('label', {}, '聯繫我'),
+    h('small', {}, '填了的才會出現在你的個人頁，所有人都看得到。可以填帳號或貼上網址。'),
+    contactInputs.map((i) => h('div', { class: 'contact-input' }, contactMark(i.name), i))),
   h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, '儲存'),
   h('p', { class: 'post-meta', style: 'margin-top:32px' },
     h('a', { href: '/terms.html', target: '_blank' }, '使用條款'), '　·　',
