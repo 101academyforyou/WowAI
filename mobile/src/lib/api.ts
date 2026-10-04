@@ -58,6 +58,18 @@ export type Profile = User & {
   contacts: Contact[];
 };
 
+export type AppNotification = {
+  id: number;
+  type: 'cool' | 'comment' | 'follow' | 'new_post';
+  read: boolean;
+  createdAt: string;
+  actor: User;
+  postId: number | null;
+  thumbnailUrl: string | null;
+  message: string;
+  link: string;
+};
+
 export const REPORT_REASONS = [
   { value: 'spam', label: '垃圾訊息或詐騙' },
   { value: 'nudity', label: '色情或裸露內容' },

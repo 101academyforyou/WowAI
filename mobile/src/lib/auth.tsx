@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, loadToken, saveToken, type User } from './api';
+import { unregisterPush } from './push';
 
 type AuthState = {
   user: User | null;
@@ -46,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await unregisterPush();
     await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
     await saveToken(null);
     setUser(null);

@@ -21,6 +21,7 @@
 - **互動**：留言、追蹤、分享連結
 - **科技風介面**：深色底、霓虹青色、等寬字體
 - **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案、大頭貼
+- **通知與推播**：有人 Cool 你的作品、留言、追蹤你，或你追蹤的人發新作品時，「通知」分頁會亮紅點；iPhone 會跳出推播（點了直接打開那則貼文），網站開著時即時更新
 - **聯繫我**：在個人頁放上 Facebook、Instagram、Threads、LINE、Email、X、個人網站；填帳號或網址都可以，伺服器會驗證並轉成正確連結
 - **社群安全**（App Store 規定）：註冊需同意使用條款、檢舉貼文、封鎖使用者、在 App 內刪除帳號；被 3 人檢舉的貼文自動隱藏，管理員可審查
 - 網站可以在手機瀏覽器「加入主畫面」當成 App 使用；每則貼文都有自己的網址（例如 `/post/12`），可以直接分享
@@ -54,6 +55,7 @@ npm test             # 執行 API 測試
 | `DATA_DIR` | `./data` | SQLite 資料庫與上傳檔案的存放位置 |
 | `NODE_ENV` | — | 設為 `production` 時 cookie 會加上 `Secure`，並關閉開發用的跨來源存取 |
 | `ADMIN_USERNAMES` | — | 管理員帳號（逗號分隔），可查看檢舉、刪除或恢復貼文 |
+| `EXPO_ACCESS_TOKEN` | — | 選填。在 Expo 開啟「推播加強安全」時才需要 |
 
 ## 專案結構
 
@@ -89,6 +91,11 @@ test/        API 測試（node:test）
 | GET | `/api/admin/reports` | 管理員：被檢舉的貼文 |
 | POST | `/api/admin/posts/:id/restore` | 管理員：檢舉不成立，恢復貼文 |
 | GET | `/api/tags` | 熱門 AI 工具標籤 |
+| GET | `/api/notifications?before=<id>` | 通知列表（含未讀數） |
+| GET | `/api/notifications/unread-count` | 未讀通知數 |
+| POST | `/api/notifications/read` | 全部標為已讀 |
+| GET | `/api/notifications/stream` | 即時通知（Server-Sent Events，網站用） |
+| POST / DELETE | `/api/push-tokens` | 登記／移除 iPhone 的 Expo 推播位址 |
 
 登入方式：App 與網站都用 `Authorization: Bearer <token>`（iPhone 存在鑰匙圈，網站存在瀏覽器）；登入時也會設 HttpOnly cookie。
 

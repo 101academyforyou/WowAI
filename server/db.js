@@ -84,6 +84,26 @@ export function openDatabase(file) {
       PRIMARY KEY (blocker_id, blocked_id)
     );
 
+    -- 通知分頁：誰對你做了什麼（cool、comment、follow、new_post）
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      actor_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type       TEXT NOT NULL CHECK (type IN ('cool', 'comment', 'follow', 'new_post')),
+      post_id    INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+      text       TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      read_at    TEXT
+    );
+
+    -- iPhone 的 Expo 推播位址，一個帳號可以有多台裝置
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      token      TEXT PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id DESC);
     CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id, id DESC);
     CREATE INDEX IF NOT EXISTS idx_media_post ON post_media(post_id, position);
     CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, id);

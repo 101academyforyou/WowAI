@@ -31,6 +31,21 @@
 - 登入權杖存在 iOS 鑰匙圈（SecureStore）
 - 深色模式
 
+### 開啟 iPhone 推播（只要做一次）
+
+推播需要一個 Expo 專案 ID。在 `mobile` 資料夾執行：
+
+```bash
+npx expo login              # 用你的 Expo 帳號
+npx eas-cli@latest init     # 建立專案，會自動把 projectId 寫進 app.json
+```
+
+完成後重新 `npx expo start`，用 Expo Go 打開 App、登入，App 會詢問「是否允許通知」，按**允許**。之後有人 Cool 你的作品、留言或追蹤你，iPhone 就會跳出通知，點了直接打開那則貼文。
+
+- 還沒做這一步也沒關係：「通知」分頁和紅點照常運作，只是 iPhone 不會跳出推播
+- 推播要在**實體 iPhone** 上測試，模擬器收不到
+- 正式上架用 `eas build` 時，EAS 會幫你設定 Apple 推播憑證（APNs），照著提示按 Yes 即可
+
 ### App Store 審查必備功能（已內建）
 
 Apple 對「使用者可發佈內容」的 App 有額外規定（審查準則 1.2、5.1.1(v)），以下都已完成：
