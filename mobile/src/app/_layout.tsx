@@ -1,8 +1,7 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
 import { AuthProvider, useAuth } from '../lib/auth';
-import { useColors } from '../lib/theme';
+import { fonts, useColors } from '../lib/theme';
 import { Loading } from '../components/ui';
 
 function RootStack() {
@@ -15,6 +14,7 @@ function RootStack() {
         headerBackButtonDisplayMode: 'minimal',
         headerTintColor: c.text,
         headerStyle: { backgroundColor: c.bg },
+        headerTitleStyle: { fontFamily: fonts.mono, fontWeight: '700' },
         contentStyle: { backgroundColor: c.bg },
       }}
     >
@@ -28,12 +28,14 @@ function RootStack() {
 }
 
 export default function RootLayout() {
-  const scheme = useColorScheme();
+  const c = useColors();
+  // 科技風固定使用深色主題
+  const theme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: c.bg, card: c.bg, border: c.border, primary: c.accent, text: c.text } };
   return (
-    <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={theme}>
       <AuthProvider>
         <RootStack />
-        <StatusBar style="auto" />
+        <StatusBar style="light" />
       </AuthProvider>
     </ThemeProvider>
   );

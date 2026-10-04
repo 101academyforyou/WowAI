@@ -3,7 +3,7 @@ import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-na
 import { router } from 'expo-router';
 import { API_URL, api, type Profile, type User } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useColors } from '../lib/theme';
+import { fonts, useColors } from '../lib/theme';
 import { Button, Loading, confirmAction, notify } from '../components/ui';
 
 export default function SettingsScreen() {
@@ -97,7 +97,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   page: { padding: 16, gap: 8, paddingBottom: 48 },
-  label: { fontWeight: '700', marginTop: 8 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  label: { fontWeight: '700', marginTop: 8, fontFamily: fonts.mono, fontSize: 13 },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   section: { marginTop: 28, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },
 });

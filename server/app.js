@@ -106,9 +106,12 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     postById: db.prepare('SELECT * FROM posts WHERE id = ?'),
     mediaForPost: db.prepare('SELECT filename, kind FROM post_media WHERE post_id = ? ORDER BY position'),
     toolsForPost: db.prepare('SELECT name FROM post_ai_tools WHERE post_id = ? ORDER BY rowid'),
-    likeCount: db.prepare('SELECT COUNT(*) AS n FROM likes WHERE post_id = ?'),
+    voteCounts: db.prepare(
+      `SELECT COALESCE(SUM(value = 1), 0) AS cool, COALESCE(SUM(value = -1), 0) AS notCool
+       FROM votes WHERE post_id = ?`,
+    ),
     commentCount: db.prepare('SELECT COUNT(*) AS n FROM comments WHERE post_id = ?'),
-    liked: db.prepare('SELECT 1 FROM likes WHERE user_id = ? AND post_id = ?'),
+    myVote: db.prepare('SELECT value FROM votes WHERE user_id = ? AND post_id = ?'),
     userById: db.prepare('SELECT id, username, display_name FROM users WHERE id = ?'),
     blocked: db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?'),
   };
@@ -144,6 +147,16 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     return { id: u.id, username: u.username, displayName: u.display_name };
   }
 
+  function voteState(postId, viewer) {
+    const { cool, notCool } = q.voteCounts.get(postId);
+    const mine = viewer ? q.myVote.get(viewer.id, postId)?.value : undefined;
+    return {
+      coolCount: cool,
+      notCoolCount: notCool,
+      myVote: mine === 1 ? 'cool' : mine === -1 ? 'notcool' : null,
+    };
+  }
+
   function serializePost(post, viewer) {
     return {
       id: post.id,
@@ -154,9 +167,8 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
       author: publicUser(q.userById.get(post.user_id)),
       media: q.mediaForPost.all(post.id).map((m) => ({ url: `/uploads/${m.filename}`, kind: m.kind })),
       aiTools: q.toolsForPost.all(post.id).map((t) => t.name),
-      likeCount: q.likeCount.get(post.id).n,
+      ...voteState(post.id, viewer),
       commentCount: q.commentCount.get(post.id).n,
-      likedByMe: viewer ? Boolean(q.liked.get(viewer.id, post.id)) : false,
     };
   }
 
@@ -281,7 +293,7 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     const files = req.files ?? [];
     const cleanup = () => files.forEach((f) => fs.rmSync(f.path, { force: true }));
     try {
-      // WowAI 的核心規則：分享一定要附上截圖或影片
+      // YourWowAI 的核心規則：分享一定要附上截圖或影片
       if (files.length === 0) throw new HttpError(400, '分享時一定要附上至少一張截圖或一段影片');
 
       const title = cleanText(req.body.title, { max: 80, field: '工具名稱', required: true });
@@ -339,16 +351,21 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     res.status(201).json({ ok: true });
   });
 
-  app.post('/api/posts/:id/like', requireAuth, (req, res) => {
+  // 投 Cool 或 Not Cool（再投另一種會改票）
+  app.put('/api/posts/:id/vote', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
-    db.prepare('INSERT OR IGNORE INTO likes (user_id, post_id) VALUES (?, ?)').run(req.user.id, post.id);
-    res.json({ likeCount: q.likeCount.get(post.id).n, likedByMe: true });
+    const value = { cool: 1, notcool: -1 }[req.body?.vote];
+    if (!value) throw new HttpError(400, '請選擇 Cool 或 Not Cool');
+    db.prepare(
+      'INSERT INTO votes (user_id, post_id, value) VALUES (?, ?, ?) ON CONFLICT (user_id, post_id) DO UPDATE SET value = excluded.value',
+    ).run(req.user.id, post.id, value);
+    res.json(voteState(post.id, req.user));
   });
 
-  app.delete('/api/posts/:id/like', requireAuth, (req, res) => {
+  app.delete('/api/posts/:id/vote', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
-    db.prepare('DELETE FROM likes WHERE user_id = ? AND post_id = ?').run(req.user.id, post.id);
-    res.json({ likeCount: q.likeCount.get(post.id).n, likedByMe: false });
+    db.prepare('DELETE FROM votes WHERE user_id = ? AND post_id = ?').run(req.user.id, post.id);
+    res.json(voteState(post.id, req.user));
   });
 
   app.get('/api/posts/:id/comments', (req, res) => {

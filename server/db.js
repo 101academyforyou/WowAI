@@ -47,9 +47,11 @@ export function openDatabase(file) {
       PRIMARY KEY (post_id, name)
     );
 
-    CREATE TABLE IF NOT EXISTS likes (
+    -- 每人對每則貼文最多一票：1 = Cool，-1 = Not Cool
+    CREATE TABLE IF NOT EXISTS votes (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      value   INTEGER NOT NULL CHECK (value IN (1, -1)),
       PRIMARY KEY (user_id, post_id)
     );
 
@@ -92,6 +94,13 @@ export function openDatabase(file) {
   const postColumns = db.prepare('PRAGMA table_info(posts)').all().map((c) => c.name);
   if (!postColumns.includes('hidden')) {
     db.exec('ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+  }
+  // 舊版的「愛心」改成 Cool 票
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'likes'").get()) {
+    transaction(db, () => {
+      db.exec('INSERT OR IGNORE INTO votes (user_id, post_id, value) SELECT user_id, post_id, 1 FROM likes');
+      db.exec('DROP TABLE likes');
+    });
   }
   return db;
 }

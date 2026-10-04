@@ -3,7 +3,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { router, useFocusEffect } from 'expo-router';
 import { api, type Post } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { useColors } from '../../lib/theme';
+import { fonts, useColors } from '../../lib/theme';
 import { PostCard } from '../../components/PostCard';
 import { Button, Empty, Loading, notify } from '../../components/ui';
 
@@ -48,8 +48,8 @@ export default function HomeScreen() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={[styles.tabs, { borderColor: c.border }]}>
         {(['all', 'following'] as const).map((f) => (
-          <Pressable key={f} onPress={() => selectFeed(f)} style={[styles.tab, feed === f && { borderColor: c.text }]}>
-            <Text style={{ color: feed === f ? c.text : c.muted, fontWeight: '700' }}>{f === 'all' ? '最新分享' : '追蹤中'}</Text>
+          <Pressable key={f} onPress={() => selectFeed(f)} style={[styles.tab, feed === f && { borderColor: c.accent }]}>
+            <Text style={{ color: feed === f ? c.accent : c.muted, fontWeight: '700', fontFamily: fonts.mono }}>{f === 'all' ? '最新分享' : '追蹤中'}</Text>
           </Pressable>
         ))}
       </View>

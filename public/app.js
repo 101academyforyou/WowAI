@@ -1,4 +1,4 @@
-// WowAI 前端：無需建置的單頁應用（hash 路由）
+// YourWowAI 前端：無需建置的單頁應用（hash 路由）
 const view = document.getElementById('view');
 const state = { me: null };
 
@@ -20,7 +20,8 @@ function h(tag, attrs = {}, ...children) {
 }
 
 const ICONS = {
-  heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9.2C1.6 7.2 4 4 7.4 4c2 0 3.6 1.1 4.6 2.7C13 5.1 14.6 4 16.6 4 20 4 22.4 7.2 21 10.8 19 15.6 12 20 12 20z"/></svg>',
+  cool: '<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  notcool: '<svg viewBox="0 0 24 24"><path d="M17 14V3M7 10V3h10l3 9-2 2h-5l1 6a2 2 0 0 1-4 0L7 14z"/></svg>',
   comment: '<svg viewBox="0 0 24 24"><path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.4A8.5 8.5 0 1 1 21 12z"/></svg>',
   link: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   share: '<svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>',
@@ -107,42 +108,54 @@ function carousel(media, onDoubleTap) {
     }, { passive: true });
   }
 
-  // 像 IG 一樣，雙擊圖片按讚
+  // 雙擊圖片 = Cool
   track.addEventListener('dblclick', (e) => {
     if (e.target.tagName === 'VIDEO') return;
-    wrap.append(h('div', { class: 'heart-burst', html: ICONS.heart, onanimationend: (ev) => ev.currentTarget.remove() }));
+    wrap.append(h('div', { class: 'cool-burst', onanimationend: (ev) => ev.currentTarget.remove() },
+      h('div', {}, icon('cool'), h('span', {}, 'COOL'))));
     onDoubleTap();
   });
   return parts;
 }
 
 function postCard(post, { full = false, onDeleted } = {}) {
-  const likeBtn = h('button', { 'aria-label': '讚', class: post.likedByMe ? 'liked' : '' }, icon('heart'));
-  const likes = h('div', { class: 'post-likes' });
-  const renderLikes = () => {
-    likeBtn.classList.toggle('liked', post.likedByMe);
-    likes.textContent = `${post.likeCount} 個讚`;
+  const voteBtns = {
+    cool: h('button', { class: 'vote cool', 'aria-label': 'Cool' }),
+    notcool: h('button', { class: 'vote notcool', 'aria-label': 'Not Cool' }),
   };
-  renderLikes();
+  const renderVotes = () => {
+    for (const [kind, btn] of Object.entries(voteBtns)) {
+      const active = post.myVote === kind;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+      btn.replaceChildren(icon(kind), h('span', { class: 'label' }, kind === 'cool' ? 'Cool' : 'Not Cool'),
+        h('span', { class: 'count' }, kind === 'cool' ? post.coolCount : post.notCoolCount));
+    }
+  };
+  renderVotes();
 
-  async function setLike(like) {
+  // 再按一次同一個會取消，按另一個會改票；先更新畫面再送出
+  async function vote(next) {
     if (!requireLogin()) return;
-    if (post.likedByMe === like) return;
-    post.likedByMe = like;
-    post.likeCount += like ? 1 : -1;
-    renderLikes();
+    if (post.myVote === next) return;
+    const prev = { coolCount: post.coolCount, notCoolCount: post.notCoolCount, myVote: post.myVote };
+    if (post.myVote) post[post.myVote === 'cool' ? 'coolCount' : 'notCoolCount'] -= 1;
+    if (next) post[next === 'cool' ? 'coolCount' : 'notCoolCount'] += 1;
+    post.myVote = next;
+    renderVotes();
     try {
-      const res = await api(`/api/posts/${post.id}/like`, { method: like ? 'POST' : 'DELETE' });
+      const res = await api(`/api/posts/${post.id}/vote`, next ? { method: 'PUT', body: { vote: next } } : { method: 'DELETE' });
       Object.assign(post, res);
-      renderLikes();
+      renderVotes();
     } catch (err) {
-      post.likedByMe = !like;
-      post.likeCount += like ? -1 : 1;
-      renderLikes();
+      Object.assign(post, prev);
+      renderVotes();
       toast(err.message, { error: true });
     }
   }
-  likeBtn.addEventListener('click', () => setLike(!post.likedByMe));
+  for (const [kind, btn] of Object.entries(voteBtns)) {
+    btn.addEventListener('click', () => vote(post.myVote === kind ? null : kind));
+  }
 
   const shareBtn = h('button', {
     'aria-label': '分享',
@@ -195,23 +208,23 @@ function postCard(post, { full = false, onDeleted } = {}) {
 
   const card = h('article', { class: 'post' },
     header,
-    carousel(post.media, () => setLike(true)),
+    carousel(post.media, () => vote('cool')),
     h('div', { class: 'post-actions' },
-      likeBtn,
-      h('a', { href: `#/p/${post.id}`, 'aria-label': '留言', style: 'display:grid;padding:4px' }, icon('comment')),
+      voteBtns.cool,
+      voteBtns.notcool,
+      h('a', { href: `#/p/${post.id}`, 'aria-label': '留言', class: 'icon-btn' }, icon('comment')),
       shareBtn,
-      post.toolUrl ? h('a', { class: 'btn btn-primary try', href: post.toolUrl, target: '_blank', rel: 'noopener noreferrer nofollow' },
-        icon('link'), '試用工具') : null,
     ),
     h('div', { class: 'post-body' },
-      likes,
       h('h2', { class: 'post-title' }, post.title),
       desc,
       post.aiTools.length ? h('div', { class: 'chips' },
-        h('span', { class: 'ai-label' }, '用 AI 打造：'),
+        h('span', { class: 'ai-label' }, 'built_with:'),
         post.aiTools.map((t) => h('a', { class: 'chip', href: `#/explore?tag=${encodeURIComponent(t)}` }, `#${t}`))) : null,
+      post.toolUrl ? h('a', { class: 'try', href: post.toolUrl, target: '_blank', rel: 'noopener noreferrer nofollow' },
+        '> 試用工具', icon('link')) : null,
       !full && post.commentCount
-        ? h('a', { class: 'post-meta', href: `#/p/${post.id}` }, `查看全部 ${post.commentCount} 則留言`)
+        ? h('a', { class: 'post-meta', href: `#/p/${post.id}` }, `// 查看全部 ${post.commentCount} 則留言`)
         : null,
     ),
   );
@@ -551,7 +564,7 @@ function loginPage(params) {
   const terms = h('input', { type: 'checkbox' });
   const termsField = h('label', { class: 'field', style: 'display:flex;gap:8px;align-items:center;font-size:14px' },
     terms, h('span', {}, '我同意 ', h('a', { href: '/terms.html', target: '_blank', style: 'color:var(--accent)' }, '使用條款'),
-      '，並了解 WowAI 不容許任何令人反感的內容或騷擾行為'));
+      '，並了解 YourWowAI 不容許任何令人反感的內容或騷擾行為'));
   const switchText = h('span');
   const switchBtn = h('button', { type: 'button' });
 
@@ -588,8 +601,8 @@ function loginPage(params) {
       }
     },
   },
-  h('span', { class: 'logo' }, 'Wow', h('span', {}, 'AI')),
-  h('p', { class: 'tagline' }, '分享你用 AI 打造的工具'),
+  h('span', { class: 'logo' }, 'YourWow', h('span', {}, 'AI'), h('i', {}, '_')),
+  h('p', { class: 'tagline' }, '// 分享你用 AI 打造的工具'),
   h('div', { class: 'field' }, username),
   nameField,
   h('div', { class: 'field' }, password),

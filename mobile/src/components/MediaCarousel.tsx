@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { mediaUri, type Media } from '../lib/api';
-import { useColors } from '../lib/theme';
+import { fonts, glow, useColors } from '../lib/theme';
 
 function VideoItem({ uri, active, size }: { uri: string; active: boolean; size: { width: number; height: number } }) {
   const player = useVideoPlayer(uri, (p) => {
@@ -23,17 +23,17 @@ export function MediaCarousel({ media, onDoubleTap }: { media: Media[]; onDouble
   const size = { width, height: Math.round(width * 1.25) };
   const [index, setIndex] = useState(0);
   const lastTap = useRef(0);
-  const [heart] = useState(() => new Animated.Value(0));
+  const [burst] = useState(() => new Animated.Value(0));
 
-  // 像 IG 一樣雙擊圖片按讚
+  // 雙擊圖片 = Cool
   function handleTap() {
     const now = Date.now();
     if (now - lastTap.current < 300) {
       onDoubleTap?.();
-      heart.setValue(0);
+      burst.setValue(0);
       Animated.sequence([
-        Animated.spring(heart, { toValue: 1, useNativeDriver: true }),
-        Animated.timing(heart, { toValue: 0, duration: 300, delay: 300, useNativeDriver: true }),
+        Animated.spring(burst, { toValue: 1, useNativeDriver: true }),
+        Animated.timing(burst, { toValue: 0, duration: 300, delay: 300, useNativeDriver: true }),
       ]).start();
     }
     lastTap.current = now;
@@ -62,8 +62,11 @@ export function MediaCarousel({ media, onDoubleTap }: { media: Media[]; onDouble
           )
         }
       />
-      <Animated.View pointerEvents="none" style={[styles.heart, { opacity: heart, transform: [{ scale: heart }] }]}>
-        <Ionicons name="heart" size={96} color="#fff" />
+      <Animated.View pointerEvents="none" style={[styles.burst, { opacity: burst, transform: [{ scale: burst }] }]}>
+        <View style={[styles.burstBadge, { borderColor: c.cool }, glow(c.cool, 24)]}>
+          <Ionicons name="flash" size={64} color={c.cool} />
+          <Text style={[styles.burstText, { color: c.cool }]}>COOL</Text>
+        </View>
       </Animated.View>
       {media.length > 1 ? (
         <>
@@ -83,9 +86,11 @@ export function MediaCarousel({ media, onDoubleTap }: { media: Media[]; onDouble
 
 const styles = StyleSheet.create({
   black: { backgroundColor: '#000' },
-  heart: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  counter: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2 },
+  burst: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  burstBadge: { alignItems: 'center', paddingHorizontal: 28, paddingVertical: 16, borderRadius: 16, borderWidth: 2, backgroundColor: 'rgba(5,7,13,0.75)' },
+  burstText: { fontSize: 22, fontWeight: '900', letterSpacing: 4, fontFamily: fonts.mono },
+  counter: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(5,7,13,0.75)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 2 },
   counterText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 4, paddingTop: 8 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot: { width: 14, height: 3, borderRadius: 2 },
 });

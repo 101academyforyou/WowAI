@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "WowAI",
-    "slug": "wowai",
+    "name": "YourWowAI",
+    "slug": "yourwowai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.wowai.app",
+      "bundleIdentifier": "com.yourwowai.app",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -21,13 +21,13 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0b0b10",
+        "backgroundColor": "#05070d",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.wowai.app"
+      "package": "com.yourwowai.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -40,9 +40,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "WowAI 需要存取你的相簿，才能讓你選擇要分享的截圖或影片。",
-          "cameraPermission": "WowAI 需要使用相機，才能讓你拍攝要分享的作品照片或影片。",
-          "microphonePermission": "WowAI 需要使用麥克風，才能在你錄製示範影片時收錄聲音。"
+          "photosPermission": "YourWowAI 需要存取你的相簿，才能讓你選擇要分享的截圖或影片。",
+          "cameraPermission": "YourWowAI 需要使用相機，才能讓你拍攝要分享的作品照片或影片。",
+          "microphonePermission": "YourWowAI 需要使用麥克風，才能在你錄製示範影片時收錄聲音。"
         }
       ],
       "expo-font",
@@ -51,19 +51,17 @@
         {
           "image": "./assets/splash-icon.png",
           "imageWidth": 160,
-          "backgroundColor": "#fafafa",
-          "dark": {
-            "backgroundColor": "#0b0b10"
-          }
+          "backgroundColor": "#05070d"
         }
       ]
     ],
-    "scheme": "wowai",
+    "scheme": "yourwowai",
     "experiments": {
       "typedRoutes": false
     },
     "extra": {
       "apiUrl": "https://api.your-domain.example"
-    }
+    },
+    "backgroundColor": "#05070d"
   }
 }

@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Linking, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { API_URL, REPORT_REASONS, api, timeAgo, type Post } from '../lib/api';
+import { API_URL, REPORT_REASONS, api, timeAgo, type Post, type Vote } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useColors } from '../lib/theme';
+import { fonts, glow, useColors } from '../lib/theme';
 import { MediaCarousel } from './MediaCarousel';
 import { Avatar, Chip, chooseOption, confirmAction, notify } from './ui';
 
@@ -21,12 +21,18 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
     return false;
   }
 
-  async function setLike(like: boolean) {
-    if (!requireLogin() || post.likedByMe === like) return;
+  // 投票：再按一次同一個會取消，按另一個會改票。先樂觀更新畫面再送出
+  async function vote(next: Vote | null) {
+    if (!requireLogin() || post.myVote === next) return;
     const prev = post;
-    setPost({ ...post, likedByMe: like, likeCount: post.likeCount + (like ? 1 : -1) });
+    const count = (v: Vote) => post[v === 'cool' ? 'coolCount' : 'notCoolCount']
+      - (post.myVote === v ? 1 : 0) + (next === v ? 1 : 0);
+    setPost({ ...post, myVote: next, coolCount: count('cool'), notCoolCount: count('notcool') });
     try {
-      const res = await api<{ likeCount: number; likedByMe: boolean }>(`/api/posts/${post.id}/like`, { method: like ? 'POST' : 'DELETE' });
+      const res = await api<Pick<Post, 'coolCount' | 'notCoolCount' | 'myVote'>>(`/api/posts/${post.id}/vote`, {
+        method: next ? 'PUT' : 'DELETE',
+        body: next ? { vote: next } : undefined,
+      });
       setPost((p) => ({ ...p, ...res }));
     } catch (err) {
       setPost(prev);
@@ -87,48 +93,46 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         </Pressable>
       </View>
 
-      <MediaCarousel media={post.media} onDoubleTap={() => setLike(true)} />
+      <MediaCarousel media={post.media} onDoubleTap={() => vote('cool')} />
 
       <View style={styles.actions}>
-        <Pressable hitSlop={8} onPress={() => setLike(!post.likedByMe)} accessibilityLabel="讚">
-          <Ionicons name={post.likedByMe ? 'heart' : 'heart-outline'} size={28} color={post.likedByMe ? c.accent2 : c.text} />
-        </Pressable>
+        <VoteButton kind="cool" count={post.coolCount} active={post.myVote === 'cool'} onPress={() => vote(post.myVote === 'cool' ? null : 'cool')} />
+        <VoteButton kind="notcool" count={post.notCoolCount} active={post.myVote === 'notcool'} onPress={() => vote(post.myVote === 'notcool' ? null : 'notcool')} />
+        <View style={{ flex: 1 }} />
         <Pressable hitSlop={8} onPress={openPost} accessibilityLabel="留言">
           <Ionicons name="chatbubble-outline" size={25} color={c.text} />
         </Pressable>
         <Pressable
           hitSlop={8}
           accessibilityLabel="分享"
-          onPress={() => Share.share({ message: `${post.title} — 在 WowAI 上看這個 AI 工具：${API_URL}/#/p/${post.id}` })}
+          onPress={() => Share.share({ message: `${post.title} — 在 YourWowAI 上看這個 AI 工具：${API_URL}/#/p/${post.id}` })}
         >
-          <Ionicons name="paper-plane-outline" size={25} color={c.text} />
+          <Ionicons name="paper-plane-outline" size={24} color={c.text} />
         </Pressable>
-        <View style={{ flex: 1 }} />
-        {post.toolUrl ? (
-          <Pressable style={[styles.tryButton, { backgroundColor: c.accent }]} onPress={() => Linking.openURL(post.toolUrl)}>
-            <Ionicons name="open-outline" size={16} color="#fff" />
-            <Text style={styles.tryText}>試用工具</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       <View style={styles.body}>
-        <Text style={[styles.bold, { color: c.text }]}>{post.likeCount} 個讚</Text>
         <Text style={[styles.title, { color: c.text }]}>{post.title}</Text>
         {post.description ? (
           <Text style={{ color: c.text, lineHeight: 21 }} numberOfLines={full ? undefined : 3}>{post.description}</Text>
         ) : null}
         {post.aiTools.length ? (
           <View style={styles.chips}>
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>用 AI 打造：</Text>
+            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', fontFamily: fonts.mono }}>built_with:</Text>
             {post.aiTools.map((t) => (
               <Chip key={t} label={`#${t}`} onPress={() => router.push({ pathname: '/explore', params: { tag: t } })} />
             ))}
           </View>
         ) : null}
+        {post.toolUrl ? (
+          <Pressable style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]} onPress={() => Linking.openURL(post.toolUrl)}>
+            <Text style={[styles.tryText, { color: c.accent }]}>{'>'} 試用工具</Text>
+            <Ionicons name="open-outline" size={15} color={c.accent} />
+          </Pressable>
+        ) : null}
         {!full && post.commentCount ? (
           <Pressable onPress={openPost}>
-            <Text style={{ color: c.muted }}>查看全部 {post.commentCount} 則留言</Text>
+            <Text style={{ color: c.muted, fontFamily: fonts.mono, fontSize: 13 }}>{'//'} 查看全部 {post.commentCount} 則留言</Text>
           </Pressable>
         ) : null}
       </View>
@@ -136,16 +140,43 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
   );
 }
 
+function VoteButton({ kind, count, active, onPress }: { kind: Vote; count: number; active: boolean; onPress: () => void }) {
+  const c = useColors();
+  const color = kind === 'cool' ? c.cool : c.notCool;
+  const label = kind === 'cool' ? 'Cool' : 'Not Cool';
+  const icon = kind === 'cool' ? (active ? 'flash' : 'flash-outline') : (active ? 'thumbs-down' : 'thumbs-down-outline');
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}，${count} 票`}
+      accessibilityState={{ selected: active }}
+      style={({ pressed }) => [
+        styles.vote,
+        { borderColor: active ? color : c.border, backgroundColor: active ? `${color}22` : c.surface, opacity: pressed ? 0.7 : 1 },
+        active ? glow(color, 8) : null,
+      ]}
+    >
+      <Ionicons name={icon} size={17} color={active ? color : c.muted} />
+      <Text style={[styles.voteLabel, { color: active ? color : c.text }]}>{label}</Text>
+      <Text style={[styles.voteCount, { color: active ? color : c.muted }]}>{count}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  vote: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  voteLabel: { fontWeight: '800', fontSize: 14, fontFamily: fonts.mono },
+  voteCount: { fontWeight: '700', fontSize: 13, fontFamily: fonts.mono },
   card: { paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  username: { fontWeight: '700', fontSize: 15 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 14, paddingTop: 8 },
-  tryButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  tryText: { color: '#fff', fontWeight: '700' },
-  body: { paddingHorizontal: 14, paddingTop: 8, gap: 6 },
-  bold: { fontWeight: '700' },
+  username: { fontWeight: '700', fontSize: 15, fontFamily: fonts.mono },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10 },
+  tryButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, marginTop: 2 },
+  tryText: { fontWeight: '800', fontFamily: fonts.mono, fontSize: 13 },
+  body: { paddingHorizontal: 14, paddingTop: 10, gap: 6 },
   title: { fontSize: 17, fontWeight: '800' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
 });

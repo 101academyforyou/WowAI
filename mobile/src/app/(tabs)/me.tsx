@@ -7,7 +7,7 @@ export default function MeScreen() {
   const { user } = useAuth();
   if (!user) {
     return (
-      <Empty title="加入 WowAI" message="登入後就能分享你用 AI 打造的工具、追蹤其他創作者。">
+      <Empty title="加入 YourWowAI" message="登入後就能分享你用 AI 打造的工具、追蹤其他創作者。">
         <Button title="登入或註冊" variant="primary" onPress={() => router.push('/login')} />
       </Empty>
     );

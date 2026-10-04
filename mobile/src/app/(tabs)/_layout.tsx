@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router/js-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, type ColorValue } from 'react-native';
-import { useColors } from '../../lib/theme';
+import { type ColorValue } from 'react-native';
+import { fonts, useColors } from '../../lib/theme';
+import { Logo } from '../../components/ui';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -18,11 +19,12 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         tabBarShowLabel: false,
-        tabBarActiveTintColor: c.text,
+        tabBarActiveTintColor: c.accent,
         tabBarInactiveTintColor: c.muted,
         tabBarStyle: { backgroundColor: c.bg, borderTopColor: c.border },
         headerStyle: { backgroundColor: c.bg },
         headerTintColor: c.text,
+        headerTitleStyle: { fontFamily: fonts.mono, fontWeight: '700' },
         headerShadowVisible: false,
       }}
     >
@@ -31,11 +33,7 @@ export default function TabsLayout() {
         options={{
           title: '首頁',
           headerTitleAlign: 'left',
-          headerTitle: () => (
-            <Text style={{ fontSize: 26, fontWeight: '800', color: c.text }}>
-              Wow<Text style={{ color: c.accent2 }}>AI</Text>
-            </Text>
-          ),
+          headerTitle: () => <Logo size={24} />,
           tabBarIcon: tabIcon('home-outline', 'home'),
         }}
       />
@@ -44,7 +42,7 @@ export default function TabsLayout() {
         name="new"
         options={{
           title: '分享你的 AI 工具',
-          tabBarIcon: ({ focused }) => <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={30} color={c.accent2} />,
+          tabBarIcon: ({ focused }) => <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={32} color={c.accent} />,
         }}
       />
       <Tabs.Screen name="me" options={{ title: '個人', tabBarIcon: tabIcon('person-circle-outline', 'person-circle') }} />

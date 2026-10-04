@@ -1,6 +1,6 @@
-# WowAI iPhone App
+# YourWowAI iPhone App
 
-用 [Expo](https://expo.dev)（React Native）寫的原生 iPhone App，連到同一個 WowAI 後端（`../server`）。
+用 [Expo](https://expo.dev)（React Native）寫的原生 iPhone App，連到同一個 YourWowAI 後端（`../server`）。
 不需要 Mac：用 Expo 的雲端服務 EAS 就能編譯、簽章並上傳到 App Store。
 
 ## 在 iPhone 上試玩（開發）
@@ -21,7 +21,8 @@
 
 ## App 功能
 
-- 首頁動態牆：「最新分享」／「追蹤中」、下拉重新整理、無限捲動、左右滑多張截圖、**雙擊按讚**
+- 首頁動態牆：「最新分享」／「追蹤中」、下拉重新整理、無限捲動、左右滑多張截圖、**Cool／Not Cool 投票**（雙擊圖片 = Cool）
+- 科技風深色介面：霓虹青色、等寬字體、App 圖示與啟動畫面
 - 分享：從相簿選（可多選）、拍照或錄影；**沒有截圖或影片就不能分享**；顯示上傳進度
   - iPhone 的 HEIC 照片與 HEVC 影片會自動轉成 JPEG／H.264，所有裝置都能看
 - 探索：依 AI 工具標籤（#Claude、#Cursor…）瀏覽
@@ -34,7 +35,7 @@
 
 Apple 對「使用者可發佈內容」的 App 有額外規定（審查準則 1.2、5.1.1(v)），以下都已完成：
 
-| 規定 | WowAI 的做法 |
+| 規定 | YourWowAI 的做法 |
 | --- | --- |
 | 使用者必須同意條款，且條款明示不容許令人反感的內容 | 註冊時必須勾選同意[使用條款](../public/terms.html) |
 | 可以檢舉不當內容 | 每則貼文右上角「⋯」→ 檢舉，選擇原因 |
@@ -56,9 +57,9 @@ iPhone App 只能連 HTTPS。後端可以部署到 Render、Railway、Fly.io 或
 - 設定 `ADMIN_USERNAMES=你的帳號`，才能處理檢舉
 
 ### 3. 修改 App 設定（`mobile/app.json`）
-- `expo.extra.apiUrl`：改成後端網址，例如 `https://api.wowai.app`
-- `expo.ios.bundleIdentifier`：改成你自己的，例如 `com.你的名字.wowai`（上架後不能改）
-- 圖示 `assets/icon.png`（1024×1024、不可透明）已經是 WowAI 標誌，想換可以直接覆蓋
+- `expo.extra.apiUrl`：改成後端網址，例如 `https://api.yourwowai.app`
+- `expo.ios.bundleIdentifier`：改成你自己的，例如 `com.你的名字.yourwowai`（上架後不能改）
+- 圖示 `assets/icon.png`（1024×1024、不可透明）已經是 YourWowAI 標誌，想換可以直接覆蓋
 - 修改 `public/terms.html` 和 `public/privacy.html` 裡的聯絡信箱
 
 ### 4. 用 EAS 雲端編譯並上傳

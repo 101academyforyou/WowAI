@@ -1,4 +1,4 @@
-# WowAI
+# YourWowAI
 
 像 Instagram 一樣的社群 App，但專注於**分享用 AI 開發的工具**。
 每則分享都**必須附上截圖或影片**，讓大家一眼就看到你的作品長什麼樣子。
@@ -13,9 +13,11 @@
 - **一定要有截圖或影片**：每則最多 10 個檔案（JPG／PNG／GIF／WebP／MP4／MOV／WebM，單檔 100MB 內）
   - 前端：沒選檔案時無法按下「分享」
   - 後端：沒有媒體一律拒絕，並用檔案開頭的 magic bytes 驗證真的是圖片或影片（不信任副檔名）
-- **動態牆**：「最新分享」與「追蹤中」兩種，左右滑動看多張截圖，雙擊圖片按讚
+- **動態牆**：「最新分享」與「追蹤中」兩種，左右滑動看多張截圖，雙擊圖片 = Cool
 - **探索**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽作品
-- **互動**：按讚、留言、追蹤、分享連結
+- **Cool／Not Cool 投票**：每人每則一票，可以改票或取消；取代傳統的「愛心」
+- **互動**：留言、追蹤、分享連結
+- **科技風介面**：深色底、霓虹青色、等寬字體
 - **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案
 - **社群安全**（App Store 規定）：註冊需同意使用條款、檢舉貼文、封鎖使用者、在 App 內刪除帳號；被 3 人檢舉的貼文自動隱藏，管理員可審查
 - 手機優先的介面，支援深色模式，可「加入主畫面」當成 App 使用（PWA）
@@ -62,7 +64,7 @@ test/        API 測試（node:test）
 | GET | `/api/posts?feed=following&tag=Claude&before=<id>` | 動態牆（分頁） |
 | POST | `/api/posts` | 分享（multipart，`media` 欄位至少一個檔案） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |
-| POST / DELETE | `/api/posts/:id/like` | 按讚／取消讚 |
+| PUT / DELETE | `/api/posts/:id/vote` | 投票（`vote`: `cool` 或 `notcool`）／取消，回傳 `coolCount`、`notCoolCount`、`myVote` |
 | POST | `/api/posts/:id/report` | 檢舉（`reason`: spam、nudity、violence、harassment、ip、other） |
 | GET / POST | `/api/posts/:id/comments` | 留言 |
 | GET | `/api/users/:username` | 個人頁與作品 |

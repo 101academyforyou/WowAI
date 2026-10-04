@@ -1,8 +1,8 @@
 {
-  "name": "wowai",
+  "name": "yourwowai",
   "version": "0.1.0",
   "private": true,
-  "description": "WowAI — 像 IG 一樣分享用 AI 開發的工具，每則分享都必須附上截圖或影片",
+  "description": "YourWowAI — 像 IG 一樣分享用 AI 開發的工具，每則分享都必須附上截圖或影片",
   "type": "module",
   "engines": {
     "node": ">=22.5"

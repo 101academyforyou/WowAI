@@ -17,5 +17,5 @@ const app = createApp({
 
 const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {
-  console.log(`WowAI 已啟動：http://localhost:${port}`);
+  console.log(`YourWowAI 已啟動：http://localhost:${port}`);
 });

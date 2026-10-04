@@ -1,5 +1,5 @@
 import { ActivityIndicator, ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { useColors } from '../lib/theme';
+import { fonts, glow, useColors } from '../lib/theme';
 import type { User } from '../lib/api';
 
 export function Button({
@@ -13,8 +13,9 @@ export function Button({
   style?: ViewStyle;
 }) {
   const c = useColors();
-  const bg = variant === 'primary' ? c.accent : c.surface2;
-  const fg = variant === 'primary' ? '#fff' : variant === 'danger' ? c.danger : c.text;
+  const bg = variant === 'primary' ? c.accent : c.surface;
+  const fg = variant === 'primary' ? c.accentText : variant === 'danger' ? c.danger : c.text;
+  const border = variant === 'primary' ? c.accent : variant === 'danger' ? `${c.danger}88` : c.border;
   return (
     <Pressable
       accessibilityRole="button"
@@ -22,7 +23,8 @@ export function Button({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: bg, borderColor: variant === 'primary' ? bg : c.border, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
+        { backgroundColor: bg, borderColor: border, opacity: disabled ? 0.4 : pressed ? 0.8 : 1 },
+        variant === 'primary' && !disabled ? glow(c.accent) : null,
         style,
       ]}
     >
@@ -34,8 +36,8 @@ export function Button({
 export function Avatar({ user, size = 34 }: { user: Pick<User, 'username' | 'displayName'>; size?: number }) {
   const c = useColors();
   return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: c.accent2 }]}>
-      <Text style={{ color: '#fff', fontWeight: '700', fontSize: size * 0.42 }}>
+    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: c.surface2, borderColor: c.accent }]}>
+      <Text style={{ color: c.accent, fontWeight: '700', fontSize: size * 0.42, fontFamily: fonts.mono }}>
         {(user.displayName || user.username).slice(0, 1).toUpperCase()}
       </Text>
     </View>
@@ -47,9 +49,9 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.chip, { backgroundColor: active ? c.accent : `${c.accent}22` }]}
+      style={[styles.chip, { backgroundColor: active ? c.accent : `${c.accent}12`, borderColor: active ? c.accent : `${c.accent}55` }]}
     >
-      <Text style={{ color: active ? '#fff' : c.accent, fontWeight: '600', fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: active ? c.accentText : c.accent, fontWeight: '700', fontSize: 12, fontFamily: fonts.mono }}>{label}</Text>
     </Pressable>
   );
 }
@@ -58,10 +60,21 @@ export function Empty({ title, message, children }: { title?: string; message?: 
   const c = useColors();
   return (
     <View style={styles.empty}>
-      {title ? <Text style={[styles.emptyTitle, { color: c.text }]}>{title}</Text> : null}
+      {title ? <Text style={[styles.emptyTitle, { color: c.text, fontFamily: fonts.mono }]}>{title}</Text> : null}
       {message ? <Text style={{ color: c.muted, textAlign: 'center', lineHeight: 21 }}>{message}</Text> : null}
       {children}
     </View>
+  );
+}
+
+// YourWow + 霓虹青色的 AI + 閃爍游標
+export function Logo({ size = 26 }: { size?: number }) {
+  const c = useColors();
+  return (
+    <Text style={{ fontSize: size, fontWeight: '800', color: c.text, fontFamily: fonts.mono, letterSpacing: -0.5 }}>
+      YourWow<Text style={[{ color: c.accent }, { textShadowColor: c.accent, textShadowRadius: 12 }]}>AI</Text>
+      <Text style={{ color: c.accent2 }}>_</Text>
+    </Text>
   );
 }
 
@@ -107,10 +120,10 @@ export function notify(title: string, message?: string) {
 }
 
 const styles = StyleSheet.create({
-  button: { minHeight: 44, borderRadius: 10, borderWidth: 1, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { fontWeight: '700', fontSize: 15 },
-  avatar: { alignItems: 'center', justifyContent: 'center' },
-  chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  button: { minHeight: 44, borderRadius: 8, borderWidth: 1, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
+  avatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+  chip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
   empty: { alignItems: 'center', paddingVertical: 64, paddingHorizontal: 24, gap: 10 },
   emptyTitle: { fontSize: 20, fontWeight: '800' },
 });

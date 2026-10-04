@@ -24,10 +24,12 @@ export type Post = {
   author: User;
   media: Media[];
   aiTools: string[];
-  likeCount: number;
+  coolCount: number;
+  notCoolCount: number;
+  myVote: Vote | null;
   commentCount: number;
-  likedByMe: boolean;
 };
+export type Vote = 'cool' | 'notcool';
 export type Comment = { id: number; body: string; author: User };
 export type Profile = User & {
   bio: string;
@@ -48,7 +50,7 @@ export const REPORT_REASONS = [
 ] as const;
 
 // ---- 登入權杖：iPhone 存在鑰匙圈（SecureStore），網頁預覽時用 localStorage ----
-const TOKEN_KEY = 'wowai.token';
+const TOKEN_KEY = 'yourwowai.token';
 let token: string | null = null;
 
 export async function loadToken() {

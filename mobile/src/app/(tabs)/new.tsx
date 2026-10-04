@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { MAX_FILE_BYTES, MAX_MEDIA, uploadPost, type PickedMedia } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { useColors } from '../../lib/theme';
+import { fonts, useColors } from '../../lib/theme';
 import { Button, Empty, chooseOption, notify } from '../../components/ui';
 
 function toPicked(asset: ImagePicker.ImagePickerAsset, i: number): PickedMedia | null {
@@ -71,7 +71,7 @@ export default function NewPostScreen() {
       return;
     }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) return notify('需要相機權限', '請到「設定」>「WowAI」開啟相機權限。');
+    if (!permission.granted) return notify('需要相機權限', '請到「設定」>「YourWowAI」開啟相機權限。');
     addAssets(await ImagePicker.launchCameraAsync({
       ...common,
       mediaTypes: source === 1 ? ['images'] : ['videos'],
@@ -110,11 +110,11 @@ export default function NewPostScreen() {
           accessibilityLabel="加入截圖或影片"
         >
           <Ionicons name="images-outline" size={40} color={c.accent} />
-          <Text style={{ color: c.text, fontWeight: '800', fontSize: 16 }}>加入截圖或示範影片</Text>
+          <Text style={{ color: c.text, fontWeight: '800', fontSize: 16, fontFamily: fonts.mono }}>加入截圖或示範影片</Text>
           <Text style={{ color: c.muted, fontSize: 13 }}>必填 · 最多 {MAX_MEDIA} 個 · 每個 100MB 以內</Text>
         </Pressable>
 
-        <Text style={{ color: hasMedia ? c.success : c.accent2, fontWeight: '700', fontSize: 13 }}>
+        <Text style={{ color: hasMedia ? c.success : c.notCool, fontWeight: '700', fontSize: 13, fontFamily: fonts.mono }}>
           {hasMedia ? `✓ 已選擇 ${media.length} 個檔案` : '＊分享時一定要附上至少一張截圖或一段影片'}
         </Text>
 
@@ -200,12 +200,12 @@ export default function NewPostScreen() {
 
 const styles = StyleSheet.create({
   page: { padding: 16, gap: 8, paddingBottom: 48 },
-  picker: { alignItems: 'center', gap: 6, paddingVertical: 28, borderWidth: 2, borderStyle: 'dashed', borderRadius: 14 },
+  picker: { alignItems: 'center', gap: 6, paddingVertical: 28, borderWidth: 2, borderStyle: 'dashed', borderRadius: 10 },
   preview: { width: 104, height: 104, borderRadius: 10, overflow: 'hidden', backgroundColor: '#000' },
   videoPreview: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#2a1f4a' },
   kind: { position: 'absolute', left: 4, bottom: 4, color: '#fff', fontSize: 11, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' },
   remove: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
-  label: { fontWeight: '700', marginTop: 10 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  label: { fontWeight: '700', marginTop: 10, fontFamily: fonts.mono, fontSize: 13 },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   progress: { height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 8 },
 });

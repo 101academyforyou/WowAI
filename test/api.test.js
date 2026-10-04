@@ -14,7 +14,7 @@ let base;
 let tmpDir;
 
 before(async () => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wowai-test-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yourwowai-test-'));
   const app = createApp({
     db: openDatabase(':memory:'),
     uploadDir: path.join(tmpDir, 'uploads'),
@@ -79,7 +79,7 @@ test('未登入不能分享', async () => {
   assert.equal(res.status, 401);
 });
 
-test('完整流程：分享、動態牆、按讚、留言、追蹤', async () => {
+test('完整流程：分享、動態牆、Cool／Not Cool、留言、追蹤', async () => {
   const alice = await register('alice');
   const bob = await register('bob');
 
@@ -111,8 +111,20 @@ test('完整流程：分享、動態牆、按讚、留言、追蹤', async () =>
   const tagged = await (await fetch(`${base}/api/posts?tag=cursor`)).json();
   assert.ok(tagged.posts.some((p) => p.id === post.id));
 
-  const like = await (await fetch(`${base}/api/posts/${post.id}/like`, { method: 'POST', headers: { cookie: bob } })).json();
-  assert.deepEqual(like, { likeCount: 1, likedByMe: true });
+  const vote = (cookie, v) => fetch(`${base}/api/posts/${post.id}/vote`, {
+    method: v ? 'PUT' : 'DELETE',
+    headers: { cookie, 'Content-Type': 'application/json' },
+    body: v ? JSON.stringify({ vote: v }) : undefined,
+  }).then((r) => r.json());
+  assert.deepEqual(await vote(bob, 'cool'), { coolCount: 1, notCoolCount: 0, myVote: 'cool' });
+  assert.deepEqual(await vote(alice, 'notcool'), { coolCount: 1, notCoolCount: 1, myVote: 'notcool' });
+  // 改票：同一人只會有一票
+  assert.deepEqual(await vote(alice, 'cool'), { coolCount: 2, notCoolCount: 0, myVote: 'cool' });
+  assert.deepEqual(await vote(alice, null), { coolCount: 1, notCoolCount: 0, myVote: null });
+  assert.equal((await vote(bob, 'meh')).error, '請選擇 Cool 或 Not Cool');
+  const seen = await (await fetch(`${base}/api/posts/${post.id}`, { headers: { cookie: bob } })).json();
+  assert.equal(seen.post.myVote, 'cool');
+  assert.equal(seen.post.coolCount, 1);
 
   const comment = await fetch(`${base}/api/posts/${post.id}/comments`, {
     method: 'POST',
@@ -235,4 +247,23 @@ test('在 App 內刪除帳號，會一併刪除貼文與媒體檔', async () => 
   assert.equal((await fetch(`${base}/api/users/leaver`)).status, 404);
   assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 404);
   assert.equal((await fetch(`${base}${post.media[0].url}`)).status, 404);
+});
+
+test('舊資料庫的愛心會轉成 Cool 票', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const file = path.join(tmpDir, 'legacy.db');
+  const legacy = new DatabaseSync(file);
+  legacy.exec(`
+    CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, bio TEXT DEFAULT '', password_hash TEXT, created_at TEXT);
+    CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT, description TEXT DEFAULT '', tool_url TEXT DEFAULT '', created_at TEXT);
+    CREATE TABLE likes (user_id INTEGER, post_id INTEGER, PRIMARY KEY (user_id, post_id));
+    INSERT INTO users (id, username, display_name, password_hash) VALUES (1, 'old', 'old', 'x');
+    INSERT INTO posts (id, user_id, title) VALUES (1, 1, 'old post');
+    INSERT INTO likes VALUES (1, 1);
+  `);
+  legacy.close();
+  const db = openDatabase(file);
+  assert.deepEqual({ ...db.prepare('SELECT user_id, post_id, value FROM votes').get() }, { user_id: 1, post_id: 1, value: 1 });
+  assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'likes'").get(), undefined);
+  db.close();
 });

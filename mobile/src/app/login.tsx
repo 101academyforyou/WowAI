@@ -4,8 +4,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useColors } from '../lib/theme';
-import { Button, notify } from '../components/ui';
+import { fonts, useColors } from '../lib/theme';
+import { Button, Logo, notify } from '../components/ui';
 
 export default function LoginScreen() {
   const c = useColors();
@@ -37,8 +37,8 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.logo, { color: c.text }]}>Wow<Text style={{ color: c.accent2 }}>AI</Text></Text>
-        <Text style={{ color: c.muted, textAlign: 'center', marginBottom: 20 }}>分享你用 AI 打造的工具</Text>
+        <View style={styles.logo}><Logo size={38} /></View>
+        <Text style={{ color: c.muted, textAlign: 'center', marginBottom: 20, fontFamily: fonts.mono, fontSize: 13 }}>{'// 分享你用 AI 打造的工具'}</Text>
 
         <TextInput
           style={inputStyle}
@@ -71,7 +71,7 @@ export default function LoginScreen() {
             <Text style={{ color: c.text, flex: 1, lineHeight: 20 }}>
               我同意
               <Text style={{ color: c.accent, fontWeight: '700' }} onPress={() => Linking.openURL(`${API_URL}/terms.html`)}> 使用條款 </Text>
-              ，並了解 WowAI 不容許任何令人反感的內容或騷擾行為。
+              ，並了解 YourWowAI 不容許任何令人反感的內容或騷擾行為。
             </Text>
           </Pressable>
         ) : null}
@@ -91,8 +91,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   page: { padding: 24, paddingTop: 40, gap: 12 },
-  logo: { fontSize: 44, fontWeight: '800', textAlign: 'center' },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
+  logo: { alignItems: 'center' },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
   terms: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 4 },
   switch: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
 });

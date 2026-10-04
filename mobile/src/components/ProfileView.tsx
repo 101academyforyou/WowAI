@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { router, useFocusEffect } from 'expo-router';
 import { api, type Post, type Profile } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useColors } from '../lib/theme';
+import { fonts, useColors } from '../lib/theme';
 import { PostGrid } from './PostGrid';
 import { Avatar, Button, Empty, Loading, confirmAction, notify } from './ui';
 
@@ -74,7 +74,7 @@ export function ProfileView({ username }: { username: string }) {
             [user.followingCount, '追蹤中'],
           ].map(([n, label]) => (
             <View key={label} style={styles.stat}>
-              <Text style={[styles.statNumber, { color: c.text }]}>{n}</Text>
+              <Text style={[styles.statNumber, { color: c.accent, fontFamily: fonts.mono }]}>{n}</Text>
               <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
             </View>
           ))}
@@ -82,7 +82,7 @@ export function ProfileView({ username }: { username: string }) {
       </View>
       <View style={styles.info}>
         <Text style={[styles.name, { color: c.text }]}>{user.displayName}</Text>
-        <Text style={{ color: c.muted }}>@{user.username}</Text>
+        <Text style={{ color: c.muted, fontFamily: fonts.mono }}>@{user.username}</Text>
         {user.bio ? <Text style={{ color: c.text, marginTop: 6, lineHeight: 21 }}>{user.bio}</Text> : null}
       </View>
       <View style={styles.actions}>

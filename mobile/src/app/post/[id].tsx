@@ -83,5 +83,5 @@ export default function PostScreen() {
 const styles = StyleSheet.create({
   comment: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 8 },
   form: { flexDirection: 'row', gap: 8, padding: 10, paddingBottom: 28, borderTopWidth: StyleSheet.hairlineWidth },
-  input: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  input: { flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
 });
