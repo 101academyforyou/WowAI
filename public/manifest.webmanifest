@@ -1,0 +1,10 @@
+{
+  "name": "WowAI",
+  "short_name": "WowAI",
+  "description": "分享你用 AI 開發的工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0b10",
+  "theme_color": "#0b0b10",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
