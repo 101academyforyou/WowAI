@@ -377,3 +377,41 @@ test('聯繫我：帳號或網址都能轉成連結，格式錯誤會擋下', as
   await patch({ line: '' });
   assert.equal((await (await fetch(`${base}/api/users/contactme`)).json()).user.contacts.length, 0);
 });
+
+test('搜尋：作品名稱、介紹、AI 標籤、作者都搜得到；多個關鍵字要同時符合；% 不是萬用字元', async () => {
+  const kai = await register('kai_search');
+  await fetch(`${base}/api/me`, {
+    method: 'PATCH', headers: { cookie: kai, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ displayName: '阿凱', bio: '' }),
+  });
+  const mk = async (fields) => (await (await createPost(kai, fields, [{ name: 'a.png', data: PNG }])).json()).post;
+  const invoice = await mk({ title: 'AI 發票記帳', description: '拍照自動分類', aiTools: 'Claude, Cursor' });
+  const resume = await mk({ title: '履歷產生器', description: '100% 用 AI 寫的', aiTools: 'v0' });
+  const other = await register('someone_else');
+  const lonely = (await (await createPost(other, { title: '天氣小工具' }, [{ name: 'a.png', data: PNG }])).json()).post;
+  const noUnderscore = await register('plainuser');
+  await createPost(noUnderscore, { title: '沒有底線' }, [{ name: 'a.png', data: PNG }]);
+
+  const search = async (q, cookie = '') => (await (await fetch(`${base}/api/posts?q=${encodeURIComponent(q)}`, { headers: { cookie } })).json())
+    .posts.map((p) => p.id);
+  assert.deepEqual(await search('發票'), [invoice.id], '作品名稱');
+  assert.deepEqual(await search('自動分類'), [invoice.id], '介紹');
+  assert.deepEqual(await search('cursor'), [invoice.id], 'AI 標籤，不分大小寫');
+  assert.deepEqual(await search('阿凱'), [resume.id, invoice.id], '作者名稱');
+  assert.deepEqual(await search('kai_search 履歷'), [resume.id], '多個關鍵字');
+  assert.deepEqual(await search('100%'), [resume.id], '% 當成一般文字');
+  assert.deepEqual(await search('%'), [resume.id]);
+  assert.deepEqual(await search('_'), [lonely.id, resume.id, invoice.id], '_ 只符合帳號裡真的有 _ 的（kai_search、someone_else）');
+  assert.ok((await search('天氣')).includes(lonely.id));
+  assert.deepEqual(await search('找不到的東西'), []);
+
+  // 搜尋 Cooler
+  const users = async (q, cookie = '') => (await (await fetch(`${base}/api/users?q=${encodeURIComponent(q)}`, { headers: { cookie } })).json())
+    .users.map((u) => u.username);
+  assert.deepEqual(await users('阿凱'), ['kai_search']);
+  assert.deepEqual(await users('KAI'), ['kai_search']);
+  assert.deepEqual(await users(''), []);
+  await fetch(`${base}/api/users/kai_search/block`, { method: 'POST', headers: { cookie: other } });
+  assert.deepEqual(await users('阿凱', other), [], '封鎖的人搜不到');
+  assert.deepEqual(await search('發票', other), [], '封鎖的人的作品也搜不到');
+});

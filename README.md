@@ -16,7 +16,7 @@
   - 前端：沒選檔案時無法按下「分享」
   - 後端：沒有媒體一律拒絕，並用檔案開頭的 magic bytes 驗證真的是圖片或影片（不信任副檔名）
 - **動態牆**：「最新分享」與「追蹤中」兩種，左右滑動看多張截圖，雙擊圖片 = Cool
-- **探索**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽作品
+- **探索與搜尋**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽；用關鍵字搜尋作品名稱、介紹、AI 標籤與作者，也能找到其他 Cooler
 - **Cool／Not Cool 投票**：每人每則一票，可以改票或取消；取代傳統的「愛心」
 - **互動**：留言、追蹤、分享連結
 - **科技風介面**：深色底、霓虹青色、等寬字體
@@ -79,7 +79,8 @@ test/        API 測試（node:test）
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
 | GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（需密碼） |
 | PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
-| GET | `/api/posts?feed=following&tag=Claude&before=<id>` | 動態牆（分頁） |
+| GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`q` 搜尋作品名稱、介紹、AI 標籤與作者，空白分隔的關鍵字要全部符合 |
+| GET | `/api/users?q=<關鍵字>` | 搜尋 Cooler（帳號或名稱，最多 10 位） |
 | POST | `/api/posts` | 分享（multipart，`media` 欄位至少一個檔案） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |
 | PUT / DELETE | `/api/posts/:id/vote` | 投票（`vote`: `cool` 或 `notcool`）／取消，回傳 `coolCount`、`notCoolCount`、`myVote` |

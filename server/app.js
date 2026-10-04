@@ -16,6 +16,16 @@ const PAGE_SIZE = 12;
 const AUTO_HIDE_REPORTS = 3;
 const REPORT_REASONS = ['spam', 'nudity', 'violence', 'harassment', 'ip', 'other'];
 
+// 搜尋字串 → LIKE 用的 pattern；跳脫 % 和 _，避免被當成萬用字元
+function likePattern(word) {
+  return `%${word.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
+
+function searchWords(value) {
+  const text = typeof value === 'string' ? value.trim().slice(0, 50) : '';
+  return text ? text.split(/\s+/).slice(0, 5) : [];
+}
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -311,6 +321,13 @@ export function createApp({
       sql += ' AND EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name = ?)';
       params.push(tag);
     }
+    // 搜尋：每個關鍵字都要出現在工具名稱、介紹、AI 工具標籤或作者名稱其中之一
+    for (const word of searchWords(req.query.q)) {
+      sql += ` AND (p.title LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\'
+        OR EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name LIKE ? ESCAPE '\\')
+        OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')))`;
+      params.push(...Array(5).fill(likePattern(word)));
+    }
     if (following) {
       sql += ' AND (p.user_id = ? OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))';
       params.push(req.user.id, req.user.id);
@@ -440,6 +457,26 @@ export function createApp({
   });
 
   // ---- 使用者 ----
+  // 搜尋 Cooler：帳號或名稱
+  app.get('/api/users', (req, res) => {
+    const words = searchWords(req.query.q);
+    if (!words.length) return res.json({ users: [] });
+    let sql = 'SELECT * FROM users u WHERE 1 = 1';
+    const params = [];
+    for (const word of words) {
+      sql += " AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')";
+      params.push(likePattern(word), likePattern(word));
+    }
+    if (req.user) {
+      sql += ' AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)';
+      params.push(req.user.id);
+    }
+    // 帳號完全符合的排最前面，其次是作品多的
+    sql += ' ORDER BY (lower(u.username) = lower(?)) DESC, (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.hidden = 0) DESC, u.id LIMIT 10';
+    params.push(words.join(' '));
+    res.json({ users: db.prepare(sql).all(...params).map(publicUser) });
+  });
+
   app.get('/api/users/:username', (req, res) => {
     const user = getUserOr404(req.params.username);
     const count = (sql) => db.prepare(sql).get(user.id).n;
