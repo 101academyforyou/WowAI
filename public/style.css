@@ -197,6 +197,8 @@ textarea.input { min-height: 110px; resize: vertical; }
 .vote.cool.active { border-color: var(--cool); color: var(--cool); background: color-mix(in srgb, var(--cool) 13%, transparent); box-shadow: 0 0 10px color-mix(in srgb, var(--cool) 45%, transparent); }
 .vote.notcool.active { border-color: var(--notcool); color: var(--notcool); background: color-mix(in srgb, var(--notcool) 13%, transparent); box-shadow: 0 0 10px color-mix(in srgb, var(--notcool) 45%, transparent); }
 .vote.active svg { stroke: currentColor; fill: currentColor; }
+/* Not Cool 的閃電維持空心，斜線才看得清楚 */
+.vote.notcool.active svg { fill: none; stroke-width: 2.4; }
 .vote.active .count { color: currentColor; }
 
 .try {

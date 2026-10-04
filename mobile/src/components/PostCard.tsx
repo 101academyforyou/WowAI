@@ -144,7 +144,7 @@ function VoteButton({ kind, count, active, onPress }: { kind: Vote; count: numbe
   const c = useColors();
   const color = kind === 'cool' ? c.cool : c.notCool;
   const label = kind === 'cool' ? 'Cool' : 'Not Cool';
-  const icon = kind === 'cool' ? (active ? 'flash' : 'flash-outline') : (active ? 'thumbs-down' : 'thumbs-down-outline');
+  const icon = kind === 'cool' ? (active ? 'flash' : 'flash-outline') : (active ? 'flash-off' : 'flash-off-outline');
   return (
     <Pressable
       onPress={onPress}

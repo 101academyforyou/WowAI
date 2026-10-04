@@ -21,7 +21,8 @@ function h(tag, attrs = {}, ...children) {
 
 const ICONS = {
   cool: '<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
-  notcool: '<svg viewBox="0 0 24 24"><path d="M17 14V3M7 10V3h10l3 9-2 2h-5l1 6a2 2 0 0 1-4 0L7 14z"/></svg>',
+  // 閃電加斜線：和 Cool 的閃電成對
+  notcool: '<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/><path class="slash" d="M3 3l18 18"/></svg>',
   comment: '<svg viewBox="0 0 24 24"><path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.4A8.5 8.5 0 1 1 21 12z"/></svg>',
   link: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   share: '<svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>',
