@@ -95,6 +95,11 @@ export function openDatabase(file) {
   if (!postColumns.includes('hidden')) {
     db.exec('ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
   }
+  const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userColumns.includes('avatar')) {
+    // 大頭貼檔名（存在 uploads 資料夾），空字串代表沒有
+    db.exec("ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''");
+  }
   // 舊版的「愛心」改成 Cool 票
   if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'likes'").get()) {
     transaction(db, () => {

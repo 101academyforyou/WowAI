@@ -71,6 +71,7 @@ function timeAgo(sqlDate) {
 }
 
 function avatar(user, cls = '') {
+  if (user.avatarUrl) return h('img', { class: `avatar ${cls}`, src: user.avatarUrl, alt: `${user.username} 的大頭貼` });
   return h('span', { class: `avatar ${cls}` }, (user.displayName || user.username).slice(0, 1));
 }
 
@@ -403,6 +404,43 @@ async function settingsPage() {
   const displayName = h('input', { class: 'input', value: user.displayName, maxlength: 50, required: true });
   const bio = h('textarea', { class: 'input', maxlength: 300, placeholder: '介紹一下你自己、擅長用哪些 AI 工具…' });
   bio.value = user.bio;
+
+  // 大頭貼：選了就直接上傳
+  const avatarBox = h('div', { class: 'avatar-edit' });
+  const fileInput = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/gif,image/webp', hidden: true });
+  const renderAvatar = () => {
+    avatarBox.replaceChildren(
+      h('label', { class: 'avatar-pick', title: '更換大頭貼' }, avatar(state.me, 'lg'), fileInput),
+      h('div', { class: 'avatar-actions' },
+        h('button', { class: 'btn', type: 'button', onclick: () => fileInput.click() }, state.me.avatarUrl ? '更換大頭貼' : '上傳大頭貼'),
+        state.me.avatarUrl ? h('button', {
+          class: 'btn', type: 'button', style: 'color:var(--danger)',
+          onclick: async () => {
+            try {
+              state.me = { ...state.me, ...(await api('/api/me/avatar', { method: 'DELETE' })).user };
+              renderAvatar();
+            } catch (err) { toast(err.message, { error: true }); }
+          },
+        }, '移除') : null));
+  };
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast('大頭貼需在 5MB 以內', { error: true }); return; }
+    const form = new FormData();
+    form.append('avatar', file);
+    try {
+      const res = await fetch('/api/me/avatar', { method: 'PUT', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '上傳失敗');
+      state.me = { ...state.me, ...data.user };
+      renderAvatar();
+      toast('大頭貼已更新');
+    } catch (err) { toast(err.message, { error: true }); }
+  });
+  renderAvatar();
+
   view.replaceChildren(h('form', {
     class: 'page',
     onsubmit: async (e) => {
@@ -416,6 +454,7 @@ async function settingsPage() {
     },
   },
   h('h1', { class: 'page-title' }, '編輯個人檔案'),
+  avatarBox,
   h('div', { class: 'field' }, h('label', {}, '名稱'), displayName),
   h('div', { class: 'field' }, h('label', {}, '自我介紹'), bio),
   h('button', { class: 'btn btn-primary btn-block', type: 'submit' }, '儲存'),

@@ -290,3 +290,10 @@ textarea.input { min-height: 110px; resize: vertical; }
 }
 
 .comment-form .btn { flex: none; white-space: nowrap; }
+
+/* 大頭貼 */
+img.avatar { object-fit: cover; padding: 0; }
+.avatar-edit { display: grid; justify-items: center; gap: 12px; margin-bottom: 20px; }
+.avatar-pick { cursor: pointer; }
+.avatar-pick .avatar.lg { width: 96px; height: 96px; box-shadow: var(--glow); }
+.avatar-actions { display: flex; gap: 8px; }

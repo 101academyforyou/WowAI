@@ -8,6 +8,7 @@ import { sniffMedia, MEDIA_TYPES } from './media.js';
 
 const MAX_MEDIA_PER_POST = 10;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const PAGE_SIZE = 12;
 // 被不同使用者檢舉達到這個次數的貼文會自動隱藏，等待管理員處理
 const AUTO_HIDE_REPORTS = 3;
@@ -96,6 +97,13 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     }),
     limits: { fileSize: MAX_FILE_BYTES, files: MAX_MEDIA_PER_POST },
   });
+  const avatarUpload = multer({
+    storage: multer.diskStorage({
+      destination: uploadDir,
+      filename: (_req, _file, cb) => cb(null, `tmp-${crypto.randomUUID()}`),
+    }),
+    limits: { fileSize: MAX_AVATAR_BYTES, files: 1 },
+  });
 
   // ---- 共用查詢 ----
   const q = {
@@ -112,7 +120,7 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     ),
     commentCount: db.prepare('SELECT COUNT(*) AS n FROM comments WHERE post_id = ?'),
     myVote: db.prepare('SELECT value FROM votes WHERE user_id = ? AND post_id = ?'),
-    userById: db.prepare('SELECT id, username, display_name FROM users WHERE id = ?'),
+    userById: db.prepare('SELECT id, username, display_name, avatar FROM users WHERE id = ?'),
     blocked: db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?'),
   };
 
@@ -144,7 +152,12 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
   }
 
   function publicUser(u) {
-    return { id: u.id, username: u.username, displayName: u.display_name };
+    return {
+      id: u.id,
+      username: u.username,
+      displayName: u.display_name,
+      avatarUrl: u.avatar ? `/uploads/${u.avatar}` : null,
+    };
   }
 
   function voteState(postId, viewer) {
@@ -251,11 +264,12 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
   app.delete('/api/me', requireAuth, (req, res) => {
     const password = String(req.body?.password ?? '');
     if (!verifyPassword(password, req.user.password_hash)) throw new HttpError(401, '密碼錯誤');
-    const media = db.prepare(
+    const files = db.prepare(
       'SELECT m.filename FROM post_media m JOIN posts p ON p.id = m.post_id WHERE p.user_id = ?',
-    ).all(req.user.id);
+    ).all(req.user.id).map((m) => m.filename);
+    if (req.user.avatar) files.push(req.user.avatar);
     db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
-    media.forEach((m) => fs.rmSync(path.join(uploadDir, m.filename), { force: true }));
+    files.forEach((f) => fs.rmSync(path.join(uploadDir, f), { force: true }));
     res.clearCookie('sid');
     res.status(204).end();
   });
@@ -371,7 +385,7 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
   app.get('/api/posts/:id/comments', (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
     const rows = db.prepare(
-      `SELECT c.id, c.body, c.created_at, u.id AS uid, u.username, u.display_name
+      `SELECT c.id, c.body, c.created_at, u.id AS uid, u.username, u.display_name, u.avatar
        FROM comments c JOIN users u ON u.id = c.user_id
        WHERE c.post_id = ? AND c.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
        ORDER BY c.id`,
@@ -381,7 +395,7 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
         id: r.id,
         body: r.body,
         createdAt: r.created_at,
-        author: { id: r.uid, username: r.username, displayName: r.display_name },
+        author: publicUser({ id: r.uid, username: r.username, display_name: r.display_name, avatar: r.avatar }),
       })),
     });
   });
@@ -426,6 +440,30 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
     const displayName = cleanText(req.body?.displayName, { max: 50, field: '名稱', required: true });
     const bio = cleanText(req.body?.bio, { max: 300, field: '自我介紹' });
     db.prepare('UPDATE users SET display_name = ?, bio = ? WHERE id = ?').run(displayName, bio, req.user.id);
+    res.json({ user: publicUser(q.userById.get(req.user.id)) });
+  });
+
+  // 上傳或更換大頭貼（只接受圖片，5MB 以內）
+  app.put('/api/me/avatar', requireAuth, avatarUpload.single('avatar'), (req, res) => {
+    const file = req.file;
+    if (!file) throw new HttpError(400, '請選擇一張圖片');
+    const type = sniffMedia(file.path);
+    if (type?.kind !== 'image') {
+      fs.rmSync(file.path, { force: true });
+      throw new HttpError(400, '大頭貼只能是 JPG、PNG、GIF 或 WebP 圖片');
+    }
+    const filename = `avatar-${crypto.randomUUID()}${type.ext}`;
+    fs.renameSync(file.path, path.join(uploadDir, filename));
+    db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(filename, req.user.id);
+    if (req.user.avatar) fs.rmSync(path.join(uploadDir, req.user.avatar), { force: true });
+    res.json({ user: publicUser(q.userById.get(req.user.id)) });
+  });
+
+  app.delete('/api/me/avatar', requireAuth, (req, res) => {
+    if (req.user.avatar) {
+      db.prepare("UPDATE users SET avatar = '' WHERE id = ?").run(req.user.id);
+      fs.rmSync(path.join(uploadDir, req.user.avatar), { force: true });
+    }
     res.json({ user: publicUser(q.userById.get(req.user.id)) });
   });
 
@@ -516,7 +554,10 @@ export function createApp({ db, uploadDir, publicDir, adminUsernames = [] }) {
   app.use('/api', (_req, _res, next) => next(new HttpError(404, '找不到這個 API')));
 
   // eslint-disable-next-line no-unused-vars
-  app.use((err, _req, res, _next) => {
+  app.use((err, req, res, _next) => {
+    if (err instanceof multer.MulterError && req.path === '/api/me/avatar') {
+      return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? '大頭貼不可超過 5MB' : '一次只能上傳一張大頭貼' });
+    }
     if (err instanceof multer.MulterError) {
       const messages = {
         LIMIT_FILE_SIZE: '單一檔案不可超過 100MB',

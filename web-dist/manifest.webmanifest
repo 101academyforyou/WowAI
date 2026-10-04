@@ -1,0 +1,13 @@
+{
+  "name": "YourWowAI",
+  "short_name": "YourWowAI",
+  "description": "分享你用 AI 開發的工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/apple-touch-icon.png", "sizes": "1024x1024", "type": "image/png" }
+  ]
+}
