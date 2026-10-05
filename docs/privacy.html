@@ -42,9 +42,9 @@
         </thead>
         <tbody>
           <tr><td><strong>帳號資料</strong></td><td>帳號名稱、顯示名稱、自我介紹、大頭貼，以及經過加密雜湊的密碼（我們看不到你的密碼原文）</td><td>你註冊或編輯個人檔案時提供</td></tr>
-          <tr><td><strong>你發佈的內容</strong></td><td>截圖、影片、工具名稱、介紹、工具連結、AI 工具標籤、留言</td><td>你分享作品或留言時提供</td></tr>
+          <tr><td><strong>你發佈的內容</strong></td><td>截圖、影片、工具名稱、介紹、工具連結、GitHub 專案連結、AI 工具標籤、留言</td><td>你分享作品或留言時提供</td></tr>
           <tr><td><strong>互動紀錄</strong></td><td>Cool／Not Cool 投票、追蹤、封鎖、檢舉（含檢舉原因）、通知紀錄</td><td>你使用功能時產生</td></tr>
-          <tr><td><strong>聯繫方式（選填）</strong></td><td>你自己填寫的 Facebook、Instagram、Threads、LINE、Email、X 或個人網站</td><td>你在「編輯個人檔案」中填寫</td></tr>
+          <tr><td><strong>聯繫方式（選填）</strong></td><td>你自己填寫的 Facebook、Instagram、Threads、LINE、Email、X、GitHub 或個人網站</td><td>你在「編輯個人檔案」中填寫</td></tr>
           <tr><td><strong>推播位址</strong></td><td>你允許通知後，iPhone 產生的推播位址（push token）</td><td>你允許通知時由裝置產生</td></tr>
           <tr><td><strong>登入憑證</strong></td><td>讓你保持登入的隨機權杖。iPhone 存在系統鑰匙圈；網站存在瀏覽器（含一個必要的登入 cookie）</td><td>你登入時產生</td></tr>
         </tbody>
@@ -93,6 +93,7 @@
     <ul>
       <li><strong>主機服務</strong>：你的資料存放在我們使用的伺服器主機上。主機服務商可能為了安全與維運自動記錄連線 IP 與時間。</li>
       <li><strong>推播服務</strong>：iPhone 推播透過 Expo 推播服務與 Apple 推播通知服務（APNs）送達。為此會傳送你的推播位址與通知內容（例如「Amy 留言：…」）。</li>
+      <li><strong>GitHub</strong>：分享作品時按「匯入」讀取 GitHub 專案，App 會直接向 GitHub 公開 API 查詢該專案（會傳送專案名稱，GitHub 也會看到你的 IP 位址）。只讀取公開資訊，不需要也不會取得你的 GitHub 帳號或密碼。這項查詢適用 GitHub 的隱私權政策。</li>
       <li><strong>外部連結</strong>：作品的「試用工具」連結與使用者的聯繫方式會開啟其他網站或 App（例如 Instagram、LINE），這些服務適用它們自己的隱私權政策。</li>
     </ul>
 

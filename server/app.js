@@ -6,6 +6,7 @@ import multer from 'multer';
 import { transaction } from './db.js';
 import { sniffMedia, MEDIA_TYPES } from './media.js';
 import { cleanContacts, serializeContacts } from './contacts.js';
+import { parseGitHubRepo } from './github.js';
 import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
 
 const MAX_MEDIA_PER_POST = 10;
@@ -75,6 +76,14 @@ function cleanToolUrl(value) {
     throw new HttpError(400, '工具連結必須是 http 或 https');
   }
   return url.toString();
+}
+
+function cleanGitHubUrl(value) {
+  const text = cleanText(value, { max: 300, field: 'GitHub 專案' });
+  if (!text) return '';
+  const repo = parseGitHubRepo(text);
+  if (!repo) throw new HttpError(400, 'GitHub 專案請輸入 owner/repo 或 github.com 的專案網址');
+  return repo.url;
 }
 
 function parseAiTools(value) {
@@ -211,6 +220,7 @@ export function createApp({
       title: post.title,
       description: post.description,
       toolUrl: post.tool_url,
+      githubUrl: post.github_url,
       createdAt: post.created_at,
       author: publicUser(q.userById.get(post.user_id)),
       media: q.mediaForPost.all(post.id).map((m) => ({ url: `/uploads/${m.filename}`, kind: m.kind })),
@@ -323,12 +333,12 @@ export function createApp({
       sql += ' AND EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name = ?)';
       params.push(tag);
     }
-    // 搜尋：每個關鍵字都要出現在工具名稱、介紹、AI 工具標籤或作者名稱其中之一
+    // 搜尋：每個關鍵字都要出現在工具名稱、介紹、GitHub 專案、AI 工具標籤或作者名稱其中之一
     for (const word of searchWords(req.query.q)) {
-      sql += ` AND (p.title LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\'
+      sql += ` AND (p.title LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\' OR p.github_url LIKE ? ESCAPE '\\'
         OR EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name LIKE ? ESCAPE '\\')
         OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')))`;
-      params.push(...Array(5).fill(likePattern(word)));
+      params.push(...Array(6).fill(likePattern(word)));
     }
     if (following) {
       sql += ' AND (p.user_id = ? OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))';
@@ -355,6 +365,7 @@ export function createApp({
       const title = cleanText(req.body.title, { max: 80, field: '工具名稱', required: true });
       const description = cleanText(req.body.description, { max: 2000, field: '介紹' });
       const toolUrl = cleanToolUrl(req.body.toolUrl);
+      const githubUrl = cleanGitHubUrl(req.body.githubUrl);
       const aiTools = parseAiTools(req.body.aiTools);
 
       const media = files.map((f) => {
@@ -365,8 +376,8 @@ export function createApp({
 
       const postId = transaction(db, () => {
         const { lastInsertRowid } = db
-          .prepare('INSERT INTO posts (user_id, title, description, tool_url) VALUES (?, ?, ?, ?)')
-          .run(req.user.id, title, description, toolUrl);
+          .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url) VALUES (?, ?, ?, ?, ?)')
+          .run(req.user.id, title, description, toolUrl, githubUrl);
         const insertMedia = db.prepare(
           'INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)',
         );

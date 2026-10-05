@@ -18,7 +18,7 @@ function hostMatches(url, hosts) {
 }
 
 // 社群平台：帳號 → 個人頁網址；網址則必須是該平台的網域
-function social({ label, hosts, profileUrl }) {
+function social({ label, hosts, profileUrl, handle = HANDLE }) {
   return {
     label,
     toUrl(value) {
@@ -26,7 +26,7 @@ function social({ label, hosts, profileUrl }) {
         const url = parseUrl(value);
         return url && hostMatches(url, hosts) ? url.toString() : null;
       }
-      return HANDLE.test(value) ? profileUrl(value.replace(/^@/, '')) : null;
+      return handle.test(value) ? profileUrl(value.replace(/^@/, '')) : null;
     },
     error: `請輸入 ${label} 帳號或 ${hosts[0]} 的網址`,
   };
@@ -56,6 +56,12 @@ export const CONTACT_TYPES = {
     error: 'Email 格式不正確',
   },
   x: social({ label: 'X', hosts: ['x.com', 'twitter.com'], profileUrl: (h) => `https://x.com/${h}` }),
+  github: social({
+    label: 'GitHub',
+    hosts: ['github.com'],
+    profileUrl: (h) => `https://github.com/${h}`,
+    handle: /^@?[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/,
+  }),
   website: {
     label: '個人網站',
     toUrl: (value) => parseUrl(value)?.toString() ?? null,

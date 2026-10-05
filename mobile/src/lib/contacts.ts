@@ -1,7 +1,7 @@
 import type { Ionicons } from '@expo/vector-icons';
 import type { KeyboardTypeOptions } from 'react-native';
 
-export type ContactType = 'facebook' | 'instagram' | 'threads' | 'line' | 'email' | 'x' | 'website';
+export type ContactType = 'facebook' | 'instagram' | 'threads' | 'line' | 'email' | 'x' | 'github' | 'website';
 export type Contact = { type: ContactType; label: string; value: string; url: string };
 
 type ContactField = {
@@ -21,6 +21,7 @@ export const CONTACT_FIELDS: ContactField[] = [
   { type: 'line', label: 'LINE', icon: 'chatbubble-ellipses', color: '#06c755', placeholder: 'LINE ID 或 line.me 加好友網址' },
   { type: 'email', label: 'Email', icon: 'mail', color: '#00e5ff', placeholder: 'you@example.com', keyboardType: 'email-address' },
   { type: 'x', label: 'X', icon: 'logo-x', color: '#e6f1ff', placeholder: '@帳號' },
+  { type: 'github', label: 'GitHub', icon: 'logo-github', color: '#e6f1ff', placeholder: 'GitHub 帳號' },
   { type: 'website', label: '個人網站', icon: 'globe-outline', color: '#7c4dff', placeholder: 'https://…', keyboardType: 'url' },
 ];
 

@@ -37,6 +37,7 @@ export type Post = {
   title: string;
   description: string;
   toolUrl: string;
+  githubUrl: string;
   createdAt: string;
   author: User;
   media: Media[];
@@ -161,7 +162,7 @@ export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mim
 
 // 用 XMLHttpRequest 上傳，才能顯示上傳進度（影片可能很大）
 export async function uploadPost(
-  fields: { title: string; description: string; toolUrl: string; aiTools: string },
+  fields: { title: string; description: string; toolUrl: string; githubUrl: string; aiTools: string },
   media: PickedMedia[],
   onProgress: (ratio: number) => void,
 ): Promise<Post> {
