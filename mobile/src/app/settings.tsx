@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   page: { padding: 16, gap: 8, paddingBottom: 48 },
   contactInput: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingLeft: 12 },
   contactIcon: { width: 22 },
-  contactText: { flex: 1, paddingHorizontal: 10, paddingVertical: 12, fontSize: 15 },
+  contactText: { flex: 1, paddingHorizontal: 10, paddingVertical: 12, fontSize: 15, outlineWidth: 0 },
   avatarSection: { alignItems: 'center', gap: 14, paddingVertical: 8 },
   avatarBadge: { position: 'absolute', right: 0, bottom: 0, width: 30, height: 30, borderRadius: 15, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
   avatarButtons: { flexDirection: 'row', gap: 8 },

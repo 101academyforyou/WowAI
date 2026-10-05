@@ -6,6 +6,7 @@ import multer from 'multer';
 import { transaction } from './db.js';
 import { sniffMedia, MEDIA_TYPES } from './media.js';
 import { cleanContacts, serializeContacts } from './contacts.js';
+import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
 
 const MAX_MEDIA_PER_POST = 10;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -14,6 +15,16 @@ const PAGE_SIZE = 12;
 // 被不同使用者檢舉達到這個次數的貼文會自動隱藏，等待管理員處理
 const AUTO_HIDE_REPORTS = 3;
 const REPORT_REASONS = ['spam', 'nudity', 'violence', 'harassment', 'ip', 'other'];
+
+// 搜尋字串 → LIKE 用的 pattern；跳脫 % 和 _，避免被當成萬用字元
+function likePattern(word) {
+  return `%${word.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
+
+function searchWords(value) {
+  const text = typeof value === 'string' ? value.trim().slice(0, 50) : '';
+  return text ? text.split(/\s+/).slice(0, 5) : [];
+}
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -86,8 +97,13 @@ function sessionToken(req) {
 // 開發時允許本機與區網的網址呼叫 API（例如 expo start --web 跑在 8081 埠）
 const DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})(:\d+)?$/;
 
+const STATIC_FILE = /\.(?:html?|js|mjs|css|map|json|txt|xml|ico|png|jpe?g|gif|webp|svg|avif|mp4|mov|webm|woff2?|ttf|otf|webmanifest)$/i;
+
 // webAppDir：App 用 expo export 編譯出的網頁版；publicDir：使用條款等靜態頁
-export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [] }) {
+export function createApp({
+  db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], pushSender = expoPushSender,
+}) {
+  const notifier = createNotifier({ db, pushSender });
   const admins = new Set(adminUsernames.map((u) => u.toLowerCase()));
   fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -307,6 +323,13 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
       sql += ' AND EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name = ?)';
       params.push(tag);
     }
+    // 搜尋：每個關鍵字都要出現在工具名稱、介紹、AI 工具標籤或作者名稱其中之一
+    for (const word of searchWords(req.query.q)) {
+      sql += ` AND (p.title LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\'
+        OR EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name LIKE ? ESCAPE '\\')
+        OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')))`;
+      params.push(...Array(5).fill(likePattern(word)));
+    }
     if (following) {
       sql += ' AND (p.user_id = ? OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))';
       params.push(req.user.id, req.user.id);
@@ -358,6 +381,9 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
         return Number(lastInsertRowid);
       });
 
+      // 通知追蹤我的人
+      db.prepare('SELECT follower_id FROM follows WHERE followee_id = ?').all(req.user.id)
+        .forEach((f) => notifier.notify(f.follower_id, req.user.id, 'new_post', { postId }));
       res.status(201).json({ post: serializePost(q.postById.get(postId), req.user) });
     } catch (err) {
       cleanup();
@@ -392,6 +418,7 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
     db.prepare(
       'INSERT INTO votes (user_id, post_id, value) VALUES (?, ?, ?) ON CONFLICT (user_id, post_id) DO UPDATE SET value = excluded.value',
     ).run(req.user.id, post.id, value);
+    if (value === 1) notifier.notify(post.user_id, req.user.id, 'cool', { postId: post.id });
     res.json(voteState(post.id, req.user));
   });
 
@@ -425,12 +452,33 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
     const { lastInsertRowid } = db
       .prepare('INSERT INTO comments (post_id, user_id, body) VALUES (?, ?, ?)')
       .run(post.id, req.user.id, body);
+    notifier.notify(post.user_id, req.user.id, 'comment', { postId: post.id, text: body });
     res.status(201).json({
       comment: { id: Number(lastInsertRowid), body, author: publicUser(req.user) },
     });
   });
 
   // ---- 使用者 ----
+  // 搜尋 Cooler：帳號或名稱
+  app.get('/api/users', (req, res) => {
+    const words = searchWords(req.query.q);
+    if (!words.length) return res.json({ users: [] });
+    let sql = 'SELECT * FROM users u WHERE 1 = 1';
+    const params = [];
+    for (const word of words) {
+      sql += " AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')";
+      params.push(likePattern(word), likePattern(word));
+    }
+    if (req.user) {
+      sql += ' AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)';
+      params.push(req.user.id);
+    }
+    // 帳號完全符合的排最前面，其次是作品多的
+    sql += ' ORDER BY (lower(u.username) = lower(?)) DESC, (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id AND p.hidden = 0) DESC, u.id LIMIT 10';
+    params.push(words.join(' '));
+    res.json({ users: db.prepare(sql).all(...params).map(publicUser) });
+  });
+
   app.get('/api/users/:username', (req, res) => {
     const user = getUserOr404(req.params.username);
     const count = (sql) => db.prepare(sql).get(user.id).n;
@@ -496,7 +544,8 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
     if (q.blocked.get(req.user.id, target.id) || q.blocked.get(target.id, req.user.id)) {
       throw new HttpError(403, '無法追蹤這位使用者');
     }
-    db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(req.user.id, target.id);
+    const { changes } = db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(req.user.id, target.id);
+    if (changes) notifier.notify(target.id, req.user.id, 'follow');
     res.json({ followedByMe: true });
   });
 
@@ -552,6 +601,73 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
     res.json({ ok: true });
   });
 
+  // ---- 通知 ----
+  app.get('/api/notifications', requireAuth, (req, res) => {
+    const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
+    const rows = db.prepare(
+      `SELECT n.*, u.username, u.display_name, u.avatar, p.title AS post_title,
+         (SELECT filename FROM post_media m WHERE m.post_id = n.post_id AND m.kind = 'image' ORDER BY position LIMIT 1) AS thumb
+       FROM notifications n
+       JOIN users u ON u.id = n.actor_id
+       LEFT JOIN posts p ON p.id = n.post_id
+       WHERE n.user_id = ? AND n.id < ?
+         AND n.actor_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = n.user_id)
+       ORDER BY n.id DESC LIMIT 30`,
+    ).all(req.user.id, before);
+    const notifications = rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      read: Boolean(r.read_at),
+      createdAt: r.created_at,
+      actor: publicUser({ id: r.actor_id, username: r.username, display_name: r.display_name, avatar: r.avatar }),
+      postId: r.post_id,
+      thumbnailUrl: r.thumb ? `/uploads/${r.thumb}` : null,
+      message: notificationText({ type: r.type, actorName: r.display_name || r.username, postTitle: r.post_title ?? '', text: r.text }),
+      link: notificationLink({ type: r.type, actorUsername: r.username, postId: r.post_id }),
+    }));
+    res.json({
+      notifications,
+      unreadCount: notifier.unreadCount(req.user.id),
+      nextBefore: rows.length === 30 ? rows.at(-1).id : null,
+    });
+  });
+
+  app.get('/api/notifications/unread-count', requireAuth, (req, res) => {
+    res.json({ unreadCount: notifier.unreadCount(req.user.id) });
+  });
+
+  app.post('/api/notifications/read', requireAuth, (req, res) => {
+    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND read_at IS NULL").run(req.user.id);
+    notifier.broadcast(req.user.id);
+    res.json({ unreadCount: 0 });
+  });
+
+  // 網頁版即時更新：Server-Sent Events，有新通知就推送未讀數
+  app.get('/api/notifications/stream', requireAuth, (req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    notifier.subscribe(req.user.id, res);
+  });
+
+  // iPhone 推播：登入後登記，登出前移除
+  app.post('/api/push-tokens', requireAuth, (req, res) => {
+    const token = String(req.body?.token ?? '');
+    if (!PUSH_TOKEN.test(token)) throw new HttpError(400, '推播 token 格式不正確');
+    db.prepare(
+      'INSERT INTO push_tokens (token, user_id) VALUES (?, ?) ON CONFLICT (token) DO UPDATE SET user_id = excluded.user_id',
+    ).run(token, req.user.id);
+    res.status(204).end();
+  });
+
+  app.delete('/api/push-tokens', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM push_tokens WHERE token = ? AND user_id = ?').run(String(req.body?.token ?? ''), req.user.id);
+    res.status(204).end();
+  });
+
   // 熱門 AI 工具標籤（探索頁）
   app.get('/api/tags', (_req, res) => {
     const tags = db.prepare(
@@ -577,8 +693,10 @@ export function createApp({ db, uploadDir, publicDir, webAppDir, devCors = false
   if (webAppDir) {
     const indexHtml = path.join(webAppDir, 'index.html');
     app.use((req, res, next) => {
+      // 帳號可以有「.」（例如 /user/kai.builds），所以只有真正的靜態檔副檔名才當成檔案
       const isPage = (req.method === 'GET' || req.method === 'HEAD')
-        && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/') && !path.extname(req.path);
+        && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/')
+        && !STATIC_FILE.test(req.path);
       if (!isPage) return next();
       if (fs.existsSync(indexHtml)) return res.sendFile(indexHtml);
       res.status(503).type('html').send(

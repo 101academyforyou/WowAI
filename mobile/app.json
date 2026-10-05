@@ -59,7 +59,8 @@
           "imageWidth": 160,
           "backgroundColor": "#05070d"
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "scheme": "yourwowai",
     "experiments": {

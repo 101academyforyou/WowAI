@@ -1,13 +1,31 @@
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { useEffect } from 'react';
+import { DarkTheme, Stack, ThemeProvider, router } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../lib/auth';
+import { NotificationsProvider } from '../lib/notifications';
 import { MAX_CONTENT_WIDTH, fonts, useColors } from '../lib/theme';
 import { DialogHost, Loading } from '../components/ui';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+// 點 iPhone 推播 → 打開對應的貼文或個人頁（App 沒開時點進來也一樣）
+function useOpenPushTarget(ready: boolean) {
+  useEffect(() => {
+    if (!ready || Platform.OS === 'web') return;
+    const open = (response: Notifications.NotificationResponse | null) => {
+      const url = response?.notification.request.content.data?.url;
+      if (typeof url === 'string' && url.startsWith('/')) setTimeout(() => router.push(url), 0);
+    };
+    Notifications.getLastNotificationResponseAsync().then(open);
+    const sub = Notifications.addNotificationResponseReceivedListener(open);
+    return () => sub.remove();
+  }, [ready]);
+}
+
 function RootStack() {
   const { ready } = useAuth();
   const c = useColors();
+  useOpenPushTarget(ready);
   if (!ready) return <Loading />;
   return (
     <Stack
@@ -37,6 +55,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={theme}>
       <AuthProvider>
+        <NotificationsProvider>
         {Platform.OS === 'web' ? (
           // 網頁版：電腦上置中成一欄
           <View style={[styles.page, { backgroundColor: c.bg }]}>
@@ -49,6 +68,7 @@ export default function RootLayout() {
         )}
         <DialogHost />
         <StatusBar style="light" />
+        </NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>
   );
