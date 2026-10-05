@@ -97,6 +97,8 @@ function sessionToken(req) {
 // 開發時允許本機與區網的網址呼叫 API（例如 expo start --web 跑在 8081 埠）
 const DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})(:\d+)?$/;
 
+const STATIC_FILE = /\.(?:html?|js|mjs|css|map|json|txt|xml|ico|png|jpe?g|gif|webp|svg|avif|mp4|mov|webm|woff2?|ttf|otf|webmanifest)$/i;
+
 // webAppDir：App 用 expo export 編譯出的網頁版；publicDir：使用條款等靜態頁
 export function createApp({
   db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], pushSender = expoPushSender,
@@ -691,8 +693,10 @@ export function createApp({
   if (webAppDir) {
     const indexHtml = path.join(webAppDir, 'index.html');
     app.use((req, res, next) => {
+      // 帳號可以有「.」（例如 /user/kai.builds），所以只有真正的靜態檔副檔名才當成檔案
       const isPage = (req.method === 'GET' || req.method === 'HEAD')
-        && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/') && !path.extname(req.path);
+        && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/')
+        && !STATIC_FILE.test(req.path);
       if (!isPage) return next();
       if (fs.existsSync(indexHtml)) return res.sendFile(indexHtml);
       res.status(503).type('html').send(

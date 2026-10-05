@@ -33,7 +33,7 @@ after(() => {
 
 test('網頁版：任何頁面網址都回傳 App 的 index.html，API 和檔案不受影響', async () => {
   const base = await start({ webAppDir: path.join(tmpDir, 'web'), publicDir: path.join(tmpDir, 'public') });
-  for (const page of ['/', '/post/12', '/user/amy', '/explore?tag=Claude']) {
+  for (const page of ['/', '/post/12', '/user/amy', '/user/kai.builds', '/user/amy.codes', '/explore?tag=Claude']) {
     const res = await fetch(base + page);
     assert.equal(res.status, 200, page);
     assert.match(await res.text(), /YourWowAI web app/, page);
