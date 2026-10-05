@@ -27,6 +27,7 @@ export function openDatabase(file) {
       title       TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       tool_url    TEXT NOT NULL DEFAULT '',
+      github_url  TEXT NOT NULL DEFAULT '',
       hidden      INTEGER NOT NULL DEFAULT 0,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -114,6 +115,10 @@ export function openDatabase(file) {
   const postColumns = db.prepare('PRAGMA table_info(posts)').all().map((c) => c.name);
   if (!postColumns.includes('hidden')) {
     db.exec('ALTER TABLE posts ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!postColumns.includes('github_url')) {
+    // 作品的 GitHub 專案，例如 https://github.com/amy/ai-ledger
+    db.exec("ALTER TABLE posts ADD COLUMN github_url TEXT NOT NULL DEFAULT ''");
   }
   const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userColumns.includes('avatar')) {

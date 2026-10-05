@@ -12,6 +12,7 @@
 ## 功能
 
 - **分享 AI 工具**：工具名稱、介紹、試用連結、使用了哪些 AI（例如 Claude、Cursor、v0）
+- **連動 GitHub**：分享時貼上 GitHub 專案（`owner/repo` 或網址）按「匯入」，App 從 GitHub 公開 API 自動帶入名稱、介紹、網站與 AI 相關 topics；貼文會顯示原始碼按鈕，也能用專案名稱搜尋
 - **一定要有截圖或影片**：每則最多 10 個檔案（JPG／PNG／GIF／WebP／MP4／MOV／WebM，單檔 100MB 內）
   - 前端：沒選檔案時無法按下「分享」
   - 後端：沒有媒體一律拒絕，並用檔案開頭的 magic bytes 驗證真的是圖片或影片（不信任副檔名）
@@ -22,7 +23,7 @@
 - **科技風介面**：深色底、霓虹青色、等寬字體
 - **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案、大頭貼
 - **通知與推播**：有人 Cool 你的作品、留言、追蹤你，或你追蹤的人發新作品時，「通知」分頁會亮紅點；iPhone 會跳出推播（點了直接打開那則貼文），網站開著時即時更新
-- **聯繫我**：在個人頁放上 Facebook、Instagram、Threads、LINE、Email、X、個人網站；填帳號或網址都可以，伺服器會驗證並轉成正確連結
+- **聯繫我**：在個人頁放上 Facebook、Instagram、Threads、LINE、Email、X、GitHub、個人網站；填帳號或網址都可以，伺服器會驗證並轉成正確連結
 - **社群安全**（App Store 規定）：註冊需同意使用條款、檢舉貼文、封鎖使用者、在 App 內刪除帳號；被 3 人檢舉的貼文自動隱藏，管理員可審查
 - 網站可以在手機瀏覽器「加入主畫面」當成 App 使用；每則貼文都有自己的網址（例如 `/post/12`），可以直接分享
 
@@ -79,9 +80,9 @@ test/        API 測試（node:test）
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
 | GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（需密碼） |
 | PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
-| GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`q` 搜尋作品名稱、介紹、AI 標籤與作者，空白分隔的關鍵字要全部符合 |
+| GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`q` 搜尋作品名稱、介紹、GitHub 專案、AI 標籤與作者，空白分隔的關鍵字要全部符合 |
 | GET | `/api/users?q=<關鍵字>` | 搜尋 Cooler（帳號或名稱，最多 10 位） |
-| POST | `/api/posts` | 分享（multipart，`media` 欄位至少一個檔案） |
+| POST | `/api/posts` | 分享（multipart，`media` 欄位至少一個檔案；選填 `githubUrl`，接受 `owner/repo` 或 github.com 網址） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |
 | PUT / DELETE | `/api/posts/:id/vote` | 投票（`vote`: `cool` 或 `notcool`）／取消，回傳 `coolCount`、`notCoolCount`、`myVote` |
 | POST | `/api/posts/:id/report` | 檢舉（`reason`: spam、nudity、violence、harassment、ip、other） |

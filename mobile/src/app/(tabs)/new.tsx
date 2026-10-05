@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { MAX_FILE_BYTES, MAX_MEDIA, uploadPost, type PickedMedia } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { aiToolsFromTopics, fetchGitHubRepo, parseGitHubRepo } from '../../lib/github';
 import { fonts, useColors } from '../../lib/theme';
 import { Button, Empty, chooseOption, notify } from '../../components/ui';
 
@@ -24,6 +25,8 @@ export default function NewPostScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [toolUrl, setToolUrl] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [importing, setImporting] = useState(false);
   const [aiTools, setAiTools] = useState('');
   const [progress, setProgress] = useState<number | null>(null);
 
@@ -79,16 +82,38 @@ export default function NewPostScreen() {
     }));
   }
 
+  // 連動 GitHub：讀取公開專案的名稱、介紹、網站與 topics，只填入還空著的欄位
+  async function importFromGitHub() {
+    const ref = parseGitHubRepo(githubUrl);
+    if (!ref) return notify('GitHub 專案格式不正確', '請輸入 owner/repo，或貼上 github.com 的專案網址。');
+    setImporting(true);
+    try {
+      const repo = await fetchGitHubRepo(ref);
+      setGithubUrl(repo.url);
+      if (!title.trim()) setTitle(repo.name.slice(0, 80));
+      if (!description.trim() && repo.description) setDescription(repo.description.slice(0, 2000));
+      if (!toolUrl.trim() && repo.homepage) setToolUrl(repo.homepage);
+      const tools = aiToolsFromTopics(repo.topics);
+      if (!aiTools.trim() && tools.length) setAiTools(tools.join(', '));
+      notify('已從 GitHub 匯入', media.length ? '已幫你填好空白的欄位。' : '已幫你填好空白的欄位，記得附上截圖或影片。');
+    } catch (err) {
+      notify('匯入失敗', (err as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function submit() {
     if (!media.length) return notify('請先附上截圖或影片', '分享時一定要附上至少一張截圖或一段影片。');
     if (!title.trim()) return notify('請填寫工具名稱');
     setProgress(0);
     try {
-      const post = await uploadPost({ title, description, toolUrl, aiTools }, media, setProgress);
+      const post = await uploadPost({ title, description, toolUrl, githubUrl, aiTools }, media, setProgress);
       setMedia([]);
       setTitle('');
       setDescription('');
       setToolUrl('');
+      setGithubUrl('');
       setAiTools('');
       router.push(`/post/${post.id}`);
     } catch (err) {
@@ -142,6 +167,27 @@ export default function NewPostScreen() {
             ))}
           </ScrollView>
         ) : null}
+
+        <Text style={[styles.label, { color: c.text }]}>GitHub 專案（選填）</Text>
+        <View style={styles.githubRow}>
+          <View style={[styles.githubInput, { backgroundColor: c.surface, borderColor: c.border }]}>
+            <Ionicons name="logo-github" size={20} color={c.text} />
+            <TextInput
+              style={{ flex: 1, color: c.text, fontSize: 15, paddingVertical: 12 }}
+              value={githubUrl}
+              onChangeText={setGithubUrl}
+              onSubmitEditing={importFromGitHub}
+              placeholder="owner/repo 或 github.com/… 網址"
+              placeholderTextColor={c.muted}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="go"
+            />
+          </View>
+          <Button title="匯入" onPress={importFromGitHub} loading={importing} disabled={!githubUrl.trim()} style={{ minHeight: 48 }} />
+        </View>
+        <Text style={{ color: c.muted, fontSize: 12 }}>連動公開的 GitHub 專案：自動帶入名稱、介紹與網站，貼文也會附上原始碼連結</Text>
 
         <Text style={[styles.label, { color: c.text }]}>工具名稱 *</Text>
         <TextInput style={inputStyle} value={title} onChangeText={setTitle} maxLength={80} placeholder="例如：AI 自動記帳小幫手" placeholderTextColor={c.muted} />
@@ -206,6 +252,8 @@ const styles = StyleSheet.create({
   kind: { position: 'absolute', left: 4, bottom: 4, color: '#fff', fontSize: 11, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' },
   remove: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
   label: { fontWeight: '700', marginTop: 10, fontFamily: fonts.mono, fontSize: 13 },
+  githubRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  githubInput: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 8, paddingHorizontal: 14 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   progress: { height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 8 },
 });

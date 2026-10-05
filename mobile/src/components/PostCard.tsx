@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { REPORT_REASONS, api, siteUrl, timeAgo, type Post, type Vote } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { repoName } from '../lib/github';
 import { fonts, glow, useColors } from '../lib/theme';
 import { MediaCarousel } from './MediaCarousel';
 import { Avatar, Chip, chooseOption, confirmAction, notify } from './ui';
@@ -143,11 +144,25 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
             ))}
           </View>
         ) : null}
-        {post.toolUrl ? (
-          <Pressable style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]} onPress={() => Linking.openURL(post.toolUrl)}>
-            <Text style={[styles.tryText, { color: c.accent }]}>{'>'} 試用工具</Text>
-            <Ionicons name="open-outline" size={15} color={c.accent} />
-          </Pressable>
+        {post.toolUrl || post.githubUrl ? (
+          <View style={styles.links}>
+            {post.toolUrl ? (
+              <Pressable style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]} onPress={() => Linking.openURL(post.toolUrl)}>
+                <Text style={[styles.tryText, { color: c.accent }]}>{'>'} 試用工具</Text>
+                <Ionicons name="open-outline" size={15} color={c.accent} />
+              </Pressable>
+            ) : null}
+            {post.githubUrl ? (
+              <Pressable
+                style={[styles.tryButton, styles.githubButton, { borderColor: c.border, backgroundColor: c.surface }]}
+                onPress={() => Linking.openURL(post.githubUrl)}
+                accessibilityLabel={`在 GitHub 查看 ${repoName(post.githubUrl)}`}
+              >
+                <Ionicons name="logo-github" size={16} color={c.text} />
+                <Text style={[styles.tryText, { color: c.text, flexShrink: 1 }]} numberOfLines={1}>{repoName(post.githubUrl)}</Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
         {!full && post.commentCount ? (
           <Pressable onPress={openPost}>
@@ -193,7 +208,9 @@ const styles = StyleSheet.create({
   author: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   username: { fontWeight: '700', fontSize: 15, fontFamily: fonts.mono },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10 },
-  tryButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, marginTop: 2 },
+  links: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  tryButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  githubButton: { maxWidth: '100%' },
   tryText: { fontWeight: '800', fontFamily: fonts.mono, fontSize: 13 },
   body: { paddingHorizontal: 14, paddingTop: 10, gap: 6 },
   title: { fontSize: 17, fontWeight: '800' },

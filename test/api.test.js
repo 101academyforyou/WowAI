@@ -336,6 +336,7 @@ test('聯繫我：帳號或網址都能轉成連結，格式錯誤會擋下', as
     line: 'amy123',
     email: 'amy@example.com',
     x: 'https://twitter.com/amy',
+    github: '@amy-chen',
     website: 'https://amy.dev',
   });
   assert.equal(ok.status, 200);
@@ -347,6 +348,7 @@ test('聯繫我：帳號或網址都能轉成連結，格式錯誤會擋下', as
     ['line', 'https://line.me/ti/p/~amy123'],
     ['email', 'mailto:amy@example.com'],
     ['x', 'https://twitter.com/amy'],
+    ['github', 'https://github.com/amy-chen'],
     ['website', 'https://amy.dev/'],
   ]);
   assert.equal(user.contacts[1].value, '@amy.codes', '保留使用者輸入的原文，方便編輯');
@@ -362,6 +364,7 @@ test('聯繫我：帳號或網址都能轉成連結，格式錯誤會擋下', as
     [{ email: 'not-an-email' }, /Email/],
     [{ website: 'javascript:alert(1)' }, /個人網站/],
     [{ facebook: 'amy chen' }, /Facebook/],
+    [{ github: 'https://gitlab.com/amy' }, /GitHub/],
     [{ tiktok: 'amy' }, /不支援/],
   ]) {
     const res = await patch(contacts);
@@ -414,4 +417,45 @@ test('搜尋：作品名稱、介紹、AI 標籤、作者都搜得到；多個�
   await fetch(`${base}/api/users/kai_search/block`, { method: 'POST', headers: { cookie: other } });
   assert.deepEqual(await users('阿凱', other), [], '封鎖的人搜不到');
   assert.deepEqual(await search('發票', other), [], '封鎖的人的作品也搜不到');
+});
+
+test('GitHub 專案：owner/repo 或網址都會轉成專案連結，可以用專案名稱搜尋，其他網域會擋下', async () => {
+  const cookie = await register('ghuser');
+  const png = [{ name: 'a.png', data: PNG }];
+  for (const [input, expected] of [
+    ['amy-chen/ai-ledger', 'https://github.com/amy-chen/ai-ledger'],
+    ['https://github.com/amy-chen/ai-ledger.git', 'https://github.com/amy-chen/ai-ledger'],
+    ['github.com/amy-chen/ai-ledger/tree/main/src', 'https://github.com/amy-chen/ai-ledger'],
+    ['https://www.github.com/Amy/My.Repo?tab=readme', 'https://github.com/Amy/My.Repo'],
+  ]) {
+    const res = await createPost(cookie, { title: 'GitHub 工具', githubUrl: input }, png);
+    assert.equal(res.status, 201, input);
+    assert.equal((await res.json()).post.githubUrl, expected, input);
+  }
+
+  const none = await (await createPost(cookie, { title: '沒有 GitHub' }, png)).json();
+  assert.equal(none.post.githubUrl, '');
+
+  for (const bad of ['https://gitlab.com/amy/repo', 'amy', 'https://github.com/amy', 'amy/../x', 'javascript:alert(1)']) {
+    const res = await createPost(cookie, { title: 'x', githubUrl: bad }, png);
+    assert.equal(res.status, 400, bad);
+    assert.match((await res.json()).error, /GitHub/);
+  }
+
+  const { posts } = await (await fetch(`${base}/api/posts?q=ai-ledger`)).json();
+  assert.ok(posts.length >= 3);
+  assert.ok(posts.every((p) => p.githubUrl.includes('ai-ledger')));
+});
+
+test('舊資料庫會自動加上 GitHub 專案欄位', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const file = path.join(tmpDir, 'old-github.db');
+  const old = new DatabaseSync(file);
+  old.exec(`CREATE TABLE posts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '', tool_url TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  old.close();
+  const db = openDatabase(file);
+  const columns = db.prepare('PRAGMA table_info(posts)').all().map((c) => c.name);
+  assert.ok(columns.includes('github_url'));
+  db.close();
 });
