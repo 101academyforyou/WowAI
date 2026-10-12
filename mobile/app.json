@@ -67,7 +67,7 @@
       "typedRoutes": false
     },
     "extra": {
-      "apiUrl": "https://api.your-domain.example"
+      "apiUrl": "https://yourwowai.onepointzeroone.org"
     },
     "backgroundColor": "#05070d"
   }

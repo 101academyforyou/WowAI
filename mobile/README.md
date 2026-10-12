@@ -66,13 +66,10 @@ Apple 對「使用者可發佈內容」的 App 有額外規定（審查準則 1.
 - 註冊 [Expo 帳號](https://expo.dev/signup)（免費）
 
 ### 2. 把後端部署到正式環境（必須是 HTTPS）
-iPhone App 只能連 HTTPS。後端可以部署到 Render、Railway、Fly.io 或任何 VPS，注意：
-- 需要**持久磁碟**存放 SQLite 資料庫與上傳的檔案，把 `DATA_DIR` 指到那個磁碟
-- 設定 `NODE_ENV=production`
-- 設定 `ADMIN_USERNAMES=你的帳號`，才能處理檢舉
+iPhone App 只能連 HTTPS。正式網址是 `https://yourwowai.onepointzeroone.org`，部署步驟見根目錄 [README 的「部署到 Railway」](../README.md#部署到-railway)。
 
 ### 3. 修改 App 設定（`mobile/app.json`）
-- `expo.extra.apiUrl`：改成後端網址，例如 `https://api.yourwowai.app`
+- `expo.extra.apiUrl`：後端網址，已設為 `https://yourwowai.onepointzeroone.org`
 - `expo.ios.bundleIdentifier`：改成你自己的，例如 `com.你的名字.yourwowai`（上架後不能改）
 - 圖示 `assets/icon.png`（1024×1024、不可透明）已經是 YourWowAI 標誌，想換可以直接覆蓋
 - 修改 `public/terms.html` 和 `public/privacy.html` 裡的聯絡信箱

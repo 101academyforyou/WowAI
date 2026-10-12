@@ -58,6 +58,34 @@ npm test             # 執行 API 測試
 | `ADMIN_USERNAMES` | — | 管理員帳號（逗號分隔），可查看檢舉、刪除或恢復貼文 |
 | `EXPO_ACCESS_TOKEN` | — | 選填。在 Expo 開啟「推播加強安全」時才需要 |
 
+## 部署到 Railway
+
+正式網址：**https://yourwowai.onepointzeroone.org**（網頁版 App、API、使用條款與隱私權政策都在這裡；iPhone App 也連這個網址）。
+
+專案已附上 `railway.json`：編譯時會一併打包網頁版，啟動後 Railway 會用 `/api/health` 確認伺服器正常。
+
+1. 到 [railway.com](https://railway.com) 用 GitHub 登入 → **New Project** → **Deploy from GitHub repo** → 選 `101academyforyou/WowAI`
+2. 在服務上按右鍵 **Attach Volume**，掛載路徑填 `/data`（資料庫與上傳的截圖、影片都存在這裡，重新部署不會不見）
+3. **Variables** 加上：
+
+   | 變數 | 值 |
+   | --- | --- |
+   | `NODE_ENV` | `production` |
+   | `DATA_DIR` | `/data` |
+   | `ADMIN_USERNAMES` | 你的帳號（可處理檢舉） |
+
+4. **Settings → Networking → Custom Domain** 輸入 `yourwowai.onepointzeroone.org`，Railway 會給你一筆 CNAME 目標
+5. 到 onepointzeroone.org 的 DNS 管理後台新增：
+
+   | 類型 | 名稱 | 值 |
+   | --- | --- | --- |
+   | CNAME | `yourwowai` | Railway 給的目標（例如 `xxxx.up.railway.app`） |
+
+   如果 DNS 在 Cloudflare，這筆請設成「DNS only」（灰色雲朵），讓 Railway 自動申請 HTTPS 憑證。
+6. 等 DNS 生效（幾分鐘到一小時），打開 https://yourwowai.onepointzeroone.org/api/health 看到 `{"ok":true}` 就完成了
+
+之後每次合併到 `main`，Railway 都會自動重新部署。記得定期備份 Volume（資料庫是 `/data/wowai.db`）。
+
 ## 專案結構
 
 ```

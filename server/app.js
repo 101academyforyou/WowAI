@@ -301,6 +301,12 @@ export function createApp({
     res.status(204).end();
   });
 
+  // 給主機（例如 Railway）檢查伺服器與資料庫是否正常
+  app.get('/api/health', (_req, res) => {
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true });
+  });
+
   app.get('/api/me', (req, res) => {
     res.json({ user: req.user ? { ...publicUser(req.user), isAdmin: isAdmin(req.user) } : null });
   });

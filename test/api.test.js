@@ -459,3 +459,9 @@ test('舊資料庫會自動加上 GitHub 專案欄位', async () => {
   assert.ok(columns.includes('github_url'));
   db.close();
 });
+
+test('健康檢查：給主機確認伺服器與資料庫正常', async () => {
+  const res = await fetch(`${base}/api/health`);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true });
+});
