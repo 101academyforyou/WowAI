@@ -56,7 +56,7 @@ function uploadedFiles() {
   return fs.readdirSync(path.join(tmpDir, 'uploads'));
 }
 
-test('分享一定要附上截圖或影片', async () => {
+test('分享一定要附上截圖或 YouTube 影片', async () => {
   const cookie = await register('nomedia');
   const res = await createPost(cookie, { title: '沒有截圖的工具' });
   assert.equal(res.status, 400);
@@ -88,13 +88,14 @@ test('完整流程：分享、動態牆、Cool／Not Cool、留言、追蹤', as
     description: '用 Claude 寫的記帳工具',
     toolUrl: 'https://example.com/app',
     aiTools: 'Claude, Cursor, claude',
+    youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ?si=abc',
   }, [
     { name: 'screen.png', data: PNG },
-    { name: 'demo.mp4', data: MP4 },
   ]);
   assert.equal(res.status, 201);
   const { post } = await res.json();
-  assert.deepEqual(post.media.map((m) => m.kind), ['image', 'video']);
+  assert.deepEqual(post.media.map((m) => m.kind), ['image']);
+  assert.deepEqual(post.youtube, { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', id: 'dQw4w9WgXcQ' });
   assert.deepEqual(post.aiTools, ['Claude', 'Cursor']);
 
   const media = await fetch(`${base}${post.media[0].url}`);
@@ -447,7 +448,7 @@ test('GitHub 專案：owner/repo 或網址都會轉成專案連結，可以用�
   assert.ok(posts.every((p) => p.githubUrl.includes('ai-ledger')));
 });
 
-test('舊資料庫會自動加上 GitHub 專案欄位', async () => {
+test('舊資料庫會自動加上 GitHub 專案與 YouTube 影片欄位', async () => {
   const { DatabaseSync } = await import('node:sqlite');
   const file = path.join(tmpDir, 'old-github.db');
   const old = new DatabaseSync(file);
@@ -457,6 +458,7 @@ test('舊資料庫會自動加上 GitHub 專案欄位', async () => {
   const db = openDatabase(file);
   const columns = db.prepare('PRAGMA table_info(posts)').all().map((c) => c.name);
   assert.ok(columns.includes('github_url'));
+  assert.ok(columns.includes('youtube_url'));
   db.close();
 });
 
@@ -464,4 +466,37 @@ test('健康檢查：給主機確認伺服器與資料庫正常', async () => {
   const res = await fetch(`${base}/api/health`);
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true });
+});
+
+test('示範影片用 YouTube 連結：各種網址格式都能用，只有影片連結也能分享，不再接受上傳影片檔', async () => {
+  const cookie = await register('ytuser');
+  for (const input of [
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s',
+    'youtube.com/shorts/dQw4w9WgXcQ',
+    'https://m.youtube.com/watch?feature=share&v=dQw4w9WgXcQ',
+    'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    'https://www.youtube.com/live/dQw4w9WgXcQ?si=x',
+    'youtu.be/dQw4w9WgXcQ',
+  ]) {
+    const res = await createPost(cookie, { title: '只有影片', youtubeUrl: input });
+    assert.equal(res.status, 201, input);
+    const { post } = await res.json();
+    assert.equal(post.youtube.id, 'dQw4w9WgXcQ', input);
+    assert.deepEqual(post.media, []);
+  }
+
+  for (const bad of ['https://vimeo.com/123', 'https://www.youtube.com/watch?v=short', 'https://evil.example/watch?v=dQw4w9WgXcQ', 'javascript:alert(1)']) {
+    const res = await createPost(cookie, { title: 'x', youtubeUrl: bad });
+    assert.equal(res.status, 400, bad);
+    assert.match((await res.json()).error, /YouTube/);
+  }
+
+  const before = uploadedFiles().length;
+  const video = await createPost(cookie, { title: '影片檔' }, [{ name: 'demo.mp4', data: MP4 }]);
+  assert.equal(video.status, 400);
+  assert.match((await video.json()).error, /YouTube/);
+  assert.equal(uploadedFiles().length, before, '被拒絕的影片檔不會留在伺服器');
+
+  const plain = await (await createPost(cookie, { title: '只有截圖' }, [{ name: 'a.png', data: PNG }])).json();
+  assert.equal(plain.post.youtube, null);
 });

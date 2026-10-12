@@ -1,7 +1,7 @@
 # YourWowAI
 
 像 Instagram 一樣的社群 App，但專注於**分享用 AI 開發的工具**。
-每則分享都**必須附上截圖或影片**，讓大家一眼就看到你的作品長什麼樣子。
+每則分享都**必須附上截圖或 YouTube 示範影片**，讓大家一眼就看到你的作品長什麼樣子。
 
 **同一份程式碼，同時是 iPhone App 也是網站。** [`mobile/`](mobile/) 用 Expo（React Native）寫成：
 
@@ -13,9 +13,9 @@
 
 - **分享 AI 工具**：工具名稱、介紹、試用連結、使用了哪些 AI（例如 Claude、Cursor、v0）
 - **連動 GitHub**：分享時貼上 GitHub 專案（`owner/repo` 或網址）按「匯入」，App 從 GitHub 公開 API 自動帶入名稱、介紹、網站與 AI 相關 topics；貼文會顯示原始碼按鈕，也能用專案名稱搜尋
-- **一定要有截圖或影片**：每則最多 10 個檔案（JPG／PNG／GIF／WebP／MP4／MOV／WebM，單檔 100MB 內）
+- **一定要有截圖或 YouTube 影片**：截圖每則最多 10 張（JPG／PNG／GIF／WebP，單張 20MB 內）；示範影片貼 YouTube 連結（watch、youtu.be、Shorts 都可以），不在伺服器存影片檔
   - 前端：沒選檔案時無法按下「分享」
-  - 後端：沒有媒體一律拒絕，並用檔案開頭的 magic bytes 驗證真的是圖片或影片（不信任副檔名）
+  - 後端：沒有媒體一律拒絕，並用檔案開頭的 magic bytes 驗證真的是圖片（不信任副檔名）；影片檔一律拒絕，請改貼 YouTube 連結
 - **動態牆**：「最新分享」與「追蹤中」兩種，左右滑動看多張截圖，雙擊圖片 = Cool
 - **探索與搜尋**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽；用關鍵字搜尋作品名稱、介紹、AI 標籤與作者，也能找到其他 Cooler
 - **Cool／Not Cool 投票**：每人每則一票，可以改票或取消；取代傳統的「愛心」
@@ -65,7 +65,7 @@ npm test             # 執行 API 測試
 專案已附上 `railway.json`：編譯時會一併打包網頁版，啟動後 Railway 會用 `/api/health` 確認伺服器正常。
 
 1. 到 [railway.com](https://railway.com) 用 GitHub 登入 → **New Project** → **Deploy from GitHub repo** → 選 `101academyforyou/WowAI`
-2. 在服務上按右鍵 **Attach Volume**，掛載路徑填 `/data`（資料庫與上傳的截圖、影片都存在這裡，重新部署不會不見）
+2. 在服務上按右鍵 **Attach Volume**，掛載路徑填 `/data`（資料庫與上傳的截圖都存在這裡，重新部署不會不見）
 3. **Variables** 加上：
 
    | 變數 | 值 |
@@ -93,7 +93,8 @@ server/
   index.js   啟動伺服器
   app.js     Express 路由與 API
   db.js      SQLite 資料表
-  media.js   圖片／影片格式驗證
+  media.js   圖片格式驗證
+  youtube.js YouTube 連結解析
 mobile/      iPhone App（Expo / React Native）
 mobile/public/  網站的 HTML 範本、PWA 設定與圖示
 public/      使用條款、隱私權政策
@@ -110,7 +111,7 @@ test/        API 測試（node:test）
 | PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
 | GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`q` 搜尋作品名稱、介紹、GitHub 專案、AI 標籤與作者，空白分隔的關鍵字要全部符合 |
 | GET | `/api/users?q=<關鍵字>` | 搜尋 Cooler（帳號或名稱，最多 10 位） |
-| POST | `/api/posts` | 分享（multipart，`media` 欄位至少一個檔案；選填 `githubUrl`，接受 `owner/repo` 或 github.com 網址） |
+| POST | `/api/posts` | 分享（multipart，`media` 圖片或 `youtubeUrl` 至少要有一個；選填 `githubUrl`，接受 `owner/repo` 或 github.com 網址） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |
 | PUT / DELETE | `/api/posts/:id/vote` | 投票（`vote`: `cool` 或 `notcool`）／取消，回傳 `coolCount`、`notCoolCount`、`myVote` |
 | POST | `/api/posts/:id/report` | 檢舉（`reason`: spam、nudity、violence、harassment、ip、other） |

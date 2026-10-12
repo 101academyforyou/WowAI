@@ -7,10 +7,12 @@ import { transaction } from './db.js';
 import { sniffMedia, MEDIA_TYPES } from './media.js';
 import { cleanContacts, serializeContacts } from './contacts.js';
 import { parseGitHubRepo } from './github.js';
+import { parseYouTube } from './youtube.js';
 import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
 
 const MAX_MEDIA_PER_POST = 10;
-const MAX_FILE_BYTES = 100 * 1024 * 1024;
+// 只收圖片；示範影片請貼 YouTube 連結，不佔伺服器空間
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const PAGE_SIZE = 12;
 // 被不同使用者檢舉達到這個次數的貼文會自動隱藏，等待管理員處理
@@ -76,6 +78,14 @@ function cleanToolUrl(value) {
     throw new HttpError(400, '工具連結必須是 http 或 https');
   }
   return url.toString();
+}
+
+function cleanYouTubeUrl(value) {
+  const text = cleanText(value, { max: 300, field: 'YouTube 影片連結' });
+  if (!text) return '';
+  const video = parseYouTube(text);
+  if (!video) throw new HttpError(400, 'YouTube 影片連結格式不正確，請貼上 youtube.com 或 youtu.be 的影片網址');
+  return video.url;
 }
 
 function cleanGitHubUrl(value) {
@@ -221,6 +231,7 @@ export function createApp({
       description: post.description,
       toolUrl: post.tool_url,
       githubUrl: post.github_url,
+      youtube: post.youtube_url ? { url: post.youtube_url, id: parseYouTube(post.youtube_url).id } : null,
       createdAt: post.created_at,
       author: publicUser(q.userById.get(post.user_id)),
       media: q.mediaForPost.all(post.id).map((m) => ({ url: `/uploads/${m.filename}`, kind: m.kind })),
@@ -365,8 +376,9 @@ export function createApp({
     const files = req.files ?? [];
     const cleanup = () => files.forEach((f) => fs.rmSync(f.path, { force: true }));
     try {
-      // YourWowAI 的核心規則：分享一定要附上截圖或影片
-      if (files.length === 0) throw new HttpError(400, '分享時一定要附上至少一張截圖或一段影片');
+      // YourWowAI 的核心規則：分享一定要附上截圖或 YouTube 示範影片
+      const youtubeUrl = cleanYouTubeUrl(req.body.youtubeUrl);
+      if (files.length === 0 && !youtubeUrl) throw new HttpError(400, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
 
       const title = cleanText(req.body.title, { max: 80, field: '工具名稱', required: true });
       const description = cleanText(req.body.description, { max: 2000, field: '介紹' });
@@ -376,14 +388,15 @@ export function createApp({
 
       const media = files.map((f) => {
         const type = sniffMedia(f.path);
-        if (!type) throw new HttpError(400, `「${f.originalname}」不是支援的圖片或影片格式（JPG、PNG、GIF、WebP、MP4、MOV、WebM）`);
+        if (type?.kind === 'video') throw new HttpError(400, '影片請上傳到 YouTube，再貼上影片連結');
+        if (!type) throw new HttpError(400, `「${f.originalname}」不是支援的圖片格式（JPG、PNG、GIF、WebP）`);
         return { file: f, ...type };
       });
 
       const postId = transaction(db, () => {
         const { lastInsertRowid } = db
-          .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url) VALUES (?, ?, ?, ?, ?)')
-          .run(req.user.id, title, description, toolUrl, githubUrl);
+          .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url, youtube_url) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(req.user.id, title, description, toolUrl, githubUrl, youtubeUrl);
         const insertMedia = db.prepare(
           'INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)',
         );
@@ -731,9 +744,9 @@ export function createApp({
     }
     if (err instanceof multer.MulterError) {
       const messages = {
-        LIMIT_FILE_SIZE: '單一檔案不可超過 100MB',
-        LIMIT_FILE_COUNT: `每則分享最多 ${MAX_MEDIA_PER_POST} 個檔案`,
-        LIMIT_UNEXPECTED_FILE: `每則分享最多 ${MAX_MEDIA_PER_POST} 個檔案`,
+        LIMIT_FILE_SIZE: '每張圖片不可超過 20MB',
+        LIMIT_FILE_COUNT: `每則分享最多 ${MAX_MEDIA_PER_POST} 張截圖`,
+        LIMIT_UNEXPECTED_FILE: `每則分享最多 ${MAX_MEDIA_PER_POST} 張截圖`,
       };
       return res.status(400).json({ error: messages[err.code] ?? '上傳失敗' });
     }

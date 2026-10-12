@@ -42,7 +42,7 @@
         </thead>
         <tbody>
           <tr><td><strong>帳號資料</strong></td><td>帳號名稱、顯示名稱、自我介紹、大頭貼，以及經過加密雜湊的密碼（我們看不到你的密碼原文）</td><td>你註冊或編輯個人檔案時提供</td></tr>
-          <tr><td><strong>你發佈的內容</strong></td><td>截圖、影片、工具名稱、介紹、工具連結、GitHub 專案連結、AI 工具標籤、留言</td><td>你分享作品或留言時提供</td></tr>
+          <tr><td><strong>你發佈的內容</strong></td><td>截圖、YouTube 影片連結、工具名稱、介紹、工具連結、GitHub 專案連結、AI 工具標籤、留言</td><td>你分享作品或留言時提供</td></tr>
           <tr><td><strong>互動紀錄</strong></td><td>Cool／Not Cool 投票、追蹤、封鎖、檢舉（含檢舉原因）、通知紀錄</td><td>你使用功能時產生</td></tr>
           <tr><td><strong>聯繫方式（選填）</strong></td><td>你自己填寫的 Facebook、Instagram、Threads、LINE、Email、X、GitHub 或個人網站</td><td>你在「編輯個人檔案」中填寫</td></tr>
           <tr><td><strong>推播位址</strong></td><td>你允許通知後，iPhone 產生的推播位址（push token）</td><td>你允許通知時由裝置產生</td></tr>
@@ -56,7 +56,7 @@
       <li>不收集你的位置、通訊錄、健康或財務資訊</li>
       <li>不使用廣告識別碼（IDFA），不做跨 App 或跨網站追蹤</li>
       <li>不放廣告，也不使用第三方分析或廣告 SDK</li>
-      <li>只會上傳你<strong>自己選取</strong>的照片與影片，不會讀取你相簿裡的其他內容</li>
+      <li>只會上傳你<strong>自己選取</strong>的照片，不會讀取你相簿裡的其他內容</li>
     </ul>
 
     <h2 id="use">四、資料用途</h2>
@@ -73,7 +73,7 @@
     <p>以下內容<strong>所有人都看得到</strong>，包括沒有登入的訪客：</p>
     <ul>
       <li>帳號名稱、顯示名稱、大頭貼、自我介紹</li>
-      <li>你發佈的作品（截圖、影片與文字）、留言，以及作品的 Cool／Not Cool 數</li>
+      <li>你發佈的作品（截圖、影片連結與文字）、留言，以及作品的 Cool／Not Cool 數</li>
       <li>你的追蹤數與粉絲數</li>
       <li>你選擇填寫的聯繫方式（只有填了的才會顯示）</li>
     </ul>
@@ -83,9 +83,8 @@
     <h2 id="permissions">六、裝置權限</h2>
     <p>App 只在你使用相關功能時才會詢問權限，你可以隨時在 iPhone 的「設定」中關閉：</p>
     <ul>
-      <li><strong>照片</strong>：選擇要分享的截圖、影片或大頭貼</li>
+      <li><strong>照片</strong>：選擇要分享的截圖或大頭貼</li>
       <li><strong>相機</strong>：直接拍攝作品照片或大頭貼</li>
-      <li><strong>麥克風</strong>：錄製示範影片時收錄聲音</li>
       <li><strong>通知</strong>：接收 Cool、留言、追蹤與新作品通知</li>
     </ul>
 
@@ -94,13 +93,14 @@
       <li><strong>主機服務</strong>：你的資料存放在我們使用的伺服器主機上。主機服務商可能為了安全與維運自動記錄連線 IP 與時間。</li>
       <li><strong>推播服務</strong>：iPhone 推播透過 Expo 推播服務與 Apple 推播通知服務（APNs）送達。為此會傳送你的推播位址與通知內容（例如「Amy 留言：…」）。</li>
       <li><strong>GitHub</strong>：分享作品時按「匯入」讀取 GitHub 專案，App 會直接向 GitHub 公開 API 查詢該專案（會傳送專案名稱，GitHub 也會看到你的 IP 位址）。只讀取公開資訊，不需要也不會取得你的 GitHub 帳號或密碼。這項查詢適用 GitHub 的隱私權政策。</li>
+      <li><strong>YouTube</strong>：作品附上的示範影片是 YouTube 連結，App 會從 YouTube 載入影片縮圖，點擊後在 YouTube 播放，這時 YouTube（Google）會看到你的 IP 位址等連線資訊，適用 Google 的隱私權政策。我們不會把影片檔存在自己的伺服器上。</li>
       <li><strong>外部連結</strong>：作品的「試用工具」連結與使用者的聯繫方式會開啟其他網站或 App（例如 Instagram、LINE），這些服務適用它們自己的隱私權政策。</li>
     </ul>
 
     <h2 id="retention">八、保存與刪除</h2>
     <ul>
       <li>你的資料會保存到你刪除為止。</li>
-      <li><strong>刪除作品</strong>：作品與它的截圖、影片會立即刪除。</li>
+      <li><strong>刪除作品</strong>：作品與它的截圖會立即刪除。</li>
       <li><strong>刪除帳號</strong>：在 App 的「編輯個人檔案」→「永久刪除帳號」，輸入密碼後，你的帳號、作品、媒體檔、大頭貼、留言、投票、追蹤、封鎖、檢舉、通知與推播位址都會<strong>立即永久刪除</strong>，無法復原。</li>
       <li><strong>登出</strong>：這台裝置的推播位址會被移除，不會再收到這個帳號的通知。</li>
       <li>若主機服務商保有系統備份，已刪除的資料會在備份依其週期覆寫時一併消失。</li>
@@ -111,7 +111,7 @@
       <li>密碼以 scrypt 演算法加鹽雜湊後儲存，我們無法得知你的密碼</li>
       <li>iPhone 的登入憑證存在系統鑰匙圈（Keychain）</li>
       <li>正式服務的連線全程使用 HTTPS 加密</li>
-      <li>上傳的檔案會檢查內容，確認真的是圖片或影片</li>
+      <li>上傳的檔案會檢查內容，確認真的是圖片</li>
     </ul>
     <p>沒有任何系統能保證絕對安全；若發生可能影響你的資安事件，我們會盡快通知。</p>
 
