@@ -23,8 +23,8 @@
 
 - 首頁動態牆：「最新分享」／「追蹤中」、下拉重新整理、無限捲動、左右滑多張截圖、**Cool／Not Cool 投票**（雙擊圖片 = Cool）
 - 科技風深色介面：霓虹青色、等寬字體、App 圖示與啟動畫面
-- 分享：從相簿選（可多選）、拍照或錄影；**沒有截圖或影片就不能分享**；顯示上傳進度
-  - iPhone 的 HEIC 照片與 HEVC 影片會自動轉成 JPEG／H.264，所有裝置都能看
+- 分享：從相簿選截圖（可多選）或拍照，示範影片貼 YouTube 連結；**沒有截圖或 YouTube 影片就不能分享**；顯示上傳進度
+  - iPhone 的 HEIC 照片會自動轉成 JPEG，所有裝置都能看；貼文顯示 YouTube 縮圖，點擊到 YouTube 播放
 - 探索：依 AI 工具標籤（#Claude、#Cursor…）瀏覽
 - 貼文頁：留言、分享連結、「試用工具」按鈕
 - 個人頁：九宮格作品牆、追蹤、編輯個人檔案
@@ -66,13 +66,10 @@ Apple 對「使用者可發佈內容」的 App 有額外規定（審查準則 1.
 - 註冊 [Expo 帳號](https://expo.dev/signup)（免費）
 
 ### 2. 把後端部署到正式環境（必須是 HTTPS）
-iPhone App 只能連 HTTPS。後端可以部署到 Render、Railway、Fly.io 或任何 VPS，注意：
-- 需要**持久磁碟**存放 SQLite 資料庫與上傳的檔案，把 `DATA_DIR` 指到那個磁碟
-- 設定 `NODE_ENV=production`
-- 設定 `ADMIN_USERNAMES=你的帳號`，才能處理檢舉
+iPhone App 只能連 HTTPS。正式網址是 `https://yourwowai.onepointzeroone.org`，部署步驟見根目錄 [README 的「部署到 Railway」](../README.md#部署到-railway)。
 
 ### 3. 修改 App 設定（`mobile/app.json`）
-- `expo.extra.apiUrl`：改成後端網址，例如 `https://api.yourwowai.app`
+- `expo.extra.apiUrl`：後端網址，已設為 `https://yourwowai.onepointzeroone.org`
 - `expo.ios.bundleIdentifier`：改成你自己的，例如 `com.你的名字.yourwowai`（上架後不能改）
 - 圖示 `assets/icon.png`（1024×1024、不可透明）已經是 YourWowAI 標誌，想換可以直接覆蓋
 - 修改 `public/terms.html` 和 `public/privacy.html` 裡的聯絡信箱
@@ -95,7 +92,7 @@ eas submit --platform ios --latest     # 上傳到 App Store Connect
 - **TestFlight**：先自己裝起來測試，確認沒問題再送審
 - **截圖**：至少 6.9 吋 iPhone 的截圖（可以用 TestFlight 版本在 iPhone 上截圖）
 - **隱私權政策網址**：`https://你的網域/privacy.html`
-- **App 隱私（營養標示）**：收集「使用者內容（相片或影片、其他使用者內容）」和「使用者 ID」，用途為「App 功能」，與使用者身分連結，**不用於追蹤**
+- **App 隱私（營養標示）**：收集「使用者內容（相片、其他使用者內容）」和「使用者 ID」，用途為「App 功能」，與使用者身分連結，**不用於追蹤**
 - **年齡分級**：問卷中「使用者生成內容」選「是」
 - **審查備註**：提供一組測試帳號密碼，並說明檢舉（貼文 ⋯ → 檢舉）、封鎖、刪除帳號的位置
 

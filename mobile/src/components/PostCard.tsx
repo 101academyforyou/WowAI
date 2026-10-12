@@ -113,7 +113,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         </Pressable>
       </View>
 
-      <MediaCarousel media={post.media} onDoubleTap={() => vote('cool')} />
+      <MediaCarousel media={post.media} youtube={post.youtube} onDoubleTap={() => vote('cool')} />
 
       <View style={styles.actions}>
         <VoteButton kind="cool" count={post.coolCount} active={post.myVote === 'cool'} onPress={() => vote(post.myVote === 'cool' ? null : 'cool')} />

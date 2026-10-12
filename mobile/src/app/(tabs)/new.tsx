@@ -7,15 +7,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { MAX_FILE_BYTES, MAX_MEDIA, uploadPost, type PickedMedia } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { aiToolsFromTopics, fetchGitHubRepo, parseGitHubRepo } from '../../lib/github';
+import { parseYouTube, youtubeThumbnail } from '../../lib/youtube';
 import { fonts, useColors } from '../../lib/theme';
 import { Button, Empty, chooseOption, notify } from '../../components/ui';
 
+// 只收截圖；示範影片請貼 YouTube 連結
 function toPicked(asset: ImagePicker.ImagePickerAsset, i: number): PickedMedia | null {
-  const kind = asset.type === 'video' ? 'video' : asset.type === 'image' || !asset.type ? 'image' : null;
-  if (!kind) return null;
-  const mimeType = asset.mimeType ?? (kind === 'video' ? 'video/mp4' : 'image/jpeg');
-  const ext = mimeType.split('/')[1]?.replace('quicktime', 'mov').replace('jpeg', 'jpg') ?? 'bin';
-  return { uri: asset.uri, kind, mimeType, name: asset.fileName ?? `media-${Date.now()}-${i}.${ext}` };
+  if (asset.type && asset.type !== 'image') return null;
+  const mimeType = asset.mimeType ?? 'image/jpeg';
+  const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+  return { uri: asset.uri, kind: 'image', mimeType, name: asset.fileName ?? `media-${Date.now()}-${i}.${ext}` };
 }
 
 export default function NewPostScreen() {
@@ -26,13 +27,16 @@ export default function NewPostScreen() {
   const [description, setDescription] = useState('');
   const [toolUrl, setToolUrl] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [importing, setImporting] = useState(false);
   const [aiTools, setAiTools] = useState('');
   const [progress, setProgress] = useState<number | null>(null);
+  const youtube = parseYouTube(youtubeUrl);
+  const hasContent = media.length > 0 || youtube !== null;
 
   if (!user) {
     return (
-      <Empty title="分享你的 AI 工具" message="登入後就能附上截圖或影片，分享你用 AI 打造的作品。">
+      <Empty title="分享你的 AI 工具" message="登入後就能附上截圖或 YouTube 影片，分享你用 AI 打造的作品。">
         <Button title="登入或註冊" variant="primary" onPress={() => router.push('/login')} />
       </Empty>
     );
@@ -41,24 +45,24 @@ export default function NewPostScreen() {
   function addAssets(result: ImagePicker.ImagePickerResult) {
     if (result.canceled) return;
     const tooBig = result.assets.filter((a) => (a.fileSize ?? 0) > MAX_FILE_BYTES);
-    if (tooBig.length) notify('檔案太大', '每個檔案需在 100MB 以內，已略過過大的檔案。');
+    if (tooBig.length) notify('圖片太大', '每張圖片需在 20MB 以內，已略過過大的圖片。');
     const picked = result.assets
       .filter((a) => (a.fileSize ?? 0) <= MAX_FILE_BYTES)
       .map(toPicked)
       .filter((m): m is PickedMedia => m !== null);
     setMedia((prev) => {
       const next = [...prev, ...picked];
-      if (next.length > MAX_MEDIA) notify(`最多 ${MAX_MEDIA} 個檔案`);
+      if (next.length > MAX_MEDIA) notify(`最多 ${MAX_MEDIA} 張截圖`);
       return next.slice(0, MAX_MEDIA);
     });
   }
 
   async function pickMedia() {
     const remaining = MAX_MEDIA - media.length;
-    if (remaining <= 0) return notify(`最多 ${MAX_MEDIA} 個檔案`);
-    const source = Platform.OS === 'web' ? 0 : await chooseOption('加入截圖或影片', ['從相簿選擇', '拍照', '錄影']);
+    if (remaining <= 0) return notify(`最多 ${MAX_MEDIA} 張截圖`);
+    const source = Platform.OS === 'web' ? 0 : await chooseOption('加入截圖', ['從相簿選擇', '拍照']);
     if (source === null) return;
-    // Compatible：讓 iPhone 把 HEIC 照片轉成 JPEG、HEVC 影片轉成 H.264，所有裝置都能看
+    // Compatible：讓 iPhone 把 HEIC 照片轉成 JPEG，所有裝置都能看
     const common = {
       preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       quality: 0.9,
@@ -66,7 +70,7 @@ export default function NewPostScreen() {
     if (source === 0) {
       addAssets(await ImagePicker.launchImageLibraryAsync({
         ...common,
-        mediaTypes: ['images', 'videos'],
+        mediaTypes: ['images'],
         allowsMultipleSelection: true,
         selectionLimit: remaining,
         orderedSelection: true,
@@ -77,8 +81,7 @@ export default function NewPostScreen() {
     if (!permission.granted) return notify('需要相機權限', '請到「設定」>「YourWowAI」開啟相機權限。');
     addAssets(await ImagePicker.launchCameraAsync({
       ...common,
-      mediaTypes: source === 1 ? ['images'] : ['videos'],
-      videoMaxDuration: 180,
+      mediaTypes: ['images'],
     }));
   }
 
@@ -95,7 +98,7 @@ export default function NewPostScreen() {
       if (!toolUrl.trim() && repo.homepage) setToolUrl(repo.homepage);
       const tools = aiToolsFromTopics(repo.topics);
       if (!aiTools.trim() && tools.length) setAiTools(tools.join(', '));
-      notify('已從 GitHub 匯入', media.length ? '已幫你填好空白的欄位。' : '已幫你填好空白的欄位，記得附上截圖或影片。');
+      notify('已從 GitHub 匯入', hasContent ? '已幫你填好空白的欄位。' : '已幫你填好空白的欄位，記得附上截圖或 YouTube 影片。');
     } catch (err) {
       notify('匯入失敗', (err as Error).message);
     } finally {
@@ -104,16 +107,18 @@ export default function NewPostScreen() {
   }
 
   async function submit() {
-    if (!media.length) return notify('請先附上截圖或影片', '分享時一定要附上至少一張截圖或一段影片。');
+    if (youtubeUrl.trim() && !youtube) return notify('YouTube 連結格式不正確', '請貼上 youtube.com 或 youtu.be 的影片網址。');
+    if (!hasContent) return notify('請先附上截圖或 YouTube 影片', '分享時一定要附上至少一張截圖或一個 YouTube 影片連結。');
     if (!title.trim()) return notify('請填寫工具名稱');
     setProgress(0);
     try {
-      const post = await uploadPost({ title, description, toolUrl, githubUrl, aiTools }, media, setProgress);
+      const post = await uploadPost({ title, description, toolUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools }, media, setProgress);
       setMedia([]);
       setTitle('');
       setDescription('');
       setToolUrl('');
       setGithubUrl('');
+      setYoutubeUrl('');
       setAiTools('');
       router.push(`/post/${post.id}`);
     } catch (err) {
@@ -131,30 +136,20 @@ export default function NewPostScreen() {
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <Pressable
           onPress={pickMedia}
-          style={[styles.picker, { borderColor: hasMedia ? c.border : c.accent, backgroundColor: c.surface }]}
-          accessibilityLabel="加入截圖或影片"
+          style={[styles.picker, { borderColor: hasContent ? c.border : c.accent, backgroundColor: c.surface }]}
+          accessibilityLabel="加入截圖"
         >
           <Ionicons name="images-outline" size={40} color={c.accent} />
-          <Text style={{ color: c.text, fontWeight: '800', fontSize: 16, fontFamily: fonts.mono }}>加入截圖或示範影片</Text>
-          <Text style={{ color: c.muted, fontSize: 13 }}>必填 · 最多 {MAX_MEDIA} 個 · 每個 100MB 以內</Text>
+          <Text style={{ color: c.text, fontWeight: '800', fontSize: 16, fontFamily: fonts.mono }}>加入截圖</Text>
+          <Text style={{ color: c.muted, fontSize: 13 }}>最多 {MAX_MEDIA} 張 · 每張 20MB 以內</Text>
         </Pressable>
-
-        <Text style={{ color: hasMedia ? c.success : c.notCool, fontWeight: '700', fontSize: 13, fontFamily: fonts.mono }}>
-          {hasMedia ? `✓ 已選擇 ${media.length} 個檔案` : '＊分享時一定要附上至少一張截圖或一段影片'}
-        </Text>
 
         {hasMedia ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             {media.map((m, i) => (
               <View key={m.uri} style={styles.preview}>
-                {m.kind === 'image' ? (
-                  <Image source={{ uri: m.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                ) : (
-                  <View style={[StyleSheet.absoluteFill, styles.videoPreview]}>
-                    <Ionicons name="videocam" size={30} color="#fff" />
-                  </View>
-                )}
-                <Text style={styles.kind}>{m.kind === 'video' ? '影片' : `圖片 ${i + 1}`}</Text>
+                <Image source={{ uri: m.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Text style={styles.kind}>{`圖片 ${i + 1}`}</Text>
                 <Pressable
                   style={styles.remove}
                   hitSlop={8}
@@ -167,6 +162,36 @@ export default function NewPostScreen() {
             ))}
           </ScrollView>
         ) : null}
+
+        <Text style={[styles.label, { color: c.text }]}>YouTube 示範影片</Text>
+        <View style={[styles.githubInput, { backgroundColor: c.surface, borderColor: youtubeUrl.trim() && !youtube ? c.notCool : c.border }]}>
+          <Ionicons name="logo-youtube" size={20} color="#ff0033" />
+          <TextInput
+            style={{ flex: 1, color: c.text, fontSize: 15, paddingVertical: 12 }}
+            value={youtubeUrl}
+            onChangeText={setYoutubeUrl}
+            placeholder="貼上 YouTube 影片網址"
+            placeholderTextColor={c.muted}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+        {youtube ? (
+          <View style={styles.youtubePreview}>
+            <Image source={{ uri: youtubeThumbnail(youtube.id) }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <View style={styles.youtubePlay}>
+              <Ionicons name="play" size={20} color="#fff" style={{ marginLeft: 2 }} />
+            </View>
+          </View>
+        ) : null}
+        <Text style={{ color: c.muted, fontSize: 12 }}>影片請先上傳到 YouTube（可設為「不公開」），再貼上連結</Text>
+
+        <Text style={{ color: hasContent ? c.success : c.notCool, fontWeight: '700', fontSize: 13, fontFamily: fonts.mono, marginTop: 6 }}>
+          {hasContent
+            ? `✓ 已附上 ${[media.length ? `${media.length} 張截圖` : '', youtube ? 'YouTube 影片' : ''].filter(Boolean).join('和')}`
+            : '＊分享時一定要附上至少一張截圖或一個 YouTube 影片連結'}
+        </Text>
 
         <Text style={[styles.label, { color: c.text }]}>GitHub 專案（選填）</Text>
         <View style={styles.githubRow}>
@@ -236,7 +261,7 @@ export default function NewPostScreen() {
           title={progress !== null ? `上傳中… ${Math.round(progress * 100)}%` : '分享'}
           variant="primary"
           onPress={submit}
-          disabled={!hasMedia || !title.trim() || progress !== null}
+          disabled={!hasContent || !title.trim() || progress !== null}
           style={{ marginTop: 8, minHeight: 50 }}
         />
       </ScrollView>
@@ -248,10 +273,11 @@ const styles = StyleSheet.create({
   page: { padding: 16, gap: 8, paddingBottom: 48 },
   picker: { alignItems: 'center', gap: 6, paddingVertical: 28, borderWidth: 2, borderStyle: 'dashed', borderRadius: 10 },
   preview: { width: 104, height: 104, borderRadius: 10, overflow: 'hidden', backgroundColor: '#000' },
-  videoPreview: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#2a1f4a' },
   kind: { position: 'absolute', left: 4, bottom: 4, color: '#fff', fontSize: 11, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' },
   remove: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
   label: { fontWeight: '700', marginTop: 10, fontFamily: fonts.mono, fontSize: 13 },
+  youtubePreview: { width: 160, height: 90, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  youtubePlay: { width: 40, height: 28, borderRadius: 8, backgroundColor: '#ff0033', alignItems: 'center', justifyContent: 'center' },
   githubRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   githubInput: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 8, paddingHorizontal: 14 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },

@@ -46,9 +46,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "YourWowAI 需要存取你的相簿，才能讓你選擇要分享的截圖或影片。",
-          "cameraPermission": "YourWowAI 需要使用相機，才能讓你拍攝要分享的作品照片或影片。",
-          "microphonePermission": "YourWowAI 需要使用麥克風，才能在你錄製示範影片時收錄聲音。"
+          "photosPermission": "YourWowAI 需要存取你的相簿，才能讓你選擇要分享的截圖。",
+          "cameraPermission": "YourWowAI 需要使用相機，才能讓你拍攝要分享的作品照片。",
+          "microphonePermission": false
         }
       ],
       "expo-font",
@@ -67,7 +67,7 @@
       "typedRoutes": false
     },
     "extra": {
-      "apiUrl": "https://api.your-domain.example"
+      "apiUrl": "https://yourwowai.onepointzeroone.org"
     },
     "backgroundColor": "#05070d"
   }

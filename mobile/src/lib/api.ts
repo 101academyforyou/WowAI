@@ -28,7 +28,7 @@ export function siteUrl(path: string) {
 }
 
 export const MAX_MEDIA = 10;
-export const MAX_FILE_BYTES = 100 * 1024 * 1024;
+export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 export type User = { id: number; username: string; displayName: string; avatarUrl?: string | null; isAdmin?: boolean };
 export type Media = { url: string; kind: 'image' | 'video' };
@@ -38,6 +38,7 @@ export type Post = {
   description: string;
   toolUrl: string;
   githubUrl: string;
+  youtube: { id: string; url: string } | null;
   createdAt: string;
   author: User;
   media: Media[];
@@ -162,7 +163,7 @@ export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mim
 
 // 用 XMLHttpRequest 上傳，才能顯示上傳進度（影片可能很大）
 export async function uploadPost(
-  fields: { title: string; description: string; toolUrl: string; githubUrl: string; aiTools: string },
+  fields: { title: string; description: string; toolUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string },
   media: PickedMedia[],
   onProgress: (ratio: number) => void,
 ): Promise<Post> {

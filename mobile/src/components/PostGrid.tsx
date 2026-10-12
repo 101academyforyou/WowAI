@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { mediaUri, type Post } from '../lib/api';
+import { youtubeThumbnail } from '../lib/youtube';
 import { useColors, useContentWidth } from '../lib/theme';
 
 // IG 風格的三欄九宮格
@@ -14,7 +15,9 @@ export function PostGrid({ posts }: { posts: Post[] }) {
     <View style={styles.grid}>
       {posts.map((p) => {
         const image = p.media.find((m) => m.kind === 'image');
-        const badge = p.media.length > 1 ? 'copy-outline' : p.media[0].kind === 'video' ? 'play' : null;
+        const cover = image ? mediaUri(image.url) : p.youtube ? youtubeThumbnail(p.youtube.id) : null;
+        const count = p.media.length + (p.youtube ? 1 : 0);
+        const badge = count > 1 ? 'copy-outline' : p.youtube || p.media[0]?.kind === 'video' ? 'play' : null;
         return (
           <Pressable
             key={p.id}
@@ -22,8 +25,8 @@ export function PostGrid({ posts }: { posts: Post[] }) {
             style={{ width: size, height: size, backgroundColor: c.surface2 }}
             accessibilityLabel={p.title}
           >
-            {image ? (
-              <Image source={{ uri: mediaUri(image.url) }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            {cover ? (
+              <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <View style={[StyleSheet.absoluteFill, styles.videoTile]}>
                 <Ionicons name="videocam" size={28} color="#fff" />

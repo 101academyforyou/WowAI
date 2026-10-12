@@ -73,7 +73,7 @@ export default function HomeScreen() {
           ListEmptyComponent={
             <Empty
               title={feed === 'following' ? '追蹤的人還沒有分享' : '還沒有人分享'}
-              message="用 AI 做了什麼好玩的工具嗎？附上截圖或影片秀給大家看！"
+              message="用 AI 做了什麼好玩的工具嗎？附上截圖或 YouTube 影片秀給大家看！"
             >
               <Button title="分享我的 AI 工具" variant="primary" onPress={() => router.push('/new')} />
             </Empty>
