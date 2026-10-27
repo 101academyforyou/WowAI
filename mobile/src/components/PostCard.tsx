@@ -25,7 +25,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
   const isMine = user?.id === post.author.id;
   // ☆ 左邊的文字說明：畫面夠寬顯示「GitHub Star」，中等寬度只寫「GitHub」，小手機只留圖示（避免擠掉分享按鈕）
   const contentWidth = useContentWidth();
-  const starLabel = contentWidth >= 440 ? 'GitHub Star' : contentWidth >= 420 ? 'GitHub' : '';
+  const starLabel = contentWidth >= 480 ? 'GitHub Star' : contentWidth >= 440 ? 'GitHub' : '';
 
   function requireLogin() {
     if (user) return true;
@@ -173,13 +173,13 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
           <Pressable
             hitSlop={8}
             onPress={() => Linking.openURL(post.githubUrl)}
-            style={styles.countButton}
+            style={[styles.countButton, styles.starButton]}
             accessibilityRole="link"
             accessibilityLabel={post.githubStars != null
               ? tr(`在 GitHub 按星，目前 ${post.githubStars} 顆星`, `Star on GitHub, ${plural(post.githubStars, 'star')}`)
               : tr('在 GitHub 按星', 'Star on GitHub')}
           >
-            {starLabel ? <Text style={[styles.starLabel, { color: c.muted }]}>{starLabel}</Text> : null}
+            {starLabel ? <Text style={[styles.voteLabel, styles.starLabel, { color: c.text }]} numberOfLines={1}>{starLabel}</Text> : null}
             <Ionicons name="star-outline" size={21} color={c.text} />
             <Text style={[styles.countText, { color: c.text }]}>{compactCount(post.githubStars ?? 0)}</Text>
           </Pressable>
@@ -286,7 +286,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   username: { fontWeight: '700', fontSize: 15, fontFamily: fonts.mono },
-  starLabel: { fontSize: 11, fontWeight: '700', fontFamily: fonts.mono },
+  // 和 Cool／Not Cool 同樣字型；空間不夠時縮短成「GitHub St…」，不會把分享按鈕擠出畫面
+  starLabel: { flexShrink: 1 },
+  starButton: { flexShrink: 1, minWidth: 0 },
   countButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   countText: { fontWeight: '700', fontSize: 13, fontFamily: fonts.mono },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingTop: 10 },
