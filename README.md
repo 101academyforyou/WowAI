@@ -204,6 +204,7 @@ test/        API 測試（node:test）
 | POST | `/api/posts/:id/report` | 檢舉（`reason`: spam、nudity、violence、harassment、ip、other） |
 | GET / POST | `/api/posts/:id/comments` | 留言 |
 | PATCH / DELETE | `/api/comments/:id` | 編輯自己的留言（`body`）／刪除留言（留言者、貼文作者或管理員），回傳最新 `commentCount` |
+| POST | `/api/posts/:id/github-stars` | 立刻向 GitHub 重新查詢這則貼文專案的星星數（同一個專案 5 秒內只查一次），回傳 `githubStars`；App 在使用者從 GitHub 按星回來時呼叫 |
 | PUT / DELETE | `/api/posts/:id/pin` | 把自己的貼文釘選到個人頁最上方（最多 3 則，最近釘選的在前）／取消；貼文的 `pinned` 表示是否釘選 |
 | PUT / DELETE | `/api/posts/:id/repost` | 在 YourWowAI 裡分享到自己的個人頁／取消，回傳 `repostCount`、`repostedByMe` |
 | GET | `/api/users/:username` | 個人頁與作品 |

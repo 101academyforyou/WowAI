@@ -774,6 +774,12 @@ export function createApp({
     res.json(voteState(post.id, req.user));
   });
 
+  // 使用者到 GitHub 按完星回來：立刻更新這則貼文專案的星星數（同一個專案 5 秒內只查一次）
+  app.post('/api/posts/:id/github-stars', async (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    res.json({ githubStars: post.github_url ? await starCache.refreshNow(post.github_url) : null });
+  });
+
   // 釘選到自己的個人頁最上方，最多 MAX_PINNED 則
   app.put('/api/posts/:id/pin', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);

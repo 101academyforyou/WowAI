@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { REPORT_REASONS, api, siteUrl, timeAgo, type Post, type Vote } from '../lib/api';
@@ -26,6 +26,45 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
   // ☆ 左邊的文字說明：畫面夠寬顯示「GitHub Star」，中等寬度只寫「GitHub」，小手機只留圖示（避免擠掉分享按鈕）
   const contentWidth = useContentWidth();
   const starLabel = contentWidth >= 480 ? 'GitHub Star' : contentWidth >= 440 ? 'GitHub' : '';
+
+  // 按 ☆ 會開 GitHub（網頁版開新分頁）讓人按星；回到 YourWowAI 時重新查星星數。
+  // GitHub 的資料可能晚幾秒到一分鐘才更新，所以分幾次查，數字變了就停
+  const awaitingStar = useRef(false);
+  const starTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const refreshStars = useCallback(() => {
+    starTimers.current.forEach(clearTimeout);
+    const before = post.githubStars ?? null;
+    let done = false;
+    starTimers.current = [500, 6000, 20000, 65000].map((delay) => setTimeout(async () => {
+      if (done) return;
+      try {
+        const { githubStars } = await api<{ githubStars: number | null }>(`/api/posts/${post.id}/github-stars`, { method: 'POST' });
+        if (githubStars !== null && githubStars !== before) {
+          done = true;
+          setPost((p) => ({ ...p, githubStars }));
+        }
+      } catch {
+        // 下一次再試
+      }
+    }, delay));
+  }, [post.id, post.githubStars]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || !awaitingStar.current) return;
+      awaitingStar.current = false;
+      refreshStars();
+    });
+    return () => sub.remove();
+  }, [refreshStars]);
+
+  useEffect(() => () => starTimers.current.forEach(clearTimeout), []);
+
+  function starOnGitHub() {
+    awaitingStar.current = true;
+    if (Platform.OS === 'web') globalThis.open?.(post.githubUrl, '_blank', 'noopener');
+    else Linking.openURL(post.githubUrl);
+  }
 
   function requireLogin() {
     if (user) return true;
@@ -172,7 +211,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         {post.githubUrl ? (
           <Pressable
             hitSlop={8}
-            onPress={() => Linking.openURL(post.githubUrl)}
+            onPress={starOnGitHub}
             style={[styles.countButton, styles.starButton]}
             accessibilityRole="link"
             accessibilityLabel={post.githubStars != null

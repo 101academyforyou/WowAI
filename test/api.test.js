@@ -12,6 +12,8 @@ const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom')
 let server;
 let base;
 let tmpDir;
+// 假 GitHub 上 octocat/starme 目前的星星數（測試按星後更新）
+let starMeCount = 5;
 
 before(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yourwowai-test-'));
@@ -20,9 +22,12 @@ before(async () => {
     uploadDir: path.join(tmpDir, 'uploads'),
     adminUsernames: ['admin'],
     // 假的 GitHub：octocat/hello 有 1234 顆星，其他專案不存在
-    githubFetch: async (url) => (String(url).toLowerCase() === 'https://api.github.com/repos/octocat/hello'
-      ? new Response(JSON.stringify({ stargazers_count: 1234 }))
-      : new Response('{}', { status: 404 })),
+    githubFetch: async (url) => {
+      const u = String(url).toLowerCase();
+      if (u === 'https://api.github.com/repos/octocat/hello') return new Response(JSON.stringify({ stargazers_count: 1234 }));
+      if (u === 'https://api.github.com/repos/octocat/starme') return new Response(JSON.stringify({ stargazers_count: starMeCount }));
+      return new Response('{}', { status: 404 });
+    },
   });
   await new Promise((resolve) => {
     server = app.listen(0, resolve);
@@ -854,4 +859,16 @@ test('釘選：最多 3 則、排在個人頁最前面（最近釘選的在前�
   await pin(ids[2], 'DELETE');
   assert.equal((await pin(ids[3])).status, 200);
   assert.deepEqual((await order()).slice(0, 3), [['p4', true], ['p2', true], ['p1', true]]);
+});
+
+test('到 GitHub 按星回來：立刻重新查詢星星數，同一個專案 5 秒內不重複查', async () => {
+  const cookie = await register('star_refresh');
+  const { post } = await (await createPost(cookie, { title: 'Star me', githubUrl: 'octocat/starme' }, [{ name: 'a.png', data: PNG }])).json();
+  await new Promise((r) => setTimeout(r, 50));
+  const refresh = async () => (await (await fetch(`${base}/api/posts/${post.id}/github-stars`, { method: 'POST' })).json()).githubStars;
+  assert.equal(await refresh(), 5);
+  starMeCount = 6; // 有人在 GitHub 按了星
+  assert.equal(await refresh(), 5, '5 秒內不會再問 GitHub');
+  const { post: plain } = await (await createPost(cookie, { title: 'No repo' }, [{ name: 'a.png', data: PNG }])).json();
+  assert.deepEqual(await (await fetch(`${base}/api/posts/${plain.id}/github-stars`, { method: 'POST' })).json(), { githubStars: null });
 });
