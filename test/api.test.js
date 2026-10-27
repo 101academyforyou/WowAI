@@ -531,3 +531,48 @@ test('公開統計：註冊人數與公開作品數，任何網站都能讀取',
   assert.equal(after.posts, before.posts + 1);
   assert.deepEqual(Object.keys(after).sort(), ['posts', 'users']);
 });
+
+test('編輯貼文：改文字與連結、保留／移除／新增截圖並調整順序，只有作者能改', async () => {
+  const cookie = await register('editor');
+  const other = await register('not_editor');
+  const created = await (await createPost(cookie, { title: '舊名稱', aiTools: 'Claude', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' }, [
+    { name: 'a.png', data: PNG },
+    { name: 'b.png', data: PNG },
+  ])).json();
+  const [first, second] = created.post.media.map((m) => m.url);
+  const patch = (c, fields, files = []) => fetch(`${base}/api/posts/${created.post.id}`, { method: 'PATCH', headers: { cookie: c }, body: postForm(fields, files) });
+
+  // 別人不能改
+  assert.equal((await patch(other, { title: 'x', layout: JSON.stringify([first]) })).status, 403);
+
+  // 移除第一張、在前面加一張新圖；改名稱、介紹、標籤、拿掉 YouTube
+  const res = await patch(cookie, {
+    title: '新名稱',
+    description: '更新後的介紹',
+    aiTools: 'Cursor, v0',
+    githubUrl: 'amy/new-repo',
+    youtubeUrl: '',
+    layout: JSON.stringify(['new:0', second]),
+  }, [{ name: 'c.png', data: PNG }]);
+  assert.equal(res.status, 200);
+  const { post } = await res.json();
+  assert.equal(post.title, '新名稱');
+  assert.equal(post.description, '更新後的介紹');
+  assert.deepEqual(post.aiTools, ['Cursor', 'v0']);
+  assert.equal(post.githubUrl, 'https://github.com/amy/new-repo');
+  assert.equal(post.youtube, null);
+  assert.equal(post.media.length, 2);
+  assert.notEqual(post.media[0].url, first);
+  assert.equal(post.media[1].url, second);
+  assert.equal((await fetch(`${base}${first}`)).status, 404, '被移除的舊圖會從伺服器刪掉');
+  assert.equal((await fetch(`${base}${post.media[0].url}`)).status, 200);
+
+  // 不能清空到沒有截圖也沒有 YouTube；不能偷用別則貼文的圖
+  const empty = await patch(cookie, { title: '新名稱', layout: '[]' });
+  assert.equal(empty.status, 400);
+  assert.match((await empty.json()).error, /截圖|YouTube/);
+  const foreign = await patch(cookie, { title: '新名稱', layout: JSON.stringify(['/uploads/not-mine.png']) });
+  assert.equal(foreign.status, 400);
+  const still = (await (await fetch(`${base}/api/posts/${created.post.id}`)).json()).post;
+  assert.equal(still.media.length, 2, '失敗的編輯不會改到原本的貼文');
+});

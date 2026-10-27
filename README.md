@@ -170,6 +170,7 @@ test/        API 測試（node:test）
 | GET | `/api/users?q=<關鍵字>` | 搜尋 Cooler（帳號或名稱，最多 10 位） |
 | POST | `/api/posts` | 分享（multipart，`media` 圖片或 `youtubeUrl` 至少要有一個；選填 `githubUrl`，接受 `owner/repo` 或 github.com 網址） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |
+| PATCH | `/api/posts/:id` | 編輯自己的貼文（multipart：文字欄位同分享；`layout` 是 JSON 陣列，依順序列出截圖，舊圖寫網址、新圖寫 `new:0`… 對應 `media` 檔案） |
 | PUT / DELETE | `/api/posts/:id/vote` | 投票（`vote`: `cool` 或 `notcool`）／取消，回傳 `coolCount`、`notCoolCount`、`myVote` |
 | POST | `/api/posts/:id/report` | 檢舉（`reason`: spam、nudity、violence、harassment、ip、other） |
 | GET / POST | `/api/posts/:id/comments` | 留言 |

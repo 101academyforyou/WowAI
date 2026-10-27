@@ -40,6 +40,7 @@ function RootStack() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ title: tr('貼文', 'Post') }} />
+      <Stack.Screen name="edit/[id]" options={{ title: tr('編輯貼文', 'Edit post') }} />
       <Stack.Screen name="user/[username]" options={{ title: '' }} />
       <Stack.Screen name="settings" options={{ title: tr('編輯個人檔案', 'Edit profile') }} />
       <Stack.Screen name="login" options={{ presentation: 'modal', title: '' }} />
