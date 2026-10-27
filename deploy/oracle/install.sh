@@ -97,7 +97,8 @@ elif [[ -n ${ADMIN_USERNAMES:-} ]]; then
 fi
 # 第三方登入（GitHub、Google）：預留欄位，填好後 sudo systemctl restart yourwowai 就會出現在登入畫面
 grep -q '^PUBLIC_URL=' "$ENV_FILE" || echo "PUBLIC_URL=https://$DOMAIN" >> "$ENV_FILE"
-for key in GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+# GITHUB_TOKEN（選填）：任何不勾權限的 GitHub 個人權杖，讓作品星星數的查詢上限從每小時 60 次提高到 5000 次
+for key in GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GITHUB_TOKEN; do
   grep -Eq "^#? ?$key=" "$ENV_FILE" || echo "# $key=" >> "$ENV_FILE"
 done
 chmod 640 "$ENV_FILE"

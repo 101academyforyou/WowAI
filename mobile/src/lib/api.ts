@@ -52,6 +52,8 @@ export type Post = {
   description: string;
   toolUrl: string;
   githubUrl: string;
+  // GitHub 上的星星數（伺服器每幾小時更新一次）；還沒查到或找不到是 null
+  githubStars?: number | null;
   youtube: { id: string; url: string } | null;
   createdAt: string;
   author: User;

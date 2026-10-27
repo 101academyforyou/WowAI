@@ -56,6 +56,13 @@ export function openDatabase(file) {
       last_used_at TEXT
     );
 
+    -- 作品 GitHub 專案的星星數快取（repo 是小寫的 owner/repo；stars 為 NULL 代表找不到）
+    CREATE TABLE IF NOT EXISTS repo_stars (
+      repo       TEXT PRIMARY KEY,
+      stars      INTEGER,
+      checked_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS posts (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
