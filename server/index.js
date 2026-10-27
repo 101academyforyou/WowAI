@@ -18,6 +18,8 @@ const app = createApp({
 });
 
 const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => {
-  console.log(`YourWowAI 已啟動：http://localhost:${port}`);
+// HOST=127.0.0.1：只讓同一台機器的反向代理（例如 Caddy）連進來
+const host = process.env.HOST || undefined;
+app.listen(port, host, () => {
+  console.log(`YourWowAI 已啟動：http://${host ?? 'localhost'}:${port}`);
 });

@@ -54,11 +54,66 @@ npm test             # 執行 API 測試
 | --- | --- | --- |
 | `PORT` | `3000` | 伺服器埠號 |
 | `DATA_DIR` | `./data` | SQLite 資料庫與上傳檔案的存放位置 |
+| `HOST` | 全部網路介面 | 設為 `127.0.0.1` 時只接受本機連線（前面有 Caddy 等反向代理時使用） |
 | `NODE_ENV` | — | 設為 `production` 時 cookie 會加上 `Secure`，並關閉開發用的跨來源存取 |
 | `ADMIN_USERNAMES` | — | 管理員帳號（逗號分隔），可查看檢舉、刪除或恢復貼文 |
 | `EXPO_ACCESS_TOKEN` | — | 選填。在 Expo 開啟「推播加強安全」時才需要 |
 
-## 部署到 Railway
+## 部署到 Oracle Cloud（永久免費）
+
+正式網址：**https://yourwowai.onepointzeroone.org**（網頁版 App、API、使用條款與隱私權政策都在這裡；iPhone App 也連這個網址）。
+
+`deploy/oracle/install.sh` 會一次裝好 Node.js 22、Caddy（自動 HTTPS）、編譯網頁版、設定開機自動啟動、打開防火牆，並每天備份資料庫。
+
+### 1. 建立免費主機
+1. 到 [oracle.com/cloud/free](https://www.oracle.com/cloud/free/) 註冊（需要信用卡驗證身分，Always Free 資源不會收費）。Home Region 選離你近的，例如 Japan East (Tokyo)，**之後不能改**
+2. 主選單 → **Compute → Instances → Create instance**
+   - **Image**：Canonical Ubuntu 24.04
+   - **Shape**：Ampere **VM.Standard.A1.Flex**，2 OCPU、12 GB 記憶體（在免費額度內）。若顯示容量不足，可稍後再試或換 AMD **VM.Standard.E2.1.Micro**
+   - **Networking**：建立新的 VCN 與公用子網路，勾選 **Assign a public IPv4 address**
+   - **SSH keys**：選 **Generate a key pair**，下載私鑰（例如 `ssh-key.key`）
+3. 建好後記下 **Public IP address**
+
+### 2. 打開網路的 80 / 443 埠
+Instance 頁面 → **Primary VNIC 的 Subnet** → **Security Lists** → Default Security List → **Add Ingress Rules**，加兩條：
+
+| Source CIDR | IP Protocol | Destination Port |
+| --- | --- | --- |
+| `0.0.0.0/0` | TCP | `80` |
+| `0.0.0.0/0` | TCP | `443` |
+
+### 3. 設定 DNS
+到 onepointzeroone.org 的 DNS 管理後台新增：
+
+| 類型 | 名稱 | 值 |
+| --- | --- | --- |
+| A | `yourwowai` | 主機的 Public IP |
+
+如果 DNS 在 Cloudflare，這筆請設成「DNS only」（灰色雲朵），讓 Caddy 自己申請 HTTPS 憑證。
+
+### 4. 登入主機並安裝
+Mac 的「終端機」：
+
+```bash
+chmod 400 ~/Downloads/ssh-key.key
+ssh -i ~/Downloads/ssh-key.key ubuntu@主機的PublicIP
+```
+
+登入後執行（`你的帳號` 換成你在 YourWowAI 的帳號，會成為管理員，可處理檢舉）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/101academyforyou/WowAI/main/deploy/oracle/install.sh | sudo ADMIN_USERNAMES=你的帳號 bash
+```
+
+第一次約 5–10 分鐘。DNS 生效後打開 https://yourwowai.onepointzeroone.org/api/health，看到 `{"ok":true}` 就完成了。
+
+### 之後
+- **更新到最新版**：再執行一次上面的安裝指令（設定與資料都會保留）
+- **查看紀錄**：`journalctl -u yourwowai -f`
+- **備份**：每天凌晨 3 點自動備份資料庫到 `/var/backups/yourwowai`（保留 14 天）。上傳的截圖在 `/var/lib/yourwowai/uploads`。建議也在 Oracle 主控台替開機磁碟設定備份（Always Free 含 5 份）
+- **注意**：Oracle 可能回收長時間幾乎沒有使用量的 Always Free 主機。若擔心，可把帳號升級為 Pay As You Go（免費額度內仍然不收費）
+
+## 部署到 Railway（另一個選擇，需付費）
 
 正式網址：**https://yourwowai.onepointzeroone.org**（網頁版 App、API、使用條款與隱私權政策都在這裡；iPhone App 也連這個網址）。
 
