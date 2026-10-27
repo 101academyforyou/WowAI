@@ -143,6 +143,21 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={100}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        {/* 必填說明：完成的項目打勾 */}
+        <View style={[styles.required, { borderColor: c.border, backgroundColor: c.surface }]} accessibilityRole="summary">
+          <Text style={{ color: c.text, fontWeight: '800', fontFamily: fonts.mono, fontSize: 13 }}>{tr('// 必填', '// required')}</Text>
+          {([
+            [hasContent, tr('至少一張截圖或一個 YouTube 影片連結', 'At least one screenshot or a YouTube link')],
+            [Boolean(title.trim()), tr('工具名稱', 'Tool name')],
+          ] as const).map(([done, label]) => (
+            <View key={label} style={styles.requiredRow}>
+              <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={17} color={done ? c.cool : c.notCool} />
+              <Text style={{ color: done ? c.muted : c.text, fontSize: 14, textDecorationLine: done ? 'line-through' : 'none' }}>{label}</Text>
+            </View>
+          ))}
+          <Text style={{ color: c.muted, fontSize: 12 }}>{tr('其他欄位都是選填，但填得越完整，越容易被看見。', 'Everything else is optional, but the more you fill in, the easier your project is to find.')}</Text>
+        </View>
+
         <Pressable
           onPress={pickMedia}
           style={[styles.picker, { borderColor: hasContent ? c.border : c.accent, backgroundColor: c.surface }]}
@@ -308,6 +323,8 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
 }
 
 const styles = StyleSheet.create({
+  required: { gap: 6, padding: 12, borderRadius: 10, borderWidth: 1 },
+  requiredRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   page: { padding: 16, gap: 8, paddingBottom: 48 },
   picker: { alignItems: 'center', gap: 6, paddingVertical: 28, borderWidth: 2, borderStyle: 'dashed', borderRadius: 10 },
   preview: { width: 104, height: 104, borderRadius: 10, overflow: 'hidden', backgroundColor: '#000' },
