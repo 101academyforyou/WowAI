@@ -34,7 +34,7 @@
       "favicon": "./assets/favicon.png",
       "name": "YourWowAI",
       "shortName": "YourWowAI",
-      "lang": "zh-Hant",
+      "lang": "en",
       "description": "YourWowAI: share the tools you build with AI. Every post shows the real thing: a screenshot or a YouTube demo.",
       "themeColor": "#05070d",
       "backgroundColor": "#05070d"

@@ -1,10 +1,10 @@
 import { Tabs } from 'expo-router/js-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { type ColorValue } from 'react-native';
+import { Platform, Pressable, Text, type ColorValue } from 'react-native';
 import { fonts, useColors } from '../../lib/theme';
 import { Logo } from '../../components/ui';
 import { useNotifications } from '../../lib/notifications';
-import { tr } from '../../lib/i18n';
+import { lang, setWebLang, tr } from '../../lib/i18n';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -12,6 +12,22 @@ function tabIcon(name: IconName, activeName: IconName) {
   // eslint-disable-next-line react/display-name
   return ({ color, focused }: { color: ColorValue; focused: boolean }) => (
     <Ionicons name={focused ? activeName : name} size={27} color={color} />
+  );
+}
+
+// 網頁版右上角的語言切換（iPhone 跟著手機語言，不需要）
+function LangToggle() {
+  const c = useColors();
+  const next = lang === 'zh' ? 'en' : 'zh';
+  return (
+    <Pressable
+      onPress={() => setWebLang(next)}
+      accessibilityRole="button"
+      accessibilityLabel={next === 'zh' ? '切換成中文' : 'Switch to English'}
+      style={({ pressed }) => ({ marginRight: 14, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.border, opacity: pressed ? 0.7 : 1 })}
+    >
+      <Text style={{ color: c.text, fontWeight: '700', fontSize: 13 }}>{next === 'zh' ? '中文' : 'EN'}</Text>
+    </Pressable>
   );
 }
 
@@ -29,6 +45,7 @@ export default function TabsLayout() {
         headerTintColor: c.text,
         headerTitleStyle: { fontFamily: fonts.mono, fontWeight: '700' },
         headerShadowVisible: false,
+        headerRight: Platform.OS === 'web' ? () => <LangToggle /> : undefined,
       }}
     >
       <Tabs.Screen
