@@ -66,7 +66,7 @@ Apple 對「使用者可發佈內容」的 App 有額外規定（審查準則 1.
 - 註冊 [Expo 帳號](https://expo.dev/signup)（免費）
 
 ### 2. 把後端部署到正式環境（必須是 HTTPS）
-iPhone App 只能連 HTTPS。正式網址是 `https://yourwowai.onepointzeroone.org`，部署步驟見根目錄 [README 的「部署到 Railway」](../README.md#部署到-railway)。
+iPhone App 只能連 HTTPS。正式網址是 `https://yourwowai.onepointzeroone.org`，部署步驟見根目錄 [README 的「部署到 Oracle Cloud」](../README.md#部署到-oracle-cloud永久免費)。
 
 ### 3. 修改 App 設定（`mobile/app.json`）
 - `expo.extra.apiUrl`：後端網址，已設為 `https://yourwowai.onepointzeroone.org`
