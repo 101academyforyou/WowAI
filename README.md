@@ -12,7 +12,7 @@
 ## 功能
 
 - **分享 AI 工具**：工具名稱、介紹、試用連結、使用了哪些 AI（例如 Claude、Cursor、v0）
-- **連動 GitHub**：分享時貼上 GitHub 專案（`owner/repo` 或網址）按「匯入」，App 從 GitHub 公開 API 自動帶入名稱、介紹、網站與 AI 相關 topics；貼文會顯示原始碼按鈕，也能用專案名稱搜尋
+- **連動 GitHub**：分享時貼上 GitHub 專案（`owner/repo` 或網址）按「匯入」，App 從 GitHub 公開 API 自動帶入名稱、介紹、網站與 AI 相關 topics；貼文會顯示原始碼按鈕，也能用專案名稱搜尋；也可以按「從我的 GitHub 專案選擇」直接列出自己的公開專案（用綁定的 GitHub 登入或「聯繫我」填的 GitHub，否則輸入帳號）
 - **一定要有截圖或 YouTube 影片**：截圖每則最多 10 張（JPG／PNG／GIF／WebP，單張 20MB 內）；示範影片貼 YouTube 連結（watch、youtu.be、Shorts 都可以），不在伺服器存影片檔
   - 前端：沒選檔案時無法按下「分享」
   - 後端：沒有媒體一律拒絕，並用檔案開頭的 magic bytes 驗證真的是圖片（不信任副檔名）；影片檔一律拒絕，請改貼 YouTube 連結
@@ -181,7 +181,7 @@ test/        API 測試（node:test）
 | 方法 | 路徑 | 說明 |
 | --- | --- | --- |
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
-| GET / PATCH / DELETE | `/api/me` | 目前登入者（含 `hasPassword`、已綁定的 `identities`）／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（有密碼送 `password`，第三方登入的帳號送 `confirm`: 自己的帳號名稱） |
+| GET / PATCH / DELETE | `/api/me` | 目前登入者（含 `hasPassword`、已綁定的 `identities`、自己的 GitHub 帳號 `github: { login, id }`）／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（有密碼送 `password`，第三方登入的帳號送 `confirm`: 自己的帳號名稱） |
 | GET | `/api/auth/providers` | 可用的登入方式 `{ github, google, apple }` |
 | POST | `/api/auth/oauth/:provider/start` | GitHub／Google 登入或綁定（`client`: `web` 或 `app`，`link: true` 代表綁定到目前帳號），回傳要打開的 `url`；完成後導回 `/auth?code=…`（網站）或 `yourwowai://auth?code=…`（App） |
 | POST | `/api/auth/oauth/exchange` | 用一次性 `code`（5 分鐘內有效）換登入 `token` |

@@ -40,6 +40,8 @@ export type User = {
   isAdmin?: boolean;
   hasPassword?: boolean;
   identities?: string[];
+  // 自己的 GitHub 帳號（綁定的 GitHub 登入，或「聯繫我」填的 GitHub）；login 空字串代表只知道 GitHub 的數字 ID
+  github?: { login: string; id: string | null } | null;
 };
 export type Media = { url: string; kind: 'image' | 'video' };
 export type Post = {

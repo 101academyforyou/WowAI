@@ -180,6 +180,11 @@ export function openDatabase(file) {
     // 選「其他」分類時，使用者自己填的領域名稱，例如「烹飪」
     db.exec("ALTER TABLE posts ADD COLUMN category_other TEXT NOT NULL DEFAULT ''");
   }
+  const identityColumns = db.prepare('PRAGMA table_info(user_identities)').all().map((c) => c.name);
+  if (!identityColumns.includes('username')) {
+    // 第三方帳號的名稱（例如 GitHub 的 login），用來列出自己的 GitHub 專案
+    db.exec("ALTER TABLE user_identities ADD COLUMN username TEXT NOT NULL DEFAULT ''");
+  }
   const commentColumns = db.prepare('PRAGMA table_info(comments)').all().map((c) => c.name);
   if (!commentColumns.includes('edited_at')) {
     // 留言最後編輯時間，NULL 代表沒改過

@@ -363,9 +363,25 @@ export function createApp({
         isAdmin: isAdmin(req.user),
         hasPassword: Boolean(req.user.password_hash),
         identities: db.prepare('SELECT provider FROM user_identities WHERE user_id = ? ORDER BY provider').all(req.user.id).map((r) => r.provider),
+        github: githubAccount(req.user),
       },
     });
   });
+
+  // 自己的 GitHub 帳號（分享時列出自己的專案）：優先用綁定的 GitHub 登入，其次是個人頁「聯繫我」填的 GitHub
+  function githubAccount(user) {
+    const identity = db.prepare("SELECT subject, username FROM user_identities WHERE user_id = ? AND provider = 'github'").get(user.id);
+    if (identity?.username) return { login: identity.username, id: identity.subject };
+    let contact = '';
+    try {
+      contact = String(JSON.parse(user.contacts || '{}').github ?? '');
+    } catch {
+      contact = '';
+    }
+    const fromContact = /^https?:\/\//i.test(contact) ? (contact.match(/github\.com\/([^/?#]+)/i)?.[1] ?? '') : contact.replace(/^@/, '');
+    if (/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(fromContact)) return { login: fromContact, id: identity?.subject ?? null };
+    return identity ? { login: '', id: identity.subject } : null;
+  }
 
   // ---- 第三方登入 ----
   app.get('/api/auth/providers', (_req, res) => {
@@ -375,12 +391,16 @@ export function createApp({
   // 第三方帳號 → YourWowAI 帳號；第一次登入時自動建立（沒有密碼），並帶入對方的大頭貼
   function userForIdentity(provider, profile) {
     const linked = db.prepare('SELECT user_id FROM user_identities WHERE provider = ? AND subject = ?').get(provider, profile.subject);
-    if (linked) return q.userById.get(linked.user_id);
+    if (linked) {
+      // GitHub 改名時跟著更新
+      if (profile.login) db.prepare('UPDATE user_identities SET username = ? WHERE provider = ? AND subject = ?').run(profile.login, provider, profile.subject);
+      return q.userById.get(linked.user_id);
+    }
     const username = suggestUsername(profile.usernameHint, (u) => Boolean(q.userByName.get(u)));
     const displayName = (profile.displayName || username).trim().slice(0, 50) || username;
     const userId = transaction(db, () => {
       const { lastInsertRowid } = db.prepare("INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, '')").run(username, displayName);
-      db.prepare('INSERT INTO user_identities (provider, subject, user_id) VALUES (?, ?, ?)').run(provider, profile.subject, lastInsertRowid);
+      db.prepare('INSERT INTO user_identities (provider, subject, user_id, username) VALUES (?, ?, ?, ?)').run(provider, profile.subject, lastInsertRowid, profile.login ?? '');
       return Number(lastInsertRowid);
     });
     if (profile.avatarUrl) importAvatar(userId, profile.avatarUrl).catch(() => {});
@@ -401,10 +421,12 @@ export function createApp({
     db.prepare("UPDATE users SET avatar = ? WHERE id = ? AND avatar = ''").run(filename, userId);
   }
 
-  function linkIdentity(userId, provider, subject) {
-    const linked = db.prepare('SELECT user_id FROM user_identities WHERE provider = ? AND subject = ?').get(provider, subject);
+  function linkIdentity(userId, provider, profile) {
+    const linked = db.prepare('SELECT user_id FROM user_identities WHERE provider = ? AND subject = ?').get(provider, profile.subject);
     if (linked && linked.user_id !== userId) throw new HttpError(409, `這個 ${PROVIDER_LABELS[provider]} 帳號已經綁定其他 YourWowAI 帳號`);
-    db.prepare('INSERT OR IGNORE INTO user_identities (provider, subject, user_id) VALUES (?, ?, ?)').run(provider, subject, userId);
+    db.prepare(
+      'INSERT INTO user_identities (provider, subject, user_id, username) VALUES (?, ?, ?, ?) ON CONFLICT (provider, subject) DO UPDATE SET username = excluded.username',
+    ).run(provider, profile.subject, userId, profile.login ?? '');
   }
 
   function oauthCallbackUrl(req, provider) {
@@ -459,7 +481,7 @@ export function createApp({
     }
     if (row.user_id) {
       try {
-        linkIdentity(row.user_id, provider, profile.subject);
+        linkIdentity(row.user_id, provider, profile);
       } catch (err) {
         return back({ error: translate(err.message, lang) });
       }

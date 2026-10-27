@@ -714,3 +714,16 @@ test('留言：自己可以編輯與刪除；貼文作者可以刪除別人在�
   assert.deepEqual(await (await del(author, c2.id)).json(), { commentCount: 0 });
   assert.equal((await del(fan, c2.id)).status, 404);
 });
+
+test('自己的 GitHub 帳號：沒有綁定 GitHub 時，用「聯繫我」填的 GitHub', async () => {
+  const cookie = await register('gh_contact');
+  const me = async () => (await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()).user;
+  assert.equal((await me()).github, null);
+  const save = (github) => fetch(`${base}/api/me`, {
+    method: 'PATCH', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: 'x', contacts: { github } }),
+  });
+  await save('@amy-dev');
+  assert.deepEqual((await me()).github, { login: 'amy-dev', id: null });
+  await save('https://github.com/Kai123');
+  assert.equal((await me()).github.login, 'Kai123');
+});
