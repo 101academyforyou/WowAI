@@ -9,6 +9,7 @@ export const AI_TOOLS: AiTool[] = [
   { name: 'ChatGPT', icon: 'chatbubbles-outline' },
   { name: 'Codex', icon: 'code-working-outline' },
   { name: 'Gemini', icon: 'diamond-outline' },
+  { name: 'Grok', icon: 'planet-outline' },
   { name: 'GitHub Copilot', icon: 'logo-github' },
   { name: 'Cursor', icon: 'navigate-outline' },
   { name: 'Lovable', icon: 'heart-outline' },
