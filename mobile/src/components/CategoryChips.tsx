@@ -72,7 +72,7 @@ export function CategoryPicker({ value, max, onChange }: { value: string[]; max:
 }
 
 // 貼文上的分類標籤（點了到探索頁看同類作品）
-export function CategoryBadges({ slugs, onPress }: { slugs: string[]; onPress: (slug: string) => void }) {
+export function CategoryBadges({ slugs, other, onPress }: { slugs: string[]; other?: string; onPress: (slug: string) => void }) {
   const c = useColors();
   return (
     <View style={styles.wrap}>
@@ -82,7 +82,7 @@ export function CategoryBadges({ slugs, onPress }: { slugs: string[]; onPress: (
         return (
           <Pressable key={slug} onPress={() => onPress(slug)} style={[styles.badge, { borderColor: c.border, backgroundColor: c.surface }]} accessibilityRole="link">
             <Ionicons name={cat.icon} size={13} color={c.accent} />
-            <Text style={{ color: c.text, fontSize: 12, fontWeight: '600' }}>{cat.label}</Text>
+            <Text style={{ color: c.text, fontSize: 12, fontWeight: '600' }}>{slug === 'other' && other ? other : cat.label}</Text>
           </Pressable>
         );
       })}
