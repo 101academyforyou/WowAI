@@ -24,7 +24,7 @@
 - 首頁動態牆：「最新分享」／「追蹤中」、下拉重新整理、無限捲動、左右滑多張截圖、**Cool／Not Cool 投票**（雙擊圖片 = Cool）
 - 科技風深色介面：霓虹青色、等寬字體、App 圖示與啟動畫面
 - 分享：從相簿選截圖（可多選）或拍照，示範影片貼 YouTube 連結；**沒有截圖或 YouTube 影片就不能分享**；顯示上傳進度
-  - iPhone 的 HEIC 照片會自動轉成 JPEG，所有裝置都能看；貼文顯示 YouTube 縮圖，點擊到 YouTube 播放
+  - iPhone 的 HEIC 照片會自動轉成 JPEG，所有裝置都能看；貼文顯示 YouTube 縮圖，點擊後直接在貼文內播放（YouTube 嵌入播放器；iPhone 用 react-native-webview）
 - 探索：依 AI 工具標籤（#Claude、#Cursor…）瀏覽
 - 貼文頁：留言、分享連結、「試用工具」按鈕
 - 個人頁：九宮格作品牆、追蹤、編輯個人檔案
