@@ -166,19 +166,15 @@ export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mim
   return data.user;
 }
 
-// 用 XMLHttpRequest 上傳，才能顯示上傳進度（影片可能很大）
-export async function uploadPost(
-  fields: { title: string; description: string; toolUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string },
-  media: PickedMedia[],
-  onProgress: (ratio: number) => void,
-): Promise<Post> {
-  const form = new FormData();
-  Object.entries(fields).forEach(([k, v]) => form.append(k, v));
-  for (const m of media) await appendFile(form, 'media', m);
+export type PostFields = { title: string; description: string; toolUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string };
+// 表單裡的截圖：existingUrl 有值代表是貼文原本就有的圖（編輯時）
+export type EditorMedia = PickedMedia & { existingUrl?: string };
 
+// 用 XMLHttpRequest 上傳，才能顯示上傳進度
+function sendPostForm(method: 'POST' | 'PATCH', path: string, form: FormData, onProgress: (ratio: number) => void): Promise<Post> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API_URL}/api/posts`);
+    xhr.open(method, `${API_URL}${path}`);
     Object.entries(authHeaders()).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
@@ -190,12 +186,37 @@ export async function uploadPost(
       } catch {
         // 非 JSON 回應
       }
-      if (xhr.status === 201 && data.post) resolve(data.post);
+      if (xhr.status >= 200 && xhr.status < 300 && data.post) resolve(data.post);
       else reject(new ApiError(data.error || uploadFailedMessage(), xhr.status));
     };
     xhr.onerror = () => reject(new ApiError(offlineMessage(), 0));
     xhr.send(form);
   });
+}
+
+export async function uploadPost(fields: PostFields, media: EditorMedia[], onProgress: (ratio: number) => void): Promise<Post> {
+  const form = new FormData();
+  Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+  for (const m of media) await appendFile(form, 'media', m);
+  return sendPostForm('POST', '/api/posts', form, onProgress);
+}
+
+// 編輯：layout 依顯示順序列出截圖，舊圖寫網址，新圖寫 new:第幾個上傳檔
+export async function updatePost(id: number, fields: PostFields, media: EditorMedia[], onProgress: (ratio: number) => void): Promise<Post> {
+  const form = new FormData();
+  Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+  const layout: string[] = [];
+  let newIndex = 0;
+  for (const m of media) {
+    if (m.existingUrl) {
+      layout.push(m.existingUrl);
+    } else {
+      layout.push(`new:${newIndex++}`);
+      await appendFile(form, 'media', m);
+    }
+  }
+  form.append('layout', JSON.stringify(layout));
+  return sendPostForm('PATCH', `/api/posts/${id}`, form, onProgress);
 }
 
 export function timeAgo(sqlDate: string) {

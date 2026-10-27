@@ -432,6 +432,78 @@ export function createApp({
     }
   });
 
+  // 編輯自己的貼文。layout 是 JSON 陣列，依顯示順序列出截圖：
+  // 保留的舊圖寫它的網址（例如 "/uploads/abc.png"），新上傳的寫 "new:0"、"new:1"…（對應 media 欄位的第幾個檔案）
+  app.patch('/api/posts/:id', requireAuth, upload.array('media', MAX_MEDIA_PER_POST), (req, res) => {
+    const files = req.files ?? [];
+    const cleanup = () => files.forEach((f) => fs.rmSync(f.path, { force: true }));
+    try {
+      const post = getPostOr404(req.params.id, req.user);
+      if (post.user_id !== req.user.id) throw new HttpError(403, '只能編輯自己的貼文');
+
+      let layout;
+      try {
+        layout = JSON.parse(req.body.layout ?? '[]');
+      } catch {
+        layout = null;
+      }
+      if (!Array.isArray(layout) || layout.some((x) => typeof x !== 'string')) throw new HttpError(400, '截圖資料格式不正確');
+      if (layout.length > MAX_MEDIA_PER_POST) throw new HttpError(400, `每則分享最多 ${MAX_MEDIA_PER_POST} 張截圖`);
+
+      const existing = new Map(q.mediaForPost.all(post.id).map((m) => [`/uploads/${m.filename}`, m]));
+      const usedNew = new Set();
+      const plan = layout.map((entry) => {
+        const n = /^new:(\d+)$/.exec(entry);
+        if (n) {
+          const file = files[Number(n[1])];
+          if (!file || usedNew.has(file)) throw new HttpError(400, '截圖資料格式不正確');
+          usedNew.add(file);
+          const type = sniffMedia(file.path);
+          if (type?.kind === 'video') throw new HttpError(400, '影片請上傳到 YouTube，再貼上影片連結');
+          if (!type) throw new HttpError(400, `「${file.originalname}」不是支援的圖片格式（JPG、PNG、GIF、WebP）`);
+          return { file, ...type };
+        }
+        const kept = existing.get(entry);
+        if (!kept) throw new HttpError(400, '截圖資料格式不正確');
+        return { kept };
+      });
+
+      const youtubeUrl = cleanYouTubeUrl(req.body.youtubeUrl);
+      if (plan.length === 0 && !youtubeUrl) throw new HttpError(400, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
+      const title = cleanText(req.body.title, { max: 80, field: '工具名稱', required: true });
+      const description = cleanText(req.body.description, { max: 2000, field: '介紹' });
+      const toolUrl = cleanToolUrl(req.body.toolUrl);
+      const githubUrl = cleanGitHubUrl(req.body.githubUrl);
+      const aiTools = parseAiTools(req.body.aiTools);
+
+      const keptNames = new Set(plan.filter((m) => m.kept).map((m) => m.kept.filename));
+      const removed = [...existing.values()].filter((m) => !keptNames.has(m.filename));
+      transaction(db, () => {
+        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, github_url = ?, youtube_url = ? WHERE id = ?')
+          .run(title, description, toolUrl, githubUrl, youtubeUrl, post.id);
+        db.prepare('DELETE FROM post_media WHERE post_id = ?').run(post.id);
+        const insertMedia = db.prepare('INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)');
+        plan.forEach((m, i) => {
+          if (m.kept) return insertMedia.run(post.id, m.kept.filename, m.kept.kind, i);
+          const filename = `${crypto.randomUUID()}${m.ext}`;
+          fs.renameSync(m.file.path, path.join(uploadDir, filename));
+          m.file.path = path.join(uploadDir, filename);
+          insertMedia.run(post.id, filename, m.kind, i);
+        });
+        db.prepare('DELETE FROM post_ai_tools WHERE post_id = ?').run(post.id);
+        const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
+        aiTools.forEach((name) => insertTool.run(post.id, name));
+      });
+      // 沒用到的上傳檔與被移除的舊圖
+      files.filter((f) => !usedNew.has(f)).forEach((f) => fs.rmSync(f.path, { force: true }));
+      removed.forEach((m) => fs.rmSync(path.join(uploadDir, m.filename), { force: true }));
+      res.json({ post: serializePost(q.postById.get(post.id), req.user) });
+    } catch (err) {
+      cleanup();
+      throw err;
+    }
+  });
+
   app.delete('/api/posts/:id', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
     if (post.user_id !== req.user.id && !isAdmin(req.user)) throw new HttpError(403, '只能刪除自己的貼文');

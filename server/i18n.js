@@ -36,6 +36,8 @@ const MESSAGES = {
   '分享時一定要附上至少一張截圖或一個 YouTube 影片連結': 'Every post needs at least one screenshot or a YouTube link',
   '影片請上傳到 YouTube，再貼上影片連結': 'Please upload videos to YouTube and paste the link instead',
   只能刪除自己的貼文: 'You can only delete your own posts',
+  只能編輯自己的貼文: 'You can only edit your own posts',
+  截圖資料格式不正確: 'Invalid screenshot data',
   不能檢舉自己的貼文: "You can't report your own post",
   請選擇檢舉原因: 'Please choose a reason',
   '請選擇 Cool 或 Not Cool': 'Choose Cool or Not Cool',

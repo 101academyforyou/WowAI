@@ -15,6 +15,12 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
   const c = useColors();
   const { user } = useAuth();
   const [post, setPost] = useState(initial);
+  // 列表重新載入（例如編輯完回來）時，換成最新的貼文內容
+  const [source, setSource] = useState(initial);
+  if (initial !== source) {
+    setSource(initial);
+    setPost(initial);
+  }
   const isMine = user?.id === post.author.id;
 
   function requireLogin() {
@@ -44,8 +50,14 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
 
   async function openMenu() {
     if (isMine || user?.isAdmin) {
-      const choice = await chooseOption(tr('貼文選項', 'Post options'), [tr('刪除貼文', 'Delete post')], { destructiveIndex: 0 });
-      if (choice !== 0) return;
+      // 作者可以編輯；管理員只能刪除別人的貼文
+      const options = isMine ? [tr('編輯貼文', 'Edit post'), tr('刪除貼文', 'Delete post')] : [tr('刪除貼文', 'Delete post')];
+      const choice = await chooseOption(tr('貼文選項', 'Post options'), options, { destructiveIndex: options.length - 1 });
+      if (choice === null) return;
+      if (isMine && choice === 0) {
+        router.push(`/edit/${post.id}`);
+        return;
+      }
       if (!(await confirmAction(tr('刪除這則分享？', 'Delete this post?'), tr('刪除後無法復原。', "This can't be undone."), tr('刪除', 'Delete')))) return;
       try {
         await api(`/api/posts/${post.id}`, { method: 'DELETE' });
