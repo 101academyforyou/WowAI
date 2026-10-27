@@ -51,12 +51,23 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
 
   async function openMenu() {
     if (isMine || user?.isAdmin) {
-      // 作者可以編輯；管理員只能刪除別人的貼文
-      const options = isMine ? [tr('編輯貼文', 'Edit post'), tr('刪除貼文', 'Delete post')] : [tr('刪除貼文', 'Delete post')];
+      // 作者可以編輯、釘選；管理員只能刪除別人的貼文
+      const pinLabel = post.pinned ? tr('取消釘選', 'Unpin from profile') : tr('釘選到個人頁', 'Pin to profile');
+      const options = isMine ? [tr('編輯貼文', 'Edit post'), pinLabel, tr('刪除貼文', 'Delete post')] : [tr('刪除貼文', 'Delete post')];
       const choice = await chooseOption(tr('貼文選項', 'Post options'), options, { destructiveIndex: options.length - 1 });
       if (choice === null) return;
       if (isMine && choice === 0) {
         router.push(`/edit/${post.id}`);
+        return;
+      }
+      if (isMine && choice === 1) {
+        try {
+          const res = await api<{ pinned: boolean }>(`/api/posts/${post.id}/pin`, { method: post.pinned ? 'DELETE' : 'PUT' });
+          setPost({ ...post, pinned: res.pinned });
+          notify(res.pinned ? tr('已釘選到個人頁', 'Pinned to your profile') : tr('已取消釘選', 'Unpinned'));
+        } catch (err) {
+          notify((err as Error).message);
+        }
         return;
       }
       if (!(await confirmAction(tr('刪除這則分享？', 'Delete this post?'), tr('刪除後無法復原。', "This can't be undone."), tr('刪除', 'Delete')))) return;

@@ -828,3 +828,30 @@ test('GitHub 星星數：背景查詢後顯示在貼文上，同一個專案共�
   const { post: same } = await (await createPost(cookie, { title: 'Again', githubUrl: 'https://github.com/OctoCat/Hello' }, png)).json();
   assert.equal(same.githubStars, 1234);
 });
+
+test('釘選：最多 3 則、排在個人頁最前面（最近釘選的在前）、只能釘選自己的、可以取消', async () => {
+  const cookie = await register('pin_user');
+  const png = [{ name: 'a.png', data: PNG }];
+  const ids = [];
+  for (let i = 1; i <= 5; i += 1) ids.push((await (await createPost(cookie, { title: `p${i}` }, png)).json()).post.id);
+  const pin = (id, method = 'PUT', c = cookie) => fetch(`${base}/api/posts/${id}/pin`, { method, headers: { cookie: c } });
+  const order = async () => (await (await fetch(`${base}/api/users/pin_user`)).json()).posts.map((p) => [p.title, p.pinned]);
+
+  assert.equal((await pin(ids[0])).status, 200);
+  await pin(ids[2]);
+  await pin(ids[1]);
+  assert.deepEqual(await order(), [['p2', true], ['p3', true], ['p1', true], ['p5', false], ['p4', false]]);
+  // 第 4 則：擋下來（英文錯誤訊息也正確）
+  const fourth = await fetch(`${base}/api/posts/${ids[3]}/pin`, { method: 'PUT', headers: { cookie, 'Accept-Language': 'en' } });
+  assert.equal(fourth.status, 400);
+  assert.match((await fourth.json()).error, /up to 3 posts/);
+  // 已經釘選的再釘一次沒關係
+  assert.equal((await pin(ids[0])).status, 200);
+  // 別人不能釘選
+  const other = await register('pin_other');
+  assert.equal((await pin(ids[3], 'PUT', other)).status, 403);
+  // 取消後可以釘新的
+  await pin(ids[2], 'DELETE');
+  assert.equal((await pin(ids[3])).status, 200);
+  assert.deepEqual((await order()).slice(0, 3), [['p4', true], ['p2', true], ['p1', true]]);
+});

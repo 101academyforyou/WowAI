@@ -21,6 +21,8 @@ const PAGE_SIZE = 12;
 // 被不同使用者檢舉達到這個次數的貼文會自動隱藏，等待管理員處理
 const AUTO_HIDE_REPORTS = 3;
 const REPORT_REASONS = ['spam', 'nudity', 'violence', 'harassment', 'ip', 'other'];
+// 個人頁最多釘選幾則貼文
+const MAX_PINNED = 3;
 const PROVIDER_LABELS = { github: 'GitHub', google: 'Google', apple: 'Apple' };
 // AI Webhook：權杖格式、每小時最多發幾則、JSON（含 base64 截圖）大小上限
 const HOOK_TOKEN = /^ywa_[0-9a-f]{48}$/;
@@ -274,6 +276,7 @@ export function createApp({
       ...voteState(post.id, viewer),
       commentCount: q.commentCount.get(post.id).n,
       ...repostState(post.id, viewer),
+      pinned: Boolean(post.pinned_at),
     };
   }
 
@@ -771,6 +774,25 @@ export function createApp({
     res.json(voteState(post.id, req.user));
   });
 
+  // 釘選到自己的個人頁最上方，最多 MAX_PINNED 則
+  app.put('/api/posts/:id/pin', requireAuth, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    if (post.user_id !== req.user.id) throw new HttpError(403, '只能釘選自己的貼文');
+    if (!post.pinned_at) {
+      const { n } = db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND pinned_at IS NOT NULL').get(req.user.id);
+      if (n >= MAX_PINNED) throw new HttpError(400, `最多只能釘選 ${MAX_PINNED} 則貼文，請先取消其他釘選`);
+      db.prepare("UPDATE posts SET pinned_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = ?").run(post.id);
+    }
+    res.json({ pinned: true });
+  });
+
+  app.delete('/api/posts/:id/pin', requireAuth, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    if (post.user_id !== req.user.id) throw new HttpError(403, '只能釘選自己的貼文');
+    db.prepare('UPDATE posts SET pinned_at = NULL WHERE id = ?').run(post.id);
+    res.json({ pinned: false });
+  });
+
   // 在 YourWowAI 裡轉分享別人的作品（顯示在自己個人頁的「分享」分頁）
   app.put('/api/posts/:id/repost', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
@@ -1036,7 +1058,8 @@ export function createApp({
     const blockedByMe = req.user ? Boolean(q.blocked.get(req.user.id, user.id)) : false;
     const visible = visibleSql(req.user);
     const posts = blockedByMe ? [] : db.prepare(
-      `SELECT p.* FROM posts p WHERE p.user_id = ?${visible.sql} ORDER BY p.id DESC`,
+      // 釘選的排最前面（最近釘選的在前），其他照新到舊
+      `SELECT p.* FROM posts p WHERE p.user_id = ?${visible.sql} ORDER BY p.pinned_at IS NULL, p.pinned_at DESC, p.id DESC`,
     ).all(user.id, ...visible.params);
     // 轉分享的作品，依轉分享的時間排序
     const reposts = blockedByMe ? [] : db.prepare(

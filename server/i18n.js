@@ -41,6 +41,7 @@ const MESSAGES = {
   截圖資料格式不正確: 'Invalid screenshot data',
   不支援的分類: 'Unsupported category',
   不能檢舉自己的貼文: "You can't report your own post",
+  只能釘選自己的貼文: 'You can only pin your own posts',
   不能轉分享自己的貼文: "You can't share your own post",
   請選擇檢舉原因: 'Please choose a reason',
   '請選擇 Cool 或 Not Cool': 'Choose Cool or Not Cool',
@@ -81,6 +82,7 @@ const PATTERNS = [
   [/^每則分享最多 (\d+) 張截圖$/, (m) => `Up to ${m[1]} screenshots per post`],
   [/^這個 (.+) 帳號已經綁定其他 YourWowAI 帳號$/, (m) => `This ${m[1]} account is already linked to another YourWowAI account`],
   [/^(.+) 登入失敗，請再試一次$/, (m) => `${m[1]} sign-in failed. Please try again`],
+  [/^最多只能釘選 (\d+) 則貼文，請先取消其他釘選$/, (m) => `You can pin up to ${m[1]} posts. Unpin one first`],
   [/^分類最多 (\d+) 個$/, (m) => `Up to ${m[1]} categories`],
   [/^請輸入 (.+) 帳號或 (.+) 的網址$/, (m) => `Enter your ${m[1]} username or a link from ${m[2]}`],
 ];

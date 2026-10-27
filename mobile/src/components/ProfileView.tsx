@@ -163,7 +163,7 @@ export function ProfileView({ username }: { username: string }) {
           />
         )
       ) : posts.length ? (
-        <PostGrid posts={posts} />
+        <PostGrid posts={posts} pinned />
       ) : (
         <Empty message={user.blockedByMe ? tr('你已封鎖這位使用者', "You've blocked this user") : isMe ? tr('你還沒有分享任何 AI 工具', "You haven't shared any AI tools yet") : tr('還沒有作品', 'No projects yet')}>
           {isMe ? <Button title={tr('分享第一個作品', 'Share your first project')} variant="primary" onPress={() => router.push('/new')} /> : null}
