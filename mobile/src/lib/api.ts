@@ -67,6 +67,8 @@ export type Post = {
   commentCount: number;
   repostCount: number;
   repostedByMe: boolean;
+  // 釘選在作者個人頁最上方（最多 3 則）
+  pinned?: boolean;
 };
 export type Vote = 'cool' | 'notcool';
 export type Comment = { id: number; body: string; edited?: boolean; author: User };

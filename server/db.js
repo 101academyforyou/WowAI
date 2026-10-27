@@ -72,6 +72,7 @@ export function openDatabase(file) {
       github_url  TEXT NOT NULL DEFAULT '',
       youtube_url TEXT NOT NULL DEFAULT '',
       category_other TEXT NOT NULL DEFAULT '',
+      pinned_at   TEXT,
       hidden      INTEGER NOT NULL DEFAULT 0,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -182,6 +183,10 @@ export function openDatabase(file) {
   if (!postColumns.includes('github_url')) {
     // 作品的 GitHub 專案，例如 https://github.com/amy/ai-ledger
     db.exec("ALTER TABLE posts ADD COLUMN github_url TEXT NOT NULL DEFAULT ''");
+  }
+  if (!postColumns.includes('pinned_at')) {
+    // 釘選在個人頁最上方的時間，NULL 代表沒有釘選（每人最多 3 則）
+    db.exec('ALTER TABLE posts ADD COLUMN pinned_at TEXT');
   }
   const tokenColumns = db.prepare('PRAGMA table_info(push_tokens)').all().map((c) => c.name);
   if (!tokenColumns.includes('lang')) {
