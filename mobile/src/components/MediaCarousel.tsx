@@ -39,14 +39,27 @@ function YouTubeItem({ id, url, size, fill }: { id: string; url: string; size: {
   );
 }
 
+// 輪播的高寬比跟著第一張走（和 IG 一樣），限制在 16:9（橫）到 4:5（直）之間，避免上下大片黑邊
+const WIDE = 9 / 16;
+const TALL = 5 / 4;
+const clampRatio = (r: number) => Math.min(TALL, Math.max(WIDE, r));
+
 export function MediaCarousel({ media, youtube, onDoubleTap }: { media: Media[]; youtube?: { id: string; url: string } | null; onDoubleTap?: () => void }) {
   const slides: Slide[] = youtube ? [{ kind: 'youtube', ...youtube }, ...media] : media;
   const width = useContentWidth();
   const c = useColors();
-  // 只有 YouTube 影片時用 16:9（縮圖 hqdefault 是 4:3 含黑邊，cover 剛好裁掉黑邊）
-  const onlyYouTube = media.length === 0 && !!youtube;
-  const size = { width, height: Math.round(onlyYouTube ? width * 0.5625 : width * 1.25) };
+  // YouTube 影片排第一張，固定 16:9；第一張是圖片時，載入後依圖片比例調整
+  const [imageRatio, setImageRatio] = useState(1);
+  const ratio = youtube ? WIDE : imageRatio;
+  const size = { width, height: Math.round(width * ratio) };
   const [index, setIndex] = useState(0);
+  const listRef = useRef<FlatList<Slide>>(null);
+
+  function goTo(i: number) {
+    const next = Math.max(0, Math.min(slides.length - 1, i));
+    listRef.current?.scrollToIndex({ index: next, animated: true });
+    setIndex(next);
+  }
   const lastTap = useRef(0);
   const [burst] = useState(() => new Animated.Value(0));
 
@@ -67,7 +80,9 @@ export function MediaCarousel({ media, youtube, onDoubleTap }: { media: Media[];
   return (
     <View>
       <FlatList
+        ref={listRef}
         data={slides}
+        getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -77,14 +92,20 @@ export function MediaCarousel({ media, youtube, onDoubleTap }: { media: Media[];
         scrollEventThrottle={64}
         renderItem={({ item, index: i }) =>
           item.kind === 'youtube' ? (
-            <YouTubeItem id={item.id} url={item.url} size={size} fill={onlyYouTube} />
+            <YouTubeItem id={item.id} url={item.url} size={size} fill={ratio <= WIDE + 0.01} />
           ) : item.kind === 'video' ? (
             <View style={[size, styles.black]}>
               <VideoItem uri={mediaUri(item.url)} active={i === index} size={size} />
             </View>
           ) : (
             <Pressable onPress={handleTap} style={[size, styles.black]}>
-              <Image source={{ uri: mediaUri(item.url) }} style={size} contentFit="contain" transition={150} />
+              <Image
+                source={{ uri: mediaUri(item.url) }}
+                style={size}
+                contentFit="contain"
+                transition={150}
+                onLoad={i === 0 && !youtube ? (e) => setImageRatio(clampRatio(e.source.height / e.source.width)) : undefined}
+              />
             </Pressable>
           )
         }
@@ -100,6 +121,28 @@ export function MediaCarousel({ media, youtube, onDoubleTap }: { media: Media[];
           <View style={styles.counter}>
             <Text style={styles.counterText}>{index + 1}/{slides.length}</Text>
           </View>
+          {index > 0 ? (
+            <Pressable
+              onPress={() => goTo(index - 1)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={tr('上一張', 'Previous')}
+              style={({ pressed }) => [styles.arrow, { left: 10, top: size.height / 2 - 18, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Ionicons name="chevron-back" size={22} color="#fff" />
+            </Pressable>
+          ) : null}
+          {index < slides.length - 1 ? (
+            <Pressable
+              onPress={() => goTo(index + 1)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={tr('下一張', 'Next')}
+              style={({ pressed }) => [styles.arrow, { right: 10, top: size.height / 2 - 18, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Ionicons name="chevron-forward" size={22} color="#fff" />
+            </Pressable>
+          ) : null}
           <View style={styles.dots}>
             {slides.map((m, i) => (
               <View key={m.url} style={[styles.dot, { backgroundColor: i === index ? c.accent : c.border }]} />
@@ -122,6 +165,7 @@ const styles = StyleSheet.create({
   burstText: { fontSize: 22, fontWeight: '900', letterSpacing: 4, fontFamily: fonts.mono },
   counter: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(5,7,13,0.75)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 2 },
   counterText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  arrow: { position: 'absolute', width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(5,7,13,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 4, paddingTop: 8 },
   dot: { width: 14, height: 3, borderRadius: 2 },
 });
