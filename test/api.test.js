@@ -605,3 +605,28 @@ test('應用領域分類：分享時選、編輯時改、依分類瀏覽、分�
   const { posts: still } = await (await fetch(`${base}/api/posts?category=education`)).json();
   assert.ok(!still.some((p) => p.id === created.post.id));
 });
+
+test('「其他」分類可以自己填領域名稱，搜尋得到；沒選「其他」時不會存', async () => {
+  const cookie = await register('other_cat');
+  const png = [{ name: 'a.png', data: PNG }];
+  const res = await createPost(cookie, { title: '食譜產生器', categories: 'other,lifestyle', categoryOther: '  烹飪料理  ' }, png);
+  const { post } = await res.json();
+  assert.deepEqual(post.categories, ['lifestyle', 'other']);
+  assert.equal(post.categoryOther, '烹飪料理');
+
+  const found = (await (await fetch(`${base}/api/posts?q=${encodeURIComponent('烹飪')}`)).json()).posts;
+  assert.ok(found.some((p) => p.id === post.id));
+
+  const plain = await (await createPost(cookie, { title: '另一個', categories: 'lifestyle', categoryOther: '不該存' }, png)).json();
+  assert.equal(plain.post.categoryOther, '');
+
+  const tooLong = await createPost(cookie, { title: 'x', categories: 'other', categoryOther: '字'.repeat(31) }, png);
+  assert.equal(tooLong.status, 400);
+
+  const edited = await (await fetch(`${base}/api/posts/${post.id}`, {
+    method: 'PATCH',
+    headers: { cookie },
+    body: postForm({ title: '食譜產生器', categories: 'lifestyle', categoryOther: '烹飪料理', layout: JSON.stringify(post.media.map((m) => m.url)) }),
+  })).json();
+  assert.equal(edited.post.categoryOther, '', '取消「其他」後清掉自訂名稱');
+});

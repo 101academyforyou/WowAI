@@ -41,6 +41,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
   const [importing, setImporting] = useState(false);
   const [aiTools, setAiTools] = useState(initial?.aiTools.join(', ') ?? '');
   const [categories, setCategories] = useState<string[]>(initial?.categories ?? []);
+  const [categoryOther, setCategoryOther] = useState(initial?.categoryOther ?? '');
   const [progress, setProgress] = useState<number | null>(null);
   const youtube = parseYouTube(youtubeUrl);
   const hasContent = media.length > 0 || youtube !== null;
@@ -115,7 +116,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
     if (!title.trim()) return notify(tr('請填寫工具名稱', 'Please enter a tool name'));
     setProgress(0);
     try {
-      const post = await onSubmit({ title, description, toolUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools, categories: categories.join(',') }, media, setProgress);
+      const post = await onSubmit({ title, description, toolUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools, categories: categories.join(','), categoryOther: categories.includes('other') ? categoryOther : '' }, media, setProgress);
       onDone(post);
     } catch (err) {
       notify(initial ? tr('儲存失敗', "Couldn't save") : tr('分享失敗', "Couldn't share"), (err as Error).message);
@@ -229,6 +230,17 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
 
         <Text style={[styles.label, { color: c.text }]}>{tr(`應用領域（最多 ${MAX_CATEGORIES} 個）`, `Category (up to ${MAX_CATEGORIES})`)}</Text>
         <CategoryPicker value={categories} max={MAX_CATEGORIES} onChange={setCategories} />
+        {categories.includes('other') ? (
+          <TextInput
+            style={inputStyle}
+            value={categoryOther}
+            onChangeText={setCategoryOther}
+            maxLength={30}
+            placeholder={tr('「其他」是什麼領域？例如：烹飪料理、旅遊', 'Name your category, e.g. Cooking, Travel')}
+            placeholderTextColor={c.muted}
+            accessibilityLabel={tr('自訂分類名稱', 'Custom category name')}
+          />
+        ) : null}
         <Text style={{ color: c.muted, fontSize: 12 }}>{tr('選對分類，對這個領域有興趣的人更容易找到你的作品', 'Pick a category so people interested in it can find your project')}</Text>
 
         <Text style={[styles.label, { color: c.text }]}>{tr('工具連結（選填）', 'Link to try it (optional)')}</Text>

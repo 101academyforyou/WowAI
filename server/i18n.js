@@ -16,6 +16,7 @@ const FIELDS = {
   'GitHub 專案': 'GitHub repo',
   留言: 'Comment',
   自我介紹: 'Bio',
+  自訂分類: 'Custom category',
 };
 
 const MESSAGES = {

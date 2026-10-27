@@ -151,7 +151,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
           <Text style={{ color: c.text, lineHeight: 21 }} numberOfLines={full ? undefined : 3}>{post.description}</Text>
         ) : null}
         {post.categories?.length ? (
-          <CategoryBadges slugs={post.categories} onPress={(slug) => router.push({ pathname: '/explore', params: { category: slug, tag: '' } })} />
+          <CategoryBadges slugs={post.categories} other={post.categoryOther} onPress={(slug) => router.push({ pathname: '/explore', params: { category: slug, tag: '' } })} />
         ) : null}
         {post.aiTools.length ? (
           <View style={styles.chips}>

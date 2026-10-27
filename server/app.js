@@ -239,6 +239,7 @@ export function createApp({
       author: publicUser(q.userById.get(post.user_id)),
       media: q.mediaForPost.all(post.id).map((m) => ({ url: `/uploads/${m.filename}`, kind: m.kind })),
       aiTools: q.toolsForPost.all(post.id).map((t) => t.name),
+      categoryOther: post.category_other ?? '',
       categories: (() => {
         const slugs = new Set(q.categoriesForPost.all(post.id).map((r) => r.slug));
         return CATEGORIES.filter((c) => slugs.has(c));
@@ -372,12 +373,13 @@ export function createApp({
       sql += ' AND EXISTS (SELECT 1 FROM post_categories c WHERE c.post_id = p.id AND c.slug = ?)';
       params.push(category);
     }
-    // 搜尋：每個關鍵字都要出現在工具名稱、介紹、GitHub 專案、AI 工具標籤或作者名稱其中之一
+    // 搜尋：每個關鍵字都要出現在工具名稱、介紹、GitHub 專案、自訂分類、AI 工具標籤或作者名稱其中之一
     for (const word of searchWords(req.query.q)) {
       sql += ` AND (p.title LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\' OR p.github_url LIKE ? ESCAPE '\\'
+        OR p.category_other LIKE ? ESCAPE '\\'
         OR EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name LIKE ? ESCAPE '\\')
         OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')))`;
-      params.push(...Array(6).fill(likePattern(word)));
+      params.push(...Array(7).fill(likePattern(word)));
     }
     if (following) {
       sql += ' AND (p.user_id = ? OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))';
@@ -408,6 +410,7 @@ export function createApp({
       const githubUrl = cleanGitHubUrl(req.body.githubUrl);
       const aiTools = parseAiTools(req.body.aiTools);
       const categories = parseCategories(req.body.categories);
+      const categoryOther = categories.includes('other') ? cleanText(req.body.categoryOther, { max: 30, field: '自訂分類' }) : '';
 
       const media = files.map((f) => {
         const type = sniffMedia(f.path);
@@ -418,8 +421,8 @@ export function createApp({
 
       const postId = transaction(db, () => {
         const { lastInsertRowid } = db
-          .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url, youtube_url) VALUES (?, ?, ?, ?, ?, ?)')
-          .run(req.user.id, title, description, toolUrl, githubUrl, youtubeUrl);
+          .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url, youtube_url, category_other) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(req.user.id, title, description, toolUrl, githubUrl, youtubeUrl, categoryOther);
         const insertMedia = db.prepare(
           'INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)',
         );
@@ -490,12 +493,13 @@ export function createApp({
       const githubUrl = cleanGitHubUrl(req.body.githubUrl);
       const aiTools = parseAiTools(req.body.aiTools);
       const categories = parseCategories(req.body.categories);
+      const categoryOther = categories.includes('other') ? cleanText(req.body.categoryOther, { max: 30, field: '自訂分類' }) : '';
 
       const keptNames = new Set(plan.filter((m) => m.kept).map((m) => m.kept.filename));
       const removed = [...existing.values()].filter((m) => !keptNames.has(m.filename));
       transaction(db, () => {
-        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, github_url = ?, youtube_url = ? WHERE id = ?')
-          .run(title, description, toolUrl, githubUrl, youtubeUrl, post.id);
+        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
+          .run(title, description, toolUrl, githubUrl, youtubeUrl, categoryOther, post.id);
         db.prepare('DELETE FROM post_media WHERE post_id = ?').run(post.id);
         const insertMedia = db.prepare('INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)');
         plan.forEach((m, i) => {

@@ -29,6 +29,7 @@ export function openDatabase(file) {
       tool_url    TEXT NOT NULL DEFAULT '',
       github_url  TEXT NOT NULL DEFAULT '',
       youtube_url TEXT NOT NULL DEFAULT '',
+      category_other TEXT NOT NULL DEFAULT '',
       hidden      INTEGER NOT NULL DEFAULT 0,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -138,6 +139,10 @@ export function openDatabase(file) {
   if (!postColumns.includes('youtube_url')) {
     // 示範影片的 YouTube 連結，例如 https://www.youtube.com/watch?v=dQw4w9WgXcQ
     db.exec("ALTER TABLE posts ADD COLUMN youtube_url TEXT NOT NULL DEFAULT ''");
+  }
+  if (!postColumns.includes('category_other')) {
+    // 選「其他」分類時，使用者自己填的領域名稱，例如「烹飪」
+    db.exec("ALTER TABLE posts ADD COLUMN category_other TEXT NOT NULL DEFAULT ''");
   }
   const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userColumns.includes('avatar')) {
