@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { fetchProviders, startOAuth, exchangeCode, PROVIDER_LABEL, type OAuthProvider, type Providers } from '../lib/oauth';
 import type { User } from '../lib/api';
@@ -39,10 +39,13 @@ export function SocialSignIn({ onSignedIn }: { onSignedIn: (res: { user: User; t
 
   if (!providers) return null;
   const oauth = (['github', 'google'] as const).filter((p) => providers[p]);
+  const apple = providers.apple && Platform.OS === 'ios';
+  // 伺服器還沒設定 GitHub／Google（網頁版也沒有 Apple）時，不顯示條款與分隔線
+  if (!oauth.length && !apple) return null;
 
   return (
     <View style={styles.wrap}>
-      {providers.apple ? <AppleSignInButton onSignedIn={(res) => { onSignedIn(res).catch((err) => notify(err.message)); }} onError={(m) => notify(m)} /> : null}
+      {apple ? <AppleSignInButton onSignedIn={(res) => { onSignedIn(res).catch((err) => notify(err.message)); }} onError={(m) => notify(m)} /> : null}
       {oauth.map((p) => (
         <Pressable
           key={p}
