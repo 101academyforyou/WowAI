@@ -8,6 +8,7 @@ import { sniffMedia, MEDIA_TYPES } from './media.js';
 import { cleanContacts, serializeContacts } from './contacts.js';
 import { parseGitHubRepo } from './github.js';
 import { parseYouTube } from './youtube.js';
+import { requestLang, translate } from './i18n.js';
 import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
 
 const MAX_MEDIA_PER_POST = 10;
@@ -652,7 +653,7 @@ export function createApp({
       actor: publicUser({ id: r.actor_id, username: r.username, display_name: r.display_name, avatar: r.avatar }),
       postId: r.post_id,
       thumbnailUrl: r.thumb ? `/uploads/${r.thumb}` : null,
-      message: notificationText({ type: r.type, actorName: r.display_name || r.username, postTitle: r.post_title ?? '', text: r.text }),
+      message: notificationText({ type: r.type, actorName: r.display_name || r.username, postTitle: r.post_title ?? '', text: r.text }, requestLang(req)),
       link: notificationLink({ type: r.type, actorUsername: r.username, postId: r.post_id }),
     }));
     res.json({
@@ -688,8 +689,8 @@ export function createApp({
     const token = String(req.body?.token ?? '');
     if (!PUSH_TOKEN.test(token)) throw new HttpError(400, '推播 token 格式不正確');
     db.prepare(
-      'INSERT INTO push_tokens (token, user_id) VALUES (?, ?) ON CONFLICT (token) DO UPDATE SET user_id = excluded.user_id',
-    ).run(token, req.user.id);
+      'INSERT INTO push_tokens (token, user_id, lang) VALUES (?, ?, ?) ON CONFLICT (token) DO UPDATE SET user_id = excluded.user_id, lang = excluded.lang',
+    ).run(token, req.user.id, requestLang(req));
     res.status(204).end();
   });
 
@@ -739,8 +740,9 @@ export function createApp({
 
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, _next) => {
+    const lang = requestLang(req);
     if (err instanceof multer.MulterError && req.path === '/api/me/avatar') {
-      return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? '大頭貼不可超過 5MB' : '一次只能上傳一張大頭貼' });
+      return res.status(400).json({ error: translate(err.code === 'LIMIT_FILE_SIZE' ? '大頭貼不可超過 5MB' : '一次只能上傳一張大頭貼', lang) });
     }
     if (err instanceof multer.MulterError) {
       const messages = {
@@ -748,11 +750,11 @@ export function createApp({
         LIMIT_FILE_COUNT: `每則分享最多 ${MAX_MEDIA_PER_POST} 張截圖`,
         LIMIT_UNEXPECTED_FILE: `每則分享最多 ${MAX_MEDIA_PER_POST} 張截圖`,
       };
-      return res.status(400).json({ error: messages[err.code] ?? '上傳失敗' });
+      return res.status(400).json({ error: translate(messages[err.code] ?? '上傳失敗', lang) });
     }
     const status = err.status ?? 500;
     if (status >= 500) console.error(err);
-    res.status(status).json({ error: status >= 500 ? '伺服器發生錯誤' : err.message });
+    res.status(status).json({ error: translate(status >= 500 ? '伺服器發生錯誤' : err.message, lang) });
   });
 
   return app;

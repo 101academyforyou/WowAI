@@ -102,6 +102,7 @@ export function openDatabase(file) {
     CREATE TABLE IF NOT EXISTS push_tokens (
       token      TEXT PRIMARY KEY,
       user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      lang       TEXT NOT NULL DEFAULT 'zh',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -120,6 +121,11 @@ export function openDatabase(file) {
   if (!postColumns.includes('github_url')) {
     // 作品的 GitHub 專案，例如 https://github.com/amy/ai-ledger
     db.exec("ALTER TABLE posts ADD COLUMN github_url TEXT NOT NULL DEFAULT ''");
+  }
+  const tokenColumns = db.prepare('PRAGMA table_info(push_tokens)').all().map((c) => c.name);
+  if (!tokenColumns.includes('lang')) {
+    // 推播語言：zh 或 en，依裝置登記時的 App 語言
+    db.exec("ALTER TABLE push_tokens ADD COLUMN lang TEXT NOT NULL DEFAULT 'zh'");
   }
   if (!postColumns.includes('youtube_url')) {
     // 示範影片的 YouTube 連結，例如 https://www.youtube.com/watch?v=dQw4w9WgXcQ

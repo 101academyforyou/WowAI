@@ -500,3 +500,22 @@ test('示範影片用 YouTube 連結：各種網址格式都能用，只有影�
   const plain = await (await createPost(cookie, { title: '只有截圖' }, [{ name: 'a.png', data: PNG }])).json();
   assert.equal(plain.post.youtube, null);
 });
+
+test('英文版 App：錯誤訊息依 Accept-Language 回英文，沒送語言時維持中文', async () => {
+  const cookie = await register('lang_user');
+  const send = (headers) => fetch(`${base}/api/posts`, { method: 'POST', headers: { cookie, ...headers }, body: postForm({ title: 'x' }) });
+  assert.equal((await (await send({ 'Accept-Language': 'en' })).json()).error, 'Every post needs at least one screenshot or a YouTube link');
+  assert.equal((await (await send({ 'Accept-Language': 'en-US,en;q=0.9' })).json()).error, 'Every post needs at least one screenshot or a YouTube link');
+  assert.equal((await (await send({ 'Accept-Language': 'zh-TW' })).json()).error, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
+  assert.equal((await (await send({})).json()).error, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
+
+  const long = await fetch(`${base}/api/posts`, { method: 'POST', headers: { cookie, 'Accept-Language': 'en' }, body: postForm({ title: 'x'.repeat(81) }, [{ name: 'a.png', data: PNG }]) });
+  assert.equal((await long.json()).error, 'Tool name must be 80 characters or fewer');
+
+  const contact = await fetch(`${base}/api/me`, {
+    method: 'PATCH',
+    headers: { cookie, 'Content-Type': 'application/json', 'Accept-Language': 'en' },
+    body: JSON.stringify({ displayName: 'L', bio: '', contacts: { instagram: 'https://evil.example/x' } }),
+  });
+  assert.equal((await contact.json()).error, 'Enter your Instagram username or a link from instagram.com');
+});

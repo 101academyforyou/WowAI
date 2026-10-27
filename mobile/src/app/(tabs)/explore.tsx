@@ -6,6 +6,7 @@ import { api, type Post, type User } from '../../lib/api';
 import { fonts, useColors } from '../../lib/theme';
 import { PostGrid } from '../../components/PostGrid';
 import { Avatar, Chip, Empty, Loading, notify } from '../../components/ui';
+import { tr } from '../../lib/i18n';
 
 type Tag = { name: string; count: number };
 
@@ -53,10 +54,10 @@ export default function ExploreScreen() {
     load();
   }, [load]));
 
-  const title = query ? `搜尋「${query}」` : tag ? `#${tag}` : '探索別人用 AI 做了什麼酷工具';
+  const title = query ? tr(`搜尋「${query}」`, `Results for "${query}"`) : tag ? `#${tag}` : tr('探索別人用 AI 做了什麼酷工具', 'See the cool tools people built with AI');
   const emptyMessage = query
-    ? `找不到${tag ? ` #${tag} 裡` : ''}和「${query}」有關的作品`
-    : '這個分類還沒有作品';
+    ? tr(`找不到${tag ? ` #${tag} 裡` : ''}和「${query}」有關的作品`, `No projects${tag ? ` in #${tag}` : ''} match "${query}"`)
+    : tr('這個分類還沒有作品', 'Nothing here yet');
 
   return (
     <ScrollView
@@ -73,16 +74,16 @@ export default function ExploreScreen() {
             value={input}
             onChangeText={setInput}
             onSubmitEditing={() => setQuery(input.trim())}
-            placeholder="搜尋 AI 工具、標籤或 Cooler"
+            placeholder={tr('搜尋 AI 工具、標籤或 Cooler', 'Search tools, tags or Coolers')}
             placeholderTextColor={c.muted}
             returnKeyType="search"
             autoCapitalize="none"
             autoCorrect={false}
             maxLength={50}
-            accessibilityLabel="搜尋"
+            accessibilityLabel={tr('搜尋', 'Search')}
           />
           {input ? (
-            <Pressable onPress={() => { setInput(''); setQuery(''); }} hitSlop={10} accessibilityLabel="清除搜尋">
+            <Pressable onPress={() => { setInput(''); setQuery(''); }} hitSlop={10} accessibilityLabel={tr('清除搜尋', 'Clear search')}>
               <Ionicons name="close-circle" size={18} color={c.muted} />
             </Pressable>
           ) : null}
@@ -98,7 +99,7 @@ export default function ExploreScreen() {
           {title}
         </Text>
         <View style={styles.chips}>
-          <Chip label="全部" active={!tag} onPress={() => router.setParams({ tag: '' })} />
+          <Chip label={tr('全部', 'All')} active={!tag} onPress={() => router.setParams({ tag: '' })} />
           {tags.map((t) => (
             <Chip
               key={t.name}
@@ -132,7 +133,7 @@ export default function ExploreScreen() {
       ) : null}
 
       {query && posts?.length ? (
-        <Text style={[styles.sectionTitle, styles.postsTitle, { color: c.muted }]}>{`// 作品 · ${posts.length}`}</Text>
+        <Text style={[styles.sectionTitle, styles.postsTitle, { color: c.muted }]}>{`// ${tr('作品', 'Projects')} · ${posts.length}`}</Text>
       ) : null}
       {posts === null ? <Loading /> : posts.length ? <PostGrid posts={posts} /> : <Empty message={emptyMessage} />}
     </ScrollView>

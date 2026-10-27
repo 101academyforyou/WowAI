@@ -4,6 +4,7 @@ import { type ColorValue } from 'react-native';
 import { fonts, useColors } from '../../lib/theme';
 import { Logo } from '../../components/ui';
 import { useNotifications } from '../../lib/notifications';
+import { tr } from '../../lib/i18n';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -33,31 +34,31 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '首頁',
+          title: tr('首頁', 'Home'),
           headerTitleAlign: 'left',
           headerTitle: () => <Logo size={24} />,
           tabBarIcon: tabIcon('home-outline', 'home'),
         }}
       />
-      <Tabs.Screen name="explore" options={{ title: '探索', tabBarIcon: tabIcon('search-outline', 'search') }} />
+      <Tabs.Screen name="explore" options={{ title: tr('探索', 'Explore'), tabBarIcon: tabIcon('search-outline', 'search') }} />
       <Tabs.Screen
         name="new"
         options={{
-          title: '分享你的 AI 工具',
+          title: tr('分享你的 AI 工具', 'Share your AI tool'),
           tabBarIcon: ({ focused }) => <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={32} color={c.accent} />,
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
-          title: '通知',
+          title: tr('通知', 'Notifications'),
           tabBarIcon: tabIcon('notifications-outline', 'notifications'),
-          tabBarAccessibilityLabel: unreadCount ? `通知，${unreadCount} 則未讀` : '通知',
+          tabBarAccessibilityLabel: unreadCount ? tr(`通知，${unreadCount} 則未讀`, `Notifications, ${unreadCount} unread`) : tr('通知', 'Notifications'),
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: c.notCool, color: '#fff', fontFamily: fonts.mono, fontSize: 11 },
         }}
       />
-      <Tabs.Screen name="me" options={{ title: '個人', tabBarIcon: tabIcon('person-circle-outline', 'person-circle') }} />
+      <Tabs.Screen name="me" options={{ title: tr('個人', 'Me'), tabBarIcon: tabIcon('person-circle-outline', 'person-circle') }} />
     </Tabs>
   );
 }

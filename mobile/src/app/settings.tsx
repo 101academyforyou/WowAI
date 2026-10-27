@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth';
 import { CONTACT_FIELDS, type ContactType } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
 import { Avatar, Button, Loading, chooseOption, confirmAction, notify } from '../components/ui';
+import { tr } from '../lib/i18n';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
@@ -49,7 +50,7 @@ export default function SettingsScreen() {
   }
 
   async function changeAvatar() {
-    const source = Platform.OS === 'web' ? 0 : await chooseOption('更換大頭貼', ['從相簿選擇', '拍照']);
+    const source = Platform.OS === 'web' ? 0 : await chooseOption(tr('更換大頭貼', 'Change avatar'), [tr('從相簿選擇', 'Choose from library'), tr('拍照', 'Take photo')]);
     if (source === null) return;
     // 裁成正方形、壓縮成 JPEG，上傳很快
     const options: ImagePicker.ImagePickerOptions = {
@@ -61,12 +62,12 @@ export default function SettingsScreen() {
     };
     if (source === 1) {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) return notify('需要相機權限', '請到「設定」>「YourWowAI」開啟相機權限。');
+      if (!permission.granted) return notify(tr('需要相機權限', 'Camera access needed'), tr('請到「設定」>「YourWowAI」開啟相機權限。', 'Turn on camera access in Settings > YourWowAI.'));
     }
     const result = source === 1 ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
     if (result.canceled) return;
     const asset = result.assets[0];
-    if ((asset.fileSize ?? 0) > MAX_AVATAR_BYTES) return notify('圖片太大', '大頭貼需在 5MB 以內。');
+    if ((asset.fileSize ?? 0) > MAX_AVATAR_BYTES) return notify(tr('圖片太大', 'Image too large'), tr('大頭貼需在 5MB 以內。', 'Avatars must be under 5 MB.'));
     setAvatarBusy(true);
     try {
       const updated = await uploadAvatar({
@@ -76,14 +77,14 @@ export default function SettingsScreen() {
       });
       setUser({ ...user!, ...updated });
     } catch (err) {
-      notify('上傳失敗', (err as Error).message);
+      notify(tr('上傳失敗', 'Upload failed'), (err as Error).message);
     } finally {
       setAvatarBusy(false);
     }
   }
 
   async function removeAvatar() {
-    if (!(await confirmAction('移除大頭貼？', '會改回顯示名稱的第一個字。', '移除'))) return;
+    if (!(await confirmAction(tr('移除大頭貼？', 'Remove avatar?'), tr('會改回顯示名稱的第一個字。', 'Your profile will show the first letter of your name instead.'), tr('移除', 'Remove')))) return;
     try {
       const res = await api<{ user: User }>('/api/me/avatar', { method: 'DELETE' });
       setUser({ ...user!, ...res.user });
@@ -94,12 +95,12 @@ export default function SettingsScreen() {
 
   // App Store 規定：可以註冊帳號的 App 必須能在 App 內刪除帳號
   async function removeAccount() {
-    const ok = await confirmAction('永久刪除帳號？', '你的所有作品、留言、追蹤、投票與大頭貼都會永久刪除，無法復原。', '刪除帳號');
+    const ok = await confirmAction(tr('永久刪除帳號？', 'Permanently delete account?'), tr('你的所有作品、留言、追蹤、投票與大頭貼都會永久刪除，無法復原。', "All your posts, comments, follows, votes and avatar will be permanently deleted. This can't be undone."), tr('刪除帳號', 'Delete account'));
     if (!ok) return;
     try {
       await deleteAccount(password);
       router.dismissAll();
-      notify('帳號已刪除');
+      notify(tr('帳號已刪除', 'Account deleted'));
     } catch (err) {
       notify((err as Error).message);
     }
@@ -110,33 +111,33 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <View style={styles.avatarSection}>
-        <Pressable onPress={changeAvatar} disabled={avatarBusy} accessibilityRole="button" accessibilityLabel="更換大頭貼">
+        <Pressable onPress={changeAvatar} disabled={avatarBusy} accessibilityRole="button" accessibilityLabel={tr('更換大頭貼', 'Change avatar')}>
           <Avatar user={user} size={96} />
           <View style={[styles.avatarBadge, { backgroundColor: c.accent, borderColor: c.bg }]}>
             {avatarBusy ? <ActivityIndicator size="small" color={c.accentText} /> : <Ionicons name="camera" size={16} color={c.accentText} />}
           </View>
         </Pressable>
         <View style={styles.avatarButtons}>
-          <Button title={user.avatarUrl ? '更換大頭貼' : '上傳大頭貼'} onPress={changeAvatar} loading={avatarBusy} />
-          {user.avatarUrl ? <Button title="移除" variant="danger" onPress={removeAvatar} disabled={avatarBusy} /> : null}
+          <Button title={user.avatarUrl ? tr('更換大頭貼', 'Change avatar') : tr('上傳大頭貼', 'Upload avatar')} onPress={changeAvatar} loading={avatarBusy} />
+          {user.avatarUrl ? <Button title={tr('移除', 'Remove')} variant="danger" onPress={removeAvatar} disabled={avatarBusy} /> : null}
         </View>
       </View>
 
-      <Text style={[styles.label, { color: c.text }]}>名稱</Text>
+      <Text style={[styles.label, { color: c.text }]}>{tr('名稱', 'Name')}</Text>
       <TextInput style={inputStyle} value={displayName} onChangeText={setDisplayName} maxLength={50} />
-      <Text style={[styles.label, { color: c.text }]}>自我介紹</Text>
+      <Text style={[styles.label, { color: c.text }]}>{tr('自我介紹', 'Bio')}</Text>
       <TextInput
         style={[inputStyle, { minHeight: 100, textAlignVertical: 'top' }]}
         value={bio}
         onChangeText={setBio}
         maxLength={300}
         multiline
-        placeholder="介紹一下你自己、擅長用哪些 AI 工具…"
+        placeholder={tr('介紹一下你自己、擅長用哪些 AI 工具…', 'Tell people about yourself and the AI tools you use…')}
         placeholderTextColor={c.muted}
       />
 
-      <Text style={[styles.label, { color: c.text, marginTop: 20 }]}>聯繫我</Text>
-      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>填了的才會出現在你的個人頁，所有人都看得到。可以填帳號或貼上網址。</Text>
+      <Text style={[styles.label, { color: c.text, marginTop: 20 }]}>{tr('聯繫我', 'Contact me')}</Text>
+      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{tr('填了的才會出現在你的個人頁，所有人都看得到。可以填帳號或貼上網址。', 'Only what you fill in shows on your profile, and everyone can see it. Enter a username or paste a link.')}</Text>
       {CONTACT_FIELDS.map((f) => (
         <View key={f.type} style={[styles.contactInput, { backgroundColor: c.surface, borderColor: c.border }]}>
           <Ionicons name={f.icon} size={20} color={f.color} style={styles.contactIcon} />
@@ -144,7 +145,7 @@ export default function SettingsScreen() {
             style={[styles.contactText, { color: c.text }]}
             value={contacts[f.type] ?? ''}
             onChangeText={(v) => setContacts((prev) => ({ ...prev, [f.type]: v }))}
-            placeholder={`${f.label}：${f.placeholder}`}
+            placeholder={`${f.label}${tr('：', ': ')}${f.placeholder}`}
             placeholderTextColor={c.muted}
             keyboardType={f.keyboardType}
             autoCapitalize="none"
@@ -155,27 +156,27 @@ export default function SettingsScreen() {
         </View>
       ))}
 
-      <Button title="儲存" variant="primary" onPress={save} loading={saving} style={{ marginTop: 8 }} />
+      <Button title={tr('儲存', 'Save')} variant="primary" onPress={save} loading={saving} style={{ marginTop: 8 }} />
 
       <View style={[styles.section, { borderColor: c.border }]}>
-        <Button title="使用條款" onPress={() => Linking.openURL(siteUrl('/terms.html'))} />
-        <Button title="隱私權政策" onPress={() => Linking.openURL(siteUrl('/privacy.html'))} />
-        <Button title="登出" onPress={async () => { await logout(); router.dismissAll(); }} />
+        <Button title={tr('使用條款', 'Terms of Use')} onPress={() => Linking.openURL(siteUrl('/terms.html'))} />
+        <Button title={tr('隱私權政策', 'Privacy Policy')} onPress={() => Linking.openURL(siteUrl('/privacy.html'))} />
+        <Button title={tr('登出', 'Sign out')} onPress={async () => { await logout(); router.dismissAll(); }} />
       </View>
 
       <View style={[styles.section, { borderColor: c.border }]}>
-        <Text style={[styles.label, { color: c.danger }]}>刪除帳號</Text>
-        <Text style={{ color: c.muted, lineHeight: 20 }}>刪除後，你的所有作品、留言與追蹤都會永久刪除。請輸入密碼確認。</Text>
+        <Text style={[styles.label, { color: c.danger }]}>{tr('刪除帳號', 'Delete account')}</Text>
+        <Text style={{ color: c.muted, lineHeight: 20 }}>{tr('刪除後，你的所有作品、留言與追蹤都會永久刪除。請輸入密碼確認。', 'All your posts, comments and follows will be permanently deleted. Enter your password to confirm.')}</Text>
         <TextInput
           style={inputStyle}
           value={password}
           onChangeText={setPassword}
-          placeholder="目前的密碼"
+          placeholder={tr('目前的密碼', 'Current password')}
           placeholderTextColor={c.muted}
           secureTextEntry
           textContentType="password"
         />
-        <Button title="永久刪除帳號" variant="danger" onPress={removeAccount} disabled={!password} />
+        <Button title={tr('永久刪除帳號', 'Permanently delete account')} variant="danger" onPress={removeAccount} disabled={!password} />
       </View>
     </ScrollView>
   );

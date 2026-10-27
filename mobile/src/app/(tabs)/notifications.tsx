@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth';
 import { useNotifications } from '../../lib/notifications';
 import { fonts, useColors } from '../../lib/theme';
 import { Avatar, Button, Empty, Loading } from '../../components/ui';
+import { tr } from '../../lib/i18n';
 
 const TYPE_ICON = {
   cool: 'flash',
@@ -45,8 +46,8 @@ export default function NotificationsScreen() {
 
   if (!user) {
     return (
-      <Empty title="通知" message="登入後，有人 Cool 你的作品、留言或追蹤你時，會在這裡通知你。">
-        <Button title="登入或註冊" variant="primary" onPress={() => router.push('/login')} />
+      <Empty title={tr('通知', 'Notifications')} message={tr('登入後，有人 Cool 你的作品、留言或追蹤你時，會在這裡通知你。', 'Sign in to get notified when people vote Cool, comment or follow you.')}>
+        <Button title={tr('登入或註冊', 'Sign in or sign up')} variant="primary" onPress={() => router.push('/login')} />
       </Empty>
     );
   }
@@ -70,12 +71,12 @@ export default function NotificationsScreen() {
           loadingMore.current = false;
         }
       }}
-      ListEmptyComponent={<Empty title="還沒有通知" message="分享作品、追蹤其他 Cooler，就會開始收到通知。" />}
+      ListEmptyComponent={<Empty title={tr('還沒有通知', 'No notifications yet')} message={tr('分享作品、追蹤其他 Cooler，就會開始收到通知。', 'Share a project or follow other Coolers to start getting notifications.')} />}
       renderItem={({ item }) => (
         <Pressable
           onPress={() => router.push(item.link)}
           accessibilityRole="button"
-          accessibilityLabel={`${item.read ? '' : '未讀，'}${item.message}`}
+          accessibilityLabel={`${item.read ? '' : tr('未讀，', 'Unread, ')}${item.message}`}
           style={({ pressed }) => [
             styles.row,
             { borderColor: c.border, backgroundColor: item.read ? c.bg : `${c.accent}0d`, opacity: pressed ? 0.7 : 1 },

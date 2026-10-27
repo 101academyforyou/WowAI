@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "YourWowAI",
+    "NSPhotoLibraryUsageDescription": "YourWowAI 需要存取你的相簿，才能讓你選擇要分享的截圖。",
+    "NSCameraUsageDescription": "YourWowAI 需要使用相機，才能讓你拍攝要分享的作品照片。"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "YourWowAI",
+    "NSPhotoLibraryUsageDescription": "YourWowAI needs access to your photos so you can choose screenshots to share.",
+    "NSCameraUsageDescription": "YourWowAI needs the camera so you can take photos of your work to share."
+  }
+}

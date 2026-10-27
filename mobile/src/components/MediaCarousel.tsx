@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mediaUri, type Media } from '../lib/api';
 import { youtubeThumbnail } from '../lib/youtube';
 import { fonts, glow, useColors, useContentWidth } from '../lib/theme';
+import { tr } from '../lib/i18n';
 
 function VideoItem({ uri, active, size }: { uri: string; active: boolean; size: { width: number; height: number } }) {
   const player = useVideoPlayer(uri, (p) => {
@@ -23,7 +24,7 @@ type Slide = Media | { kind: 'youtube'; url: string; id: string };
 // 示範影片：顯示 YouTube 縮圖，點一下到 YouTube 觀看
 function YouTubeItem({ id, url, size, fill }: { id: string; url: string; size: { width: number; height: number }; fill: boolean }) {
   return (
-    <Pressable onPress={() => Linking.openURL(url)} style={[size, styles.black]} accessibilityRole="link" accessibilityLabel="在 YouTube 觀看示範影片">
+    <Pressable onPress={() => Linking.openURL(url)} style={[size, styles.black]} accessibilityRole="link" accessibilityLabel={tr('在 YouTube 觀看示範影片', 'Watch the demo on YouTube')}>
       <Image source={{ uri: youtubeThumbnail(id) }} style={size} contentFit={fill ? 'cover' : 'contain'} transition={150} />
       <View style={[StyleSheet.absoluteFill, styles.youtubeShade]}>
         <View style={styles.youtubePlay}>
@@ -31,7 +32,7 @@ function YouTubeItem({ id, url, size, fill }: { id: string; url: string; size: {
         </View>
         <View style={styles.youtubeLabel}>
           <Ionicons name="logo-youtube" size={16} color="#fff" />
-          <Text style={styles.youtubeText}>在 YouTube 觀看示範影片</Text>
+          <Text style={styles.youtubeText}>{tr('在 YouTube 觀看示範影片', 'Watch the demo on YouTube')}</Text>
         </View>
       </View>
     </Pressable>

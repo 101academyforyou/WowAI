@@ -6,6 +6,7 @@ import { siteUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fonts, useColors } from '../lib/theme';
 import { Button, Logo, notify } from '../components/ui';
+import { tr } from '../lib/i18n';
 
 export default function LoginScreen() {
   const c = useColors();
@@ -19,7 +20,7 @@ export default function LoginScreen() {
   const isRegister = mode === 'register';
 
   async function submit() {
-    if (isRegister && !acceptTerms) return notify('請先同意使用條款');
+    if (isRegister && !acceptTerms) return notify(tr('請先同意使用條款', 'Please agree to the Terms of Use first'));
     setBusy(true);
     try {
       if (isRegister) await register({ username: username.trim(), password, displayName, acceptTerms });
@@ -38,13 +39,13 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.logo}><Logo size={38} /></View>
-        <Text style={{ color: c.muted, textAlign: 'center', marginBottom: 20, fontFamily: fonts.mono, fontSize: 13 }}>{'// 分享你用 AI 打造的工具'}</Text>
+        <Text style={{ color: c.muted, textAlign: 'center', marginBottom: 20, fontFamily: fonts.mono, fontSize: 13 }}>{tr('// 分享你用 AI 打造的工具', '// share the tools you build with AI')}</Text>
 
         <TextInput
           style={inputStyle}
           value={username}
           onChangeText={setUsername}
-          placeholder="帳號"
+          placeholder={tr('帳號', 'Username')}
           placeholderTextColor={c.muted}
           autoCapitalize="none"
           autoCorrect={false}
@@ -52,13 +53,13 @@ export default function LoginScreen() {
           autoComplete="username"
         />
         {isRegister ? (
-          <TextInput style={inputStyle} value={displayName} onChangeText={setDisplayName} placeholder="顯示名稱（選填）" placeholderTextColor={c.muted} maxLength={50} />
+          <TextInput style={inputStyle} value={displayName} onChangeText={setDisplayName} placeholder={tr('顯示名稱（選填）', 'Display name (optional)')} placeholderTextColor={c.muted} maxLength={50} />
         ) : null}
         <TextInput
           style={inputStyle}
           value={password}
           onChangeText={setPassword}
-          placeholder={isRegister ? '密碼（至少 8 個字元）' : '密碼'}
+          placeholder={isRegister ? tr('密碼（至少 8 個字元）', 'Password (at least 8 characters)') : tr('密碼', 'Password')}
           placeholderTextColor={c.muted}
           secureTextEntry
           textContentType={isRegister ? 'newPassword' : 'password'}
@@ -69,19 +70,19 @@ export default function LoginScreen() {
           <Pressable style={styles.terms} onPress={() => setAcceptTerms(!acceptTerms)} accessibilityRole="checkbox" accessibilityState={{ checked: acceptTerms }}>
             <Ionicons name={acceptTerms ? 'checkbox' : 'square-outline'} size={22} color={acceptTerms ? c.accent : c.muted} />
             <Text style={{ color: c.text, flex: 1, lineHeight: 20 }}>
-              我同意
-              <Text style={{ color: c.accent, fontWeight: '700' }} onPress={() => Linking.openURL(siteUrl('/terms.html'))}> 使用條款 </Text>
-              ，並了解 YourWowAI 不容許任何令人反感的內容或騷擾行為。
+              {tr('我同意', 'I agree to the')}
+              <Text style={{ color: c.accent, fontWeight: '700' }} onPress={() => Linking.openURL(siteUrl('/terms.html'))}>{tr(' 使用條款 ', ' Terms of Use ')}</Text>
+              {tr('，並了解 YourWowAI 不容許任何令人反感的內容或騷擾行為。', 'and understand that YourWowAI has zero tolerance for objectionable content or abusive users.')}
             </Text>
           </Pressable>
         ) : null}
 
-        <Button title={isRegister ? '註冊' : '登入'} variant="primary" onPress={submit} loading={busy} disabled={!username || !password} style={{ marginTop: 8, minHeight: 50 }} />
+        <Button title={isRegister ? tr('註冊', 'Sign up') : tr('登入', 'Sign in')} variant="primary" onPress={submit} loading={busy} disabled={!username || !password} style={{ marginTop: 8, minHeight: 50 }} />
 
         <View style={styles.switch}>
-          <Text style={{ color: c.muted }}>{isRegister ? '已經有帳號了？' : '還沒有帳號？'}</Text>
+          <Text style={{ color: c.muted }}>{isRegister ? tr('已經有帳號了？', 'Already have an account?') : tr('還沒有帳號？', "Don't have an account?")}</Text>
           <Pressable onPress={() => setMode(isRegister ? 'login' : 'register')}>
-            <Text style={{ color: c.accent, fontWeight: '800' }}>{isRegister ? '登入' : '註冊'}</Text>
+            <Text style={{ color: c.accent, fontWeight: '800' }}>{isRegister ? tr('登入', 'Sign in') : tr('註冊', 'Sign up')}</Text>
           </Pressable>
         </View>
       </ScrollView>

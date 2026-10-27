@@ -8,6 +8,7 @@ import { repoName } from '../lib/github';
 import { fonts, glow, useColors } from '../lib/theme';
 import { MediaCarousel } from './MediaCarousel';
 import { Avatar, Chip, chooseOption, confirmAction, notify } from './ui';
+import { plural, tr } from '../lib/i18n';
 
 // onRemoved：貼文被刪除、檢舉或作者被封鎖時，讓列表把它拿掉
 export function PostCard({ post: initial, full = false, onRemoved }: { post: Post; full?: boolean; onRemoved?: () => void }) {
@@ -43,9 +44,9 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
 
   async function openMenu() {
     if (isMine || user?.isAdmin) {
-      const choice = await chooseOption('貼文選項', ['刪除貼文'], { destructiveIndex: 0 });
+      const choice = await chooseOption(tr('貼文選項', 'Post options'), [tr('刪除貼文', 'Delete post')], { destructiveIndex: 0 });
       if (choice !== 0) return;
-      if (!(await confirmAction('刪除這則分享？', '刪除後無法復原。', '刪除'))) return;
+      if (!(await confirmAction(tr('刪除這則分享？', 'Delete this post?'), tr('刪除後無法復原。', "This can't be undone."), tr('刪除', 'Delete')))) return;
       try {
         await api(`/api/posts/${post.id}`, { method: 'DELETE' });
         onRemoved?.();
@@ -55,23 +56,23 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
       return;
     }
     if (!requireLogin()) return;
-    const choice = await chooseOption('貼文選項', ['檢舉貼文', `封鎖 @${post.author.username}`], { destructiveIndex: 1 });
+    const choice = await chooseOption(tr('貼文選項', 'Post options'), [tr('檢舉貼文', 'Report post'), tr(`封鎖 @${post.author.username}`, `Block @${post.author.username}`)], { destructiveIndex: 1 });
     if (choice === 0) {
-      const r = await chooseOption('為什麼要檢舉這則貼文？', REPORT_REASONS.map((x) => x.label));
+      const r = await chooseOption(tr('為什麼要檢舉這則貼文？', 'Why are you reporting this post?'), REPORT_REASONS.map((x) => x.label));
       if (r === null) return;
       try {
         await api(`/api/posts/${post.id}/report`, { method: 'POST', body: { reason: REPORT_REASONS[r].value } });
-        notify('感謝你的檢舉', '我們會在 24 小時內審查。這則貼文將不再顯示給你。');
+        notify(tr('感謝你的檢舉', 'Thanks for reporting'), tr('我們會在 24 小時內審查。這則貼文將不再顯示給你。', "We'll review it within 24 hours. You won't see this post anymore."));
         onRemoved?.();
       } catch (err) {
         notify((err as Error).message);
       }
     } else if (choice === 1) {
-      const ok = await confirmAction(`封鎖 @${post.author.username}？`, '你將不會再看到對方的貼文和留言，並會互相取消追蹤。', '封鎖');
+      const ok = await confirmAction(tr(`封鎖 @${post.author.username}？`, `Block @${post.author.username}?`), tr('你將不會再看到對方的貼文和留言，並會互相取消追蹤。', "You won't see their posts or comments, and you'll unfollow each other."), tr('封鎖', 'Block'));
       if (!ok) return;
       try {
         await api(`/api/users/${encodeURIComponent(post.author.username)}/block`, { method: 'POST' });
-        notify('已封鎖');
+        notify(tr('已封鎖', 'Blocked'));
         onRemoved?.();
       } catch (err) {
         notify((err as Error).message);
@@ -84,7 +85,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
   async function sharePost() {
     const url = siteUrl(`/post/${post.id}`);
     if (Platform.OS !== 'web') {
-      Share.share({ message: `${post.title} — 在 YourWowAI 上看這個 AI 工具：${url}` });
+      Share.share({ message: tr(`${post.title} — 在 YourWowAI 上看這個 AI 工具：${url}`, `${post.title} — check out this AI tool on YourWowAI: ${url}`) });
       return;
     }
     // 網頁版：手機瀏覽器用系統分享，電腦則複製連結
@@ -93,7 +94,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
       if (nav?.share) await nav.share({ title: post.title, url });
       else {
         await nav?.clipboard?.writeText(url);
-        notify('已複製連結', url);
+        notify(tr('已複製連結', 'Link copied'), url);
       }
     } catch {
       // 使用者取消分享
@@ -108,7 +109,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
           <Text style={[styles.username, { color: c.text }]}>{post.author.username}</Text>
         </Pressable>
         <Text style={{ color: c.muted, fontSize: 13 }}>{timeAgo(post.createdAt)}</Text>
-        <Pressable hitSlop={12} onPress={openMenu} accessibilityLabel="更多選項">
+        <Pressable hitSlop={12} onPress={openMenu} accessibilityLabel={tr('更多選項', 'More options')}>
           <Ionicons name="ellipsis-horizontal" size={20} color={c.text} />
         </Pressable>
       </View>
@@ -119,12 +120,12 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         <VoteButton kind="cool" count={post.coolCount} active={post.myVote === 'cool'} onPress={() => vote(post.myVote === 'cool' ? null : 'cool')} />
         <VoteButton kind="notcool" count={post.notCoolCount} active={post.myVote === 'notcool'} onPress={() => vote(post.myVote === 'notcool' ? null : 'notcool')} />
         <View style={{ flex: 1 }} />
-        <Pressable hitSlop={8} onPress={openPost} accessibilityLabel="留言">
+        <Pressable hitSlop={8} onPress={openPost} accessibilityLabel={tr('留言', 'Comment')}>
           <Ionicons name="chatbubble-outline" size={25} color={c.text} />
         </Pressable>
         <Pressable
           hitSlop={8}
-          accessibilityLabel="分享"
+          accessibilityLabel={tr('分享', 'Share')}
           onPress={sharePost}
         >
           <Ionicons name="paper-plane-outline" size={24} color={c.text} />
@@ -148,7 +149,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
           <View style={styles.links}>
             {post.toolUrl ? (
               <Pressable style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]} onPress={() => Linking.openURL(post.toolUrl)}>
-                <Text style={[styles.tryText, { color: c.accent }]}>{'>'} 試用工具</Text>
+                <Text style={[styles.tryText, { color: c.accent }]}>{'>'} {tr('試用工具', 'Try it')}</Text>
                 <Ionicons name="open-outline" size={15} color={c.accent} />
               </Pressable>
             ) : null}
@@ -156,7 +157,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
               <Pressable
                 style={[styles.tryButton, styles.githubButton, { borderColor: c.border, backgroundColor: c.surface }]}
                 onPress={() => Linking.openURL(post.githubUrl)}
-                accessibilityLabel={`在 GitHub 查看 ${repoName(post.githubUrl)}`}
+                accessibilityLabel={tr(`在 GitHub 查看 ${repoName(post.githubUrl)}`, `View ${repoName(post.githubUrl)} on GitHub`)}
               >
                 <Ionicons name="logo-github" size={16} color={c.text} />
                 <Text style={[styles.tryText, { color: c.text, flexShrink: 1 }]} numberOfLines={1}>{repoName(post.githubUrl)}</Text>
@@ -166,7 +167,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         ) : null}
         {!full && post.commentCount ? (
           <Pressable onPress={openPost}>
-            <Text style={{ color: c.muted, fontFamily: fonts.mono, fontSize: 13 }}>{'//'} 查看全部 {post.commentCount} 則留言</Text>
+            <Text style={{ color: c.muted, fontFamily: fonts.mono, fontSize: 13 }}>{'//'} {tr(`查看全部 ${post.commentCount} 則留言`, `View ${plural(post.commentCount, 'comment')}`)}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -184,7 +185,7 @@ function VoteButton({ kind, count, active, onPress }: { kind: Vote; count: numbe
       onPress={onPress}
       hitSlop={6}
       accessibilityRole="button"
-      accessibilityLabel={`${label}，${count} 票`}
+      accessibilityLabel={tr(`${label}，${count} 票`, `${label}, ${plural(count, 'vote')}`)}
       accessibilityState={{ selected: active }}
       style={({ pressed }) => [
         styles.vote,

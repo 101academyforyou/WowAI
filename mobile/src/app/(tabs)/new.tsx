@@ -10,6 +10,7 @@ import { aiToolsFromTopics, fetchGitHubRepo, parseGitHubRepo } from '../../lib/g
 import { parseYouTube, youtubeThumbnail } from '../../lib/youtube';
 import { fonts, useColors } from '../../lib/theme';
 import { Button, Empty, chooseOption, notify } from '../../components/ui';
+import { plural, tr } from '../../lib/i18n';
 
 // 只收截圖；示範影片請貼 YouTube 連結
 function toPicked(asset: ImagePicker.ImagePickerAsset, i: number): PickedMedia | null {
@@ -36,8 +37,8 @@ export default function NewPostScreen() {
 
   if (!user) {
     return (
-      <Empty title="分享你的 AI 工具" message="登入後就能附上截圖或 YouTube 影片，分享你用 AI 打造的作品。">
-        <Button title="登入或註冊" variant="primary" onPress={() => router.push('/login')} />
+      <Empty title={tr('分享你的 AI 工具', 'Share your AI tool')} message={tr('登入後就能附上截圖或 YouTube 影片，分享你用 AI 打造的作品。', 'Sign in to share what you built with AI, with screenshots or a YouTube demo.')}>
+        <Button title={tr('登入或註冊', 'Sign in or sign up')} variant="primary" onPress={() => router.push('/login')} />
       </Empty>
     );
   }
@@ -45,22 +46,22 @@ export default function NewPostScreen() {
   function addAssets(result: ImagePicker.ImagePickerResult) {
     if (result.canceled) return;
     const tooBig = result.assets.filter((a) => (a.fileSize ?? 0) > MAX_FILE_BYTES);
-    if (tooBig.length) notify('圖片太大', '每張圖片需在 20MB 以內，已略過過大的圖片。');
+    if (tooBig.length) notify(tr('圖片太大', 'Image too large'), tr('每張圖片需在 20MB 以內，已略過過大的圖片。', 'Each image must be under 20 MB. Larger ones were skipped.'));
     const picked = result.assets
       .filter((a) => (a.fileSize ?? 0) <= MAX_FILE_BYTES)
       .map(toPicked)
       .filter((m): m is PickedMedia => m !== null);
     setMedia((prev) => {
       const next = [...prev, ...picked];
-      if (next.length > MAX_MEDIA) notify(`最多 ${MAX_MEDIA} 張截圖`);
+      if (next.length > MAX_MEDIA) notify(tr(`最多 ${MAX_MEDIA} 張截圖`, `Up to ${MAX_MEDIA} screenshots`));
       return next.slice(0, MAX_MEDIA);
     });
   }
 
   async function pickMedia() {
     const remaining = MAX_MEDIA - media.length;
-    if (remaining <= 0) return notify(`最多 ${MAX_MEDIA} 張截圖`);
-    const source = Platform.OS === 'web' ? 0 : await chooseOption('加入截圖', ['從相簿選擇', '拍照']);
+    if (remaining <= 0) return notify(tr(`最多 ${MAX_MEDIA} 張截圖`, `Up to ${MAX_MEDIA} screenshots`));
+    const source = Platform.OS === 'web' ? 0 : await chooseOption(tr('加入截圖', 'Add screenshots'), [tr('從相簿選擇', 'Choose from library'), tr('拍照', 'Take photo')]);
     if (source === null) return;
     // Compatible：讓 iPhone 把 HEIC 照片轉成 JPEG，所有裝置都能看
     const common = {
@@ -78,7 +79,7 @@ export default function NewPostScreen() {
       return;
     }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) return notify('需要相機權限', '請到「設定」>「YourWowAI」開啟相機權限。');
+    if (!permission.granted) return notify(tr('需要相機權限', 'Camera access needed'), tr('請到「設定」>「YourWowAI」開啟相機權限。', 'Turn on camera access in Settings > YourWowAI.'));
     addAssets(await ImagePicker.launchCameraAsync({
       ...common,
       mediaTypes: ['images'],
@@ -88,7 +89,7 @@ export default function NewPostScreen() {
   // 連動 GitHub：讀取公開專案的名稱、介紹、網站與 topics，只填入還空著的欄位
   async function importFromGitHub() {
     const ref = parseGitHubRepo(githubUrl);
-    if (!ref) return notify('GitHub 專案格式不正確', '請輸入 owner/repo，或貼上 github.com 的專案網址。');
+    if (!ref) return notify(tr('GitHub 專案格式不正確', 'Invalid GitHub repo'), tr('請輸入 owner/repo，或貼上 github.com 的專案網址。', 'Enter owner/repo or paste a github.com repo URL.'));
     setImporting(true);
     try {
       const repo = await fetchGitHubRepo(ref);
@@ -98,18 +99,18 @@ export default function NewPostScreen() {
       if (!toolUrl.trim() && repo.homepage) setToolUrl(repo.homepage);
       const tools = aiToolsFromTopics(repo.topics);
       if (!aiTools.trim() && tools.length) setAiTools(tools.join(', '));
-      notify('已從 GitHub 匯入', hasContent ? '已幫你填好空白的欄位。' : '已幫你填好空白的欄位，記得附上截圖或 YouTube 影片。');
+      notify(tr('已從 GitHub 匯入', 'Imported from GitHub'), hasContent ? tr('已幫你填好空白的欄位。', 'Empty fields are filled in.') : tr('已幫你填好空白的欄位，記得附上截圖或 YouTube 影片。', "Empty fields are filled in. Don't forget a screenshot or YouTube demo."));
     } catch (err) {
-      notify('匯入失敗', (err as Error).message);
+      notify(tr('匯入失敗', 'Import failed'), (err as Error).message);
     } finally {
       setImporting(false);
     }
   }
 
   async function submit() {
-    if (youtubeUrl.trim() && !youtube) return notify('YouTube 連結格式不正確', '請貼上 youtube.com 或 youtu.be 的影片網址。');
-    if (!hasContent) return notify('請先附上截圖或 YouTube 影片', '分享時一定要附上至少一張截圖或一個 YouTube 影片連結。');
-    if (!title.trim()) return notify('請填寫工具名稱');
+    if (youtubeUrl.trim() && !youtube) return notify(tr('YouTube 連結格式不正確', 'Invalid YouTube link'), tr('請貼上 youtube.com 或 youtu.be 的影片網址。', 'Paste a youtube.com or youtu.be video link.'));
+    if (!hasContent) return notify(tr('請先附上截圖或 YouTube 影片', 'Add a screenshot or YouTube demo'), tr('分享時一定要附上至少一張截圖或一個 YouTube 影片連結。', 'Every post needs at least one screenshot or a YouTube link.'));
+    if (!title.trim()) return notify(tr('請填寫工具名稱', 'Please enter a tool name'));
     setProgress(0);
     try {
       const post = await uploadPost({ title, description, toolUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools }, media, setProgress);
@@ -122,7 +123,7 @@ export default function NewPostScreen() {
       setAiTools('');
       router.push(`/post/${post.id}`);
     } catch (err) {
-      notify('分享失敗', (err as Error).message);
+      notify(tr('分享失敗', "Couldn't share"), (err as Error).message);
     } finally {
       setProgress(null);
     }
@@ -137,11 +138,11 @@ export default function NewPostScreen() {
         <Pressable
           onPress={pickMedia}
           style={[styles.picker, { borderColor: hasContent ? c.border : c.accent, backgroundColor: c.surface }]}
-          accessibilityLabel="加入截圖"
+          accessibilityLabel={tr('加入截圖', 'Add screenshots')}
         >
           <Ionicons name="images-outline" size={40} color={c.accent} />
-          <Text style={{ color: c.text, fontWeight: '800', fontSize: 16, fontFamily: fonts.mono }}>加入截圖</Text>
-          <Text style={{ color: c.muted, fontSize: 13 }}>最多 {MAX_MEDIA} 張 · 每張 20MB 以內</Text>
+          <Text style={{ color: c.text, fontWeight: '800', fontSize: 16, fontFamily: fonts.mono }}>{tr('加入截圖', 'Add screenshots')}</Text>
+          <Text style={{ color: c.muted, fontSize: 13 }}>{tr(`最多 ${MAX_MEDIA} 張 · 每張 20MB 以內`, `Up to ${MAX_MEDIA} · 20 MB each`)}</Text>
         </Pressable>
 
         {hasMedia ? (
@@ -149,11 +150,11 @@ export default function NewPostScreen() {
             {media.map((m, i) => (
               <View key={m.uri} style={styles.preview}>
                 <Image source={{ uri: m.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                <Text style={styles.kind}>{`圖片 ${i + 1}`}</Text>
+                <Text style={styles.kind}>{tr(`圖片 ${i + 1}`, `Image ${i + 1}`)}</Text>
                 <Pressable
                   style={styles.remove}
                   hitSlop={8}
-                  accessibilityLabel="移除"
+                  accessibilityLabel={tr('移除', 'Remove')}
                   onPress={() => setMedia((prev) => prev.filter((x) => x.uri !== m.uri))}
                 >
                   <Ionicons name="close" size={16} color="#fff" />
@@ -163,14 +164,14 @@ export default function NewPostScreen() {
           </ScrollView>
         ) : null}
 
-        <Text style={[styles.label, { color: c.text }]}>YouTube 示範影片</Text>
+        <Text style={[styles.label, { color: c.text }]}>{tr('YouTube 示範影片', 'YouTube demo')}</Text>
         <View style={[styles.githubInput, { backgroundColor: c.surface, borderColor: youtubeUrl.trim() && !youtube ? c.notCool : c.border }]}>
           <Ionicons name="logo-youtube" size={20} color="#ff0033" />
           <TextInput
             style={{ flex: 1, color: c.text, fontSize: 15, paddingVertical: 12 }}
             value={youtubeUrl}
             onChangeText={setYoutubeUrl}
-            placeholder="貼上 YouTube 影片網址"
+            placeholder={tr('貼上 YouTube 影片網址', 'Paste a YouTube video link')}
             placeholderTextColor={c.muted}
             keyboardType="url"
             autoCapitalize="none"
@@ -185,15 +186,18 @@ export default function NewPostScreen() {
             </View>
           </View>
         ) : null}
-        <Text style={{ color: c.muted, fontSize: 12 }}>影片請先上傳到 YouTube（可設為「不公開」），再貼上連結</Text>
+        <Text style={{ color: c.muted, fontSize: 12 }}>{tr('影片請先上傳到 YouTube（可設為「不公開」），再貼上連結', 'Upload your video to YouTube first (unlisted is fine), then paste the link')}</Text>
 
         <Text style={{ color: hasContent ? c.success : c.notCool, fontWeight: '700', fontSize: 13, fontFamily: fonts.mono, marginTop: 6 }}>
           {hasContent
-            ? `✓ 已附上 ${[media.length ? `${media.length} 張截圖` : '', youtube ? 'YouTube 影片' : ''].filter(Boolean).join('和')}`
-            : '＊分享時一定要附上至少一張截圖或一個 YouTube 影片連結'}
+            ? tr(
+              `✓ 已附上 ${[media.length ? `${media.length} 張截圖` : '', youtube ? 'YouTube 影片' : ''].filter(Boolean).join('和')}`,
+              `✓ Added ${[media.length ? plural(media.length, 'screenshot') : '', youtube ? 'a YouTube demo' : ''].filter(Boolean).join(' and ')}`,
+            )
+            : tr('＊分享時一定要附上至少一張截圖或一個 YouTube 影片連結', '* Every post needs at least one screenshot or a YouTube link')}
         </Text>
 
-        <Text style={[styles.label, { color: c.text }]}>GitHub 專案（選填）</Text>
+        <Text style={[styles.label, { color: c.text }]}>{tr('GitHub 專案（選填）', 'GitHub repo (optional)')}</Text>
         <View style={styles.githubRow}>
           <View style={[styles.githubInput, { backgroundColor: c.surface, borderColor: c.border }]}>
             <Ionicons name="logo-github" size={20} color={c.text} />
@@ -202,7 +206,7 @@ export default function NewPostScreen() {
               value={githubUrl}
               onChangeText={setGithubUrl}
               onSubmitEditing={importFromGitHub}
-              placeholder="owner/repo 或 github.com/… 網址"
+              placeholder={tr('owner/repo 或 github.com/… 網址', 'owner/repo or github.com/… link')}
               placeholderTextColor={c.muted}
               keyboardType="url"
               autoCapitalize="none"
@@ -210,25 +214,25 @@ export default function NewPostScreen() {
               returnKeyType="go"
             />
           </View>
-          <Button title="匯入" onPress={importFromGitHub} loading={importing} disabled={!githubUrl.trim()} style={{ minHeight: 48 }} />
+          <Button title={tr('匯入', 'Import')} onPress={importFromGitHub} loading={importing} disabled={!githubUrl.trim()} style={{ minHeight: 48 }} />
         </View>
-        <Text style={{ color: c.muted, fontSize: 12 }}>連動公開的 GitHub 專案：自動帶入名稱、介紹與網站，貼文也會附上原始碼連結</Text>
+        <Text style={{ color: c.muted, fontSize: 12 }}>{tr('連動公開的 GitHub 專案：自動帶入名稱、介紹與網站，貼文也會附上原始碼連結', 'Link a public repo: we fill in the name, description and website, and your post links to the source code')}</Text>
 
-        <Text style={[styles.label, { color: c.text }]}>工具名稱 *</Text>
-        <TextInput style={inputStyle} value={title} onChangeText={setTitle} maxLength={80} placeholder="例如：AI 自動記帳小幫手" placeholderTextColor={c.muted} />
+        <Text style={[styles.label, { color: c.text }]}>{tr('工具名稱 *', 'Tool name *')}</Text>
+        <TextInput style={inputStyle} value={title} onChangeText={setTitle} maxLength={80} placeholder={tr('例如：AI 自動記帳小幫手', 'e.g. AI expense tracker')} placeholderTextColor={c.muted} />
 
-        <Text style={[styles.label, { color: c.text }]}>介紹</Text>
+        <Text style={[styles.label, { color: c.text }]}>{tr('介紹', 'Description')}</Text>
         <TextInput
           style={[inputStyle, { minHeight: 110, textAlignVertical: 'top' }]}
           value={description}
           onChangeText={setDescription}
           maxLength={2000}
           multiline
-          placeholder="這個工具能做什麼？你是怎麼用 AI 做出來的？"
+          placeholder={tr('這個工具能做什麼？你是怎麼用 AI 做出來的？', 'What does it do? How did you build it with AI?')}
           placeholderTextColor={c.muted}
         />
 
-        <Text style={[styles.label, { color: c.text }]}>工具連結（選填）</Text>
+        <Text style={[styles.label, { color: c.text }]}>{tr('工具連結（選填）', 'Link to try it (optional)')}</Text>
         <TextInput
           style={inputStyle}
           value={toolUrl}
@@ -240,7 +244,7 @@ export default function NewPostScreen() {
           autoCorrect={false}
         />
 
-        <Text style={[styles.label, { color: c.text }]}>用了哪些 AI 開發</Text>
+        <Text style={[styles.label, { color: c.text }]}>{tr('用了哪些 AI 開發', 'AI tools used')}</Text>
         <TextInput
           style={inputStyle}
           value={aiTools}
@@ -249,7 +253,7 @@ export default function NewPostScreen() {
           placeholderTextColor={c.muted}
           autoCapitalize="none"
         />
-        <Text style={{ color: c.muted, fontSize: 12 }}>用逗號分隔，最多 10 個</Text>
+        <Text style={{ color: c.muted, fontSize: 12 }}>{tr('用逗號分隔，最多 10 個', 'Comma-separated, up to 10')}</Text>
 
         {progress !== null ? (
           <View style={[styles.progress, { backgroundColor: c.surface2 }]}>
@@ -258,7 +262,7 @@ export default function NewPostScreen() {
         ) : null}
 
         <Button
-          title={progress !== null ? `上傳中… ${Math.round(progress * 100)}%` : '分享'}
+          title={progress !== null ? tr(`上傳中… ${Math.round(progress * 100)}%`, `Uploading… ${Math.round(progress * 100)}%`) : tr('分享', 'Share')}
           variant="primary"
           onPress={submit}
           disabled={!hasContent || !title.trim() || progress !== null}

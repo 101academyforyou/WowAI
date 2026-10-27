@@ -13,8 +13,9 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "CFBundleDevelopmentRegion": "zh_TW",
+        "CFBundleDevelopmentRegion": "en",
         "CFBundleLocalizations": [
+          "en",
           "zh_TW"
         ]
       }
@@ -34,7 +35,7 @@
       "name": "YourWowAI",
       "shortName": "YourWowAI",
       "lang": "zh-Hant",
-      "description": "YourWowAI：分享你用 AI 開發的工具，每則分享都附上截圖或影片。",
+      "description": "YourWowAI: share the tools you build with AI. Every post shows the real thing: a screenshot or a YouTube demo.",
       "themeColor": "#05070d",
       "backgroundColor": "#05070d"
     },
@@ -69,6 +70,10 @@
     "extra": {
       "apiUrl": "https://yourwowai.onepointzeroone.org"
     },
-    "backgroundColor": "#05070d"
+    "backgroundColor": "#05070d",
+    "locales": {
+      "en": "./locales/en.json",
+      "zh-Hant": "./locales/zh-Hant.json"
+    }
   }
 }
