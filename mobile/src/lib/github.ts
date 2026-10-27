@@ -44,7 +44,7 @@ export type GitHubRepo = {
 const AI_TOPICS: Record<string, string> = {
   claude: 'Claude', 'claude-code': 'Claude Code', anthropic: 'Claude',
   openai: 'OpenAI', chatgpt: 'ChatGPT', gpt: 'ChatGPT', 'gpt-4': 'ChatGPT', codex: 'Codex',
-  gemini: 'Gemini', cursor: 'Cursor', v0: 'v0', copilot: 'GitHub Copilot', 'github-copilot': 'GitHub Copilot',
+  gemini: 'Gemini', grok: 'Grok', xai: 'Grok', cursor: 'Cursor', v0: 'v0', copilot: 'GitHub Copilot', 'github-copilot': 'GitHub Copilot',
   bolt: 'Bolt', lovable: 'Lovable', replit: 'Replit', windsurf: 'Windsurf', llama: 'Llama', mistral: 'Mistral',
 };
 
