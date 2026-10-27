@@ -47,6 +47,15 @@ export function openDatabase(file) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- AI Webhook：每人一組專屬網址，讓 AI 或自動化工具代為發文。只存權杖的 SHA-256，hint 是末四碼方便辨認
+    CREATE TABLE IF NOT EXISTS webhooks (
+      user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      token_hash   TEXT NOT NULL UNIQUE,
+      hint         TEXT NOT NULL,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      last_used_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS posts (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

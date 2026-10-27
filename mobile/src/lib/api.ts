@@ -42,6 +42,8 @@ export type User = {
   identities?: string[];
   // 自己的 GitHub 帳號（綁定的 GitHub 登入，或「聯繫我」填的 GitHub）；login 空字串代表只知道 GitHub 的數字 ID
   github?: { login: string; id: string | null } | null;
+  // 自己的 AI Webhook 狀態（完整網址只在產生時顯示一次）
+  webhook?: { active: boolean; hint?: string; createdAt?: string; lastUsedAt?: string | null };
 };
 export type Media = { url: string; kind: 'image' | 'video' };
 export type Post = {

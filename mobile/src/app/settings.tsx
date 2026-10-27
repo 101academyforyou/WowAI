@@ -9,6 +9,7 @@ import { CONTACT_FIELDS, type ContactType } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
 import { Avatar, Button, Loading, chooseOption, confirmAction, notify } from '../components/ui';
 import { siteDoc, tr } from '../lib/i18n';
+import { WebhookSection } from '../components/WebhookSection';
 import { fetchProviders, startOAuth, PROVIDER_LABEL, type OAuthProvider, type Providers } from '../lib/oauth';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -205,6 +206,8 @@ export default function SettingsScreen() {
           })}
         </View>
       ) : null}
+
+      <WebhookSection />
 
       <View style={[styles.section, { borderColor: c.border }]}>
         <Button title={tr('使用條款', 'Terms of Use')} onPress={() => Linking.openURL(siteDoc('terms'))} />
