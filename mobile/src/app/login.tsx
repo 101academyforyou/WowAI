@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { siteUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fonts, useColors } from '../lib/theme';
 import { Button, Logo, notify } from '../components/ui';
-import { tr } from '../lib/i18n';
+import { siteDoc, tr } from '../lib/i18n';
 
 export default function LoginScreen() {
   const c = useColors();
@@ -71,7 +70,7 @@ export default function LoginScreen() {
             <Ionicons name={acceptTerms ? 'checkbox' : 'square-outline'} size={22} color={acceptTerms ? c.accent : c.muted} />
             <Text style={{ color: c.text, flex: 1, lineHeight: 20 }}>
               {tr('我同意', 'I agree to the')}
-              <Text style={{ color: c.accent, fontWeight: '700' }} onPress={() => Linking.openURL(siteUrl('/terms.html'))}>{tr(' 使用條款 ', ' Terms of Use ')}</Text>
+              <Text style={{ color: c.accent, fontWeight: '700' }} onPress={() => Linking.openURL(siteDoc('terms'))}>{tr(' 使用條款 ', ' Terms of Use ')}</Text>
               {tr('，並了解 YourWowAI 不容許任何令人反感的內容或騷擾行為。', 'and understand that YourWowAI has zero tolerance for objectionable content or abusive users.')}
             </Text>
           </Pressable>

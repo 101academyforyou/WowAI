@@ -3,12 +3,12 @@ import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { api, siteUrl, uploadAvatar, type Profile, type User } from '../lib/api';
+import { api, uploadAvatar, type Profile, type User } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { CONTACT_FIELDS, type ContactType } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
 import { Avatar, Button, Loading, chooseOption, confirmAction, notify } from '../components/ui';
-import { tr } from '../lib/i18n';
+import { siteDoc, tr } from '../lib/i18n';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
@@ -159,8 +159,8 @@ export default function SettingsScreen() {
       <Button title={tr('儲存', 'Save')} variant="primary" onPress={save} loading={saving} style={{ marginTop: 8 }} />
 
       <View style={[styles.section, { borderColor: c.border }]}>
-        <Button title={tr('使用條款', 'Terms of Use')} onPress={() => Linking.openURL(siteUrl('/terms.html'))} />
-        <Button title={tr('隱私權政策', 'Privacy Policy')} onPress={() => Linking.openURL(siteUrl('/privacy.html'))} />
+        <Button title={tr('使用條款', 'Terms of Use')} onPress={() => Linking.openURL(siteDoc('terms'))} />
+        <Button title={tr('隱私權政策', 'Privacy Policy')} onPress={() => Linking.openURL(siteDoc('privacy'))} />
         <Button title={tr('登出', 'Sign out')} onPress={async () => { await logout(); router.dismissAll(); }} />
       </View>
 
