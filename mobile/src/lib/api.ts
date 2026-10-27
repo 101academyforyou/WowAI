@@ -31,7 +31,16 @@ export function siteUrl(path: string) {
 export const MAX_MEDIA = 10;
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
-export type User = { id: number; username: string; displayName: string; avatarUrl?: string | null; isAdmin?: boolean };
+// hasPassword、identities 只有 /api/me 會回傳（自己的帳號）
+export type User = {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  isAdmin?: boolean;
+  hasPassword?: boolean;
+  identities?: string[];
+};
 export type Media = { url: string; kind: 'image' | 'video' };
 export type Post = {
   id: number;
@@ -54,7 +63,7 @@ export type Post = {
   repostedByMe: boolean;
 };
 export type Vote = 'cool' | 'notcool';
-export type Comment = { id: number; body: string; author: User };
+export type Comment = { id: number; body: string; edited?: boolean; author: User };
 export type Profile = User & {
   bio: string;
   postCount: number;

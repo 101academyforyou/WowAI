@@ -95,6 +95,11 @@ EOF
 elif [[ -n ${ADMIN_USERNAMES:-} ]]; then
   sed -i "s/^ADMIN_USERNAMES=.*/ADMIN_USERNAMES=$ADMIN_USERNAMES/" "$ENV_FILE"
 fi
+# 第三方登入（GitHub、Google）：預留欄位，填好後 sudo systemctl restart yourwowai 就會出現在登入畫面
+grep -q '^PUBLIC_URL=' "$ENV_FILE" || echo "PUBLIC_URL=https://$DOMAIN" >> "$ENV_FILE"
+for key in GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+  grep -Eq "^#? ?$key=" "$ENV_FILE" || echo "# $key=" >> "$ENV_FILE"
+done
 chmod 640 "$ENV_FILE"
 chown root:"$APP_USER" "$ENV_FILE"
 
@@ -180,4 +185,7 @@ DNS 生效後（幾分鐘到一小時），Caddy 會自動申請 HTTPS 憑證，
   查看紀錄       journalctl -u yourwowai -f
   重新啟動       sudo systemctl restart yourwowai
   修改管理員     sudo nano $ENV_FILE，然後 sudo systemctl restart yourwowai
+  GitHub／Google 登入  在 $ENV_FILE 填入 client ID 與 secret（拿掉 # ），然後 sudo systemctl restart yourwowai
+                 回呼網址：https://$DOMAIN/api/auth/oauth/github/callback
+                           https://$DOMAIN/api/auth/oauth/google/callback
 EOF

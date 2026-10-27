@@ -5,11 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { fonts, useColors } from '../lib/theme';
 import { Button, Logo, notify } from '../components/ui';
+import { SocialSignIn } from '../components/SocialSignIn';
 import { siteDoc, tr } from '../lib/i18n';
 
 export default function LoginScreen() {
   const c = useColors();
-  const { login, register } = useAuth();
+  const { login, register, signIn } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -39,6 +40,8 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.logo}><Logo size={38} /></View>
         <Text style={{ color: c.muted, textAlign: 'center', marginBottom: 20, fontFamily: fonts.mono, fontSize: 13 }}>{tr('// 分享你用 AI 打造的工具', '// share the tools you build with AI')}</Text>
+
+        <SocialSignIn onSignedIn={async (res) => { await signIn(res); router.back(); }} />
 
         <TextInput
           style={inputStyle}

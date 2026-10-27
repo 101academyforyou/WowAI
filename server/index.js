@@ -15,6 +15,13 @@ const app = createApp({
   webAppDir: path.join(root, 'web-dist'),
   devCors: process.env.NODE_ENV !== 'production',
   adminUsernames: (process.env.ADMIN_USERNAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+  // 第三方登入：有填 client ID 與 secret 的才會出現在登入畫面
+  oauth: {
+    publicUrl: process.env.PUBLIC_URL,
+    github: { clientId: process.env.GITHUB_CLIENT_ID, clientSecret: process.env.GITHUB_CLIENT_SECRET },
+    google: { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET },
+    appleAudiences: (process.env.APPLE_AUDIENCES ?? 'com.yourwowai.app').split(',').map((s) => s.trim()).filter(Boolean),
+  },
 });
 
 const port = Number(process.env.PORT) || 3000;

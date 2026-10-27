@@ -19,7 +19,8 @@
 - **動態牆**：「最新分享」與「追蹤中」兩種，左右滑動看多張截圖，雙擊圖片 = Cool
 - **探索與搜尋**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽；用關鍵字搜尋作品名稱、介紹、AI 標籤與作者，也能找到其他 Cooler
 - **Cool／Not Cool 投票**：每人每則一票，可以改票或取消；取代傳統的「愛心」
-- **互動**：留言、追蹤、分享連結
+- **互動**：留言（可以編輯、刪除；貼文作者也能刪除自己貼文下的留言）、追蹤、在 YourWowAI 裡分享到自己個人頁的「分享」分頁、分享連結
+- **多種登入方式**：GitHub、Google、Sign in with Apple（iPhone）或帳號密碼；第一次用第三方登入會自動建立帳號並帶入大頭貼，已有帳號的人可以在「編輯個人檔案 → 登入方式」綁定
 - **科技風介面**：深色底、霓虹青色、等寬字體
 - **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案、大頭貼
 - **通知與推播**：有人 Cool 你的作品、留言、追蹤你，或你追蹤的人發新作品時，「通知」分頁會亮紅點；iPhone 會跳出推播（點了直接打開那則貼文），網站開著時即時更新
@@ -107,6 +108,24 @@ curl -fsSL https://raw.githubusercontent.com/101academyforyou/WowAI/main/deploy/
 
 第一次約 5–10 分鐘。DNS 生效後打開 https://yourwowai.onepointzeroone.org/api/health，看到 `{"ok":true}` 就完成了。
 
+### 開啟 GitHub／Google 登入（選用）
+登入畫面只會顯示已經設定好的服務。Sign in with Apple 不需要設定伺服器，iPhone App 一律提供（App Store 規定有第三方登入就要提供 Apple 登入）。
+
+1. **GitHub**：到 GitHub → Settings → Developer settings → OAuth Apps → **New OAuth App**
+   - Homepage URL：`https://yourwowai.onepointzeroone.org`
+   - Authorization callback URL：`https://yourwowai.onepointzeroone.org/api/auth/oauth/github/callback`
+   - 建立後複製 **Client ID**，再按 **Generate a new client secret** 複製 secret
+2. **Google**：到 Google Cloud Console → APIs & Services → **OAuth consent screen** 設定好 App 名稱，再到 **Credentials → Create credentials → OAuth client ID**（類型選 Web application）
+   - Authorized redirect URI：`https://yourwowai.onepointzeroone.org/api/auth/oauth/google/callback`
+3. 在主機上 `sudo nano /etc/yourwowai.env`，填入（拿掉行首的 `#`）：
+   ```
+   GITHUB_CLIENT_ID=…
+   GITHUB_CLIENT_SECRET=…
+   GOOGLE_CLIENT_ID=…
+   GOOGLE_CLIENT_SECRET=…
+   ```
+   存檔後 `sudo systemctl restart yourwowai`
+
 ### 之後
 - **更新到最新版**：再執行一次上面的安裝指令（設定與資料都會保留）
 - **查看紀錄**：`journalctl -u yourwowai -f`
@@ -162,7 +181,11 @@ test/        API 測試（node:test）
 | 方法 | 路徑 | 說明 |
 | --- | --- | --- |
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
-| GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（需密碼） |
+| GET / PATCH / DELETE | `/api/me` | 目前登入者（含 `hasPassword`、已綁定的 `identities`）／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（有密碼送 `password`，第三方登入的帳號送 `confirm`: 自己的帳號名稱） |
+| GET | `/api/auth/providers` | 可用的登入方式 `{ github, google, apple }` |
+| POST | `/api/auth/oauth/:provider/start` | GitHub／Google 登入或綁定（`client`: `web` 或 `app`，`link: true` 代表綁定到目前帳號），回傳要打開的 `url`；完成後導回 `/auth?code=…`（網站）或 `yourwowai://auth?code=…`（App） |
+| POST | `/api/auth/oauth/exchange` | 用一次性 `code`（5 分鐘內有效）換登入 `token` |
+| POST | `/api/auth/apple` | Sign in with Apple：送 iPhone 拿到的 `identityToken`（伺服器用 Apple 公開金鑰驗證）與第一次登入時的 `fullName` |
 | PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
 | GET | `/api/categories` | 應用領域分類與公開作品數（教育、效率、職場、理財、健康、生活、行銷、設計、開發、資料、遊戲、其他）；`/api/posts?category=<slug>` 依分類瀏覽，分享／編輯時用 `categories`（逗號分隔，最多 3 個） |
 | GET | `/api/stats` | 公開統計 `{ users, posts }`（註冊人數、公開作品數），允許任何網站讀取，官方介紹網站用來顯示人數 |
@@ -175,6 +198,8 @@ test/        API 測試（node:test）
 | PUT / DELETE | `/api/posts/:id/vote` | 投票（`vote`: `cool` 或 `notcool`）／取消，回傳 `coolCount`、`notCoolCount`、`myVote` |
 | POST | `/api/posts/:id/report` | 檢舉（`reason`: spam、nudity、violence、harassment、ip、other） |
 | GET / POST | `/api/posts/:id/comments` | 留言 |
+| PATCH / DELETE | `/api/comments/:id` | 編輯自己的留言（`body`）／刪除留言（留言者、貼文作者或管理員），回傳最新 `commentCount` |
+| PUT / DELETE | `/api/posts/:id/repost` | 在 YourWowAI 裡分享到自己的個人頁／取消，回傳 `repostCount`、`repostedByMe` |
 | GET | `/api/users/:username` | 個人頁與作品 |
 | POST / DELETE | `/api/users/:username/follow` | 追蹤／取消追蹤 |
 | POST / DELETE | `/api/users/:username/block` | 封鎖／解除封鎖 |
