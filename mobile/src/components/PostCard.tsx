@@ -95,7 +95,29 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
 
   const openPost = () => router.push(`/post/${post.id}`);
 
-  async function sharePost() {
+  // 紙飛機：在 YourWowAI 裡分享到自己的個人頁，或把連結分享到其他地方
+  async function openShare() {
+    const options = isMine
+      ? [tr('分享連結', 'Share link')]
+      : [post.repostedByMe ? tr('從我的分享移除', 'Remove from my shares') : tr('分享到我的 YourWowAI', 'Share to my YourWowAI'), tr('分享連結', 'Share link')];
+    const choice = await chooseOption(tr('分享', 'Share'), options, { destructiveIndex: !isMine && post.repostedByMe ? 0 : undefined });
+    if (choice === null) return;
+    if (choice === options.length - 1) return shareLink();
+    if (!requireLogin()) return;
+    const next = !post.repostedByMe;
+    const prev = post;
+    setPost({ ...post, repostedByMe: next, repostCount: post.repostCount + (next ? 1 : -1) });
+    try {
+      const res = await api<Pick<Post, 'repostCount' | 'repostedByMe'>>(`/api/posts/${post.id}/repost`, { method: next ? 'PUT' : 'DELETE' });
+      setPost((p) => ({ ...p, ...res }));
+      if (next) notify(tr('已分享到你的個人頁', 'Shared to your profile'), tr('可以在「個人」的分享分頁看到。', 'Find it under the Shared tab on your profile.'));
+    } catch (err) {
+      setPost(prev);
+      notify((err as Error).message);
+    }
+  }
+
+  async function shareLink() {
     const url = siteUrl(`/post/${post.id}`);
     if (Platform.OS !== 'web') {
       Share.share({ message: tr(`${post.title} — 在 YourWowAI 上看這個 AI 工具：${url}`, `${post.title} — check out this AI tool on YourWowAI: ${url}`) });
@@ -133,15 +155,23 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         <VoteButton kind="cool" count={post.coolCount} active={post.myVote === 'cool'} onPress={() => vote(post.myVote === 'cool' ? null : 'cool')} />
         <VoteButton kind="notcool" count={post.notCoolCount} active={post.myVote === 'notcool'} onPress={() => vote(post.myVote === 'notcool' ? null : 'notcool')} />
         <View style={{ flex: 1 }} />
-        <Pressable hitSlop={8} onPress={openPost} accessibilityLabel={tr('留言', 'Comment')}>
-          <Ionicons name="chatbubble-outline" size={25} color={c.text} />
+        <Pressable
+          hitSlop={8}
+          onPress={openPost}
+          style={styles.countButton}
+          accessibilityLabel={tr(`留言，${post.commentCount} 則`, `Comment, ${plural(post.commentCount, 'comment')}`)}
+        >
+          <Ionicons name="chatbubble-outline" size={24} color={c.text} />
+          {post.commentCount ? <Text style={[styles.countText, { color: c.text }]}>{post.commentCount}</Text> : null}
         </Pressable>
         <Pressable
           hitSlop={8}
-          accessibilityLabel={tr('分享', 'Share')}
-          onPress={sharePost}
+          onPress={openShare}
+          style={styles.countButton}
+          accessibilityLabel={tr(`分享，${post.repostCount} 次`, `Share, ${plural(post.repostCount, 'share')}`)}
         >
-          <Ionicons name="paper-plane-outline" size={24} color={c.text} />
+          <Ionicons name={post.repostedByMe ? 'paper-plane' : 'paper-plane-outline'} size={23} color={post.repostedByMe ? c.accent : c.text} />
+          {post.repostCount ? <Text style={[styles.countText, { color: post.repostedByMe ? c.accent : c.text }]}>{post.repostCount}</Text> : null}
         </Pressable>
       </View>
 
@@ -224,6 +254,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   username: { fontWeight: '700', fontSize: 15, fontFamily: fonts.mono },
+  countButton: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  countText: { fontWeight: '700', fontSize: 14, fontFamily: fonts.mono },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10 },
   links: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   tryButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },

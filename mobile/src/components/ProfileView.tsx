@@ -13,7 +13,9 @@ import { tr } from '../lib/i18n';
 export function ProfileView({ username }: { username: string }) {
   const c = useColors();
   const { user: me } = useAuth();
-  const [data, setData] = useState<{ user: Profile; posts: Post[] } | null>(null);
+  const [data, setData] = useState<{ user: Profile; posts: Post[]; reposts: Post[] } | null>(null);
+  // 個人頁下方的分頁：自己的作品，或在 YourWowAI 裡分享的別人作品
+  const [tab, setTab] = useState<'posts' | 'reposts'>('posts');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -33,7 +35,7 @@ export function ProfileView({ username }: { username: string }) {
 
   if (error && !data) return <Empty title={tr('糟糕', 'Oops')} message={error} />;
   if (!data) return <Loading />;
-  const { user, posts } = data;
+  const { user, posts, reposts } = data;
   const isMe = me?.id === user.id;
 
   async function toggleFollow() {
@@ -44,6 +46,7 @@ export function ProfileView({ username }: { username: string }) {
       });
       setData({
         posts,
+        reposts,
         user: { ...user, followedByMe: res.followedByMe, followerCount: user.followerCount + (res.followedByMe ? 1 : -1) },
       });
     } catch (err) {
@@ -127,7 +130,39 @@ export function ProfileView({ username }: { username: string }) {
           </>
         )}
       </View>
-      {posts.length ? (
+      {!user.blockedByMe ? (
+        <View style={[styles.tabs, { borderColor: c.border }]}>
+          {([
+            ['posts', 'grid-outline', 'grid', tr('作品', 'Projects')],
+            ['reposts', 'paper-plane-outline', 'paper-plane', tr('分享', 'Shared')],
+          ] as const).map(([key, icon, activeIcon, label]) => {
+            const active = tab === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setTab(key)}
+                accessibilityRole="tab"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: active }}
+                style={[styles.tab, { borderColor: active ? c.accent : 'transparent' }]}
+              >
+                <Ionicons name={active ? activeIcon : icon} size={22} color={active ? c.accent : c.muted} />
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+      {tab === 'reposts' && !user.blockedByMe ? (
+        reposts.length ? (
+          <PostGrid posts={reposts} />
+        ) : (
+          <Empty
+            message={isMe
+              ? tr('還沒有分享別人的作品。在貼文按紙飛機 → 分享到我的 YourWowAI，就會出現在這裡。', "You haven't shared anyone's projects yet. Tap the paper plane on a post → Share to my YourWowAI, and it shows up here.")
+              : tr('還沒有分享的作品', 'No shared projects yet')}
+          />
+        )
+      ) : posts.length ? (
         <PostGrid posts={posts} />
       ) : (
         <Empty message={user.blockedByMe ? tr('你已封鎖這位使用者', "You've blocked this user") : isMe ? tr('你還沒有分享任何 AI 工具', "You haven't shared any AI tools yet") : tr('還沒有作品', 'No projects yet')}>
@@ -146,6 +181,8 @@ const styles = StyleSheet.create({
   info: { paddingHorizontal: 16, paddingBottom: 14 },
   name: { fontSize: 16, fontWeight: '800' },
   actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  tabs: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderBottomWidth: 2 },
   contacts: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
   contactsTitle: { fontFamily: fonts.mono, fontSize: 12, fontWeight: '700' },
   contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

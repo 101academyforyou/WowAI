@@ -176,6 +176,8 @@ export function createApp({
        FROM votes WHERE post_id = ?`,
     ),
     commentCount: db.prepare('SELECT COUNT(*) AS n FROM comments WHERE post_id = ?'),
+    repostCount: db.prepare('SELECT COUNT(*) AS n FROM reposts WHERE post_id = ?'),
+    myRepost: db.prepare('SELECT 1 FROM reposts WHERE user_id = ? AND post_id = ?'),
     myVote: db.prepare('SELECT value FROM votes WHERE user_id = ? AND post_id = ?'),
     userById: db.prepare('SELECT id, username, display_name, avatar FROM users WHERE id = ?'),
     blocked: db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?'),
@@ -227,6 +229,13 @@ export function createApp({
     };
   }
 
+  function repostState(postId, viewer) {
+    return {
+      repostCount: q.repostCount.get(postId).n,
+      repostedByMe: viewer ? Boolean(q.myRepost.get(viewer.id, postId)) : false,
+    };
+  }
+
   function serializePost(post, viewer) {
     return {
       id: post.id,
@@ -246,6 +255,7 @@ export function createApp({
       })(),
       ...voteState(post.id, viewer),
       commentCount: q.commentCount.get(post.id).n,
+      ...repostState(post.id, viewer),
     };
   }
 
@@ -563,6 +573,21 @@ export function createApp({
     res.json(voteState(post.id, req.user));
   });
 
+  // 在 YourWowAI 裡轉分享別人的作品（顯示在自己個人頁的「分享」分頁）
+  app.put('/api/posts/:id/repost', requireAuth, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    if (post.user_id === req.user.id) throw new HttpError(400, '不能轉分享自己的貼文');
+    const { changes } = db.prepare('INSERT OR IGNORE INTO reposts (user_id, post_id) VALUES (?, ?)').run(req.user.id, post.id);
+    if (changes) notifier.notify(post.user_id, req.user.id, 'repost', { postId: post.id });
+    res.json(repostState(post.id, req.user));
+  });
+
+  app.delete('/api/posts/:id/repost', requireAuth, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    db.prepare('DELETE FROM reposts WHERE user_id = ? AND post_id = ?').run(req.user.id, post.id);
+    res.json(repostState(post.id, req.user));
+  });
+
   app.get('/api/posts/:id/comments', (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
     const rows = db.prepare(
@@ -622,6 +647,10 @@ export function createApp({
     const posts = blockedByMe ? [] : db.prepare(
       `SELECT p.* FROM posts p WHERE p.user_id = ?${visible.sql} ORDER BY p.id DESC`,
     ).all(user.id, ...visible.params);
+    // 轉分享的作品，依轉分享的時間排序
+    const reposts = blockedByMe ? [] : db.prepare(
+      `SELECT p.* FROM reposts r JOIN posts p ON p.id = r.post_id WHERE r.user_id = ?${visible.sql} ORDER BY r.created_at DESC, r.rowid DESC`,
+    ).all(user.id, ...visible.params);
     res.json({
       user: {
         ...publicUser(user),
@@ -636,6 +665,7 @@ export function createApp({
           : false,
       },
       posts: posts.map((p) => serializePost(p, req.user)),
+      reposts: reposts.map((p) => serializePost(p, req.user)),
     });
   });
 

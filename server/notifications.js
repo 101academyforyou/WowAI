@@ -32,6 +32,7 @@ export function notificationText({ type, actorName, postTitle, text }, lang = 'z
       case 'comment': return `${actorName} commented: ${excerpt(text)}`;
       case 'follow': return `${actorName} started following you`;
       case 'new_post': return `${actorName} shared a new project: "${postTitle}"`;
+      case 'repost': return `${actorName} shared your "${postTitle}" on their profile`;
       default: return '';
     }
   }
@@ -40,6 +41,7 @@ export function notificationText({ type, actorName, postTitle, text }, lang = 'z
     case 'comment': return `${actorName} 留言：${excerpt(text)}`;
     case 'follow': return `${actorName} 開始追蹤你`;
     case 'new_post': return `${actorName} 分享了新作品「${postTitle}」`;
+    case 'repost': return `${actorName} 把你的「${postTitle}」分享到個人頁`;
     default: return '';
   }
 }
@@ -112,7 +114,7 @@ export function createNotifier({ db, pushSender = expoPushSender, log = console 
     if (userId === actorId) return Promise.resolve();
     if (q.blockedEither.get(userId, actorId, actorId, userId)) return Promise.resolve();
     // 同一個人重複按 Cool、取消再追蹤，不重複通知
-    if ((type === 'cool' || type === 'follow') && q.existing.get(userId, actorId, type, postId)) return Promise.resolve();
+    if ((type === 'cool' || type === 'follow' || type === 'repost') && q.existing.get(userId, actorId, type, postId)) return Promise.resolve();
     q.insert.run(userId, actorId, type, postId, text);
     broadcast(userId);
     return push(userId, { type, actorId, postId, text });

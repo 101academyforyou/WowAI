@@ -15,6 +15,7 @@ const TYPE_ICON = {
   comment: 'chatbubble',
   follow: 'person-add',
   new_post: 'sparkles',
+  repost: 'paper-plane',
 } as const;
 
 type Page = { notifications: AppNotification[]; nextBefore: number | null };

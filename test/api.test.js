@@ -630,3 +630,57 @@ test('「其他」分類可以自己填領域名稱，搜尋得到；沒選「�
   })).json();
   assert.equal(edited.post.categoryOther, '', '取消「其他」後清掉自訂名稱');
 });
+
+test('在 YourWowAI 裡分享：顯示在個人頁的「分享」分頁、有分享數、通知作者，可以取消，不能分享自己的', async () => {
+  const author = await register('repost_author');
+  const fan = await register('repost_fan');
+  const { post } = await (await createPost(author, { title: '轉分享測試' }, [{ name: 'a.png', data: PNG }])).json();
+  assert.equal(post.repostCount, 0);
+  assert.equal(post.repostedByMe, false);
+
+  const own = await fetch(`${base}/api/posts/${post.id}/repost`, { method: 'PUT', headers: { cookie: author } });
+  assert.equal(own.status, 400);
+  assert.equal((await fetch(`${base}/api/posts/${post.id}/repost`, { method: 'PUT' })).status, 401);
+
+  const shared = await (await fetch(`${base}/api/posts/${post.id}/repost`, { method: 'PUT', headers: { cookie: fan } })).json();
+  assert.deepEqual(shared, { repostCount: 1, repostedByMe: true });
+  // 重複分享不會重複計算
+  await fetch(`${base}/api/posts/${post.id}/repost`, { method: 'PUT', headers: { cookie: fan } });
+
+  const profile = await (await fetch(`${base}/api/users/repost_fan`)).json();
+  assert.deepEqual(profile.reposts.map((p) => p.id), [post.id]);
+  assert.equal(profile.posts.length, 0, '轉分享不算自己的作品');
+  assert.equal((await (await fetch(`${base}/api/posts/${post.id}`)).json()).post.repostCount, 1);
+
+  const notes = (await (await fetch(`${base}/api/notifications`, { headers: { cookie: author } })).json()).notifications;
+  assert.equal(notes.filter((n) => n.type === 'repost').length, 1);
+  assert.match(notes[0].message, /轉分享測試/);
+
+  const undone = await (await fetch(`${base}/api/posts/${post.id}/repost`, { method: 'DELETE', headers: { cookie: fan } })).json();
+  assert.deepEqual(undone, { repostCount: 0, repostedByMe: false });
+  assert.equal((await (await fetch(`${base}/api/users/repost_fan`)).json()).reposts.length, 0);
+});
+
+test('舊資料庫的通知表會升級成可以存「分享」通知，舊通知保留', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const file = path.join(tmpDir, 'legacy-notifications.db');
+  const legacy = new DatabaseSync(file);
+  legacy.exec(`
+    CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, display_name TEXT, bio TEXT DEFAULT '', password_hash TEXT, created_at TEXT);
+    CREATE TABLE notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, actor_id INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('cool', 'comment', 'follow', 'new_post')),
+      post_id INTEGER, text TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), read_at TEXT
+    );
+    INSERT INTO users (id, username, display_name, password_hash) VALUES (1, 'a', 'a', 'x'), (2, 'b', 'b', 'x');
+    INSERT INTO notifications (user_id, actor_id, type) VALUES (1, 2, 'follow');
+  `);
+  legacy.close();
+  const db = openDatabase(file);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notifications').get().n, 1);
+  db.prepare("INSERT INTO notifications (user_id, actor_id, type) VALUES (1, 2, 'repost')").run();
+  assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'notifications_old'").get(), undefined);
+  db.close();
+  // 再開一次不會重複升級
+  openDatabase(file).close();
+});
