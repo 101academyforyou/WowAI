@@ -7,13 +7,17 @@ import { fonts, useColors } from '../../lib/theme';
 import { PostGrid } from '../../components/PostGrid';
 import { Avatar, Chip, Empty, Loading, notify } from '../../components/ui';
 import { tr } from '../../lib/i18n';
+import { CategoryFilter } from '../../components/CategoryChips';
+import { categoryOf } from '../../lib/categories';
 
 type Tag = { name: string; count: number };
 
 export default function ExploreScreen() {
   const c = useColors();
-  const params = useLocalSearchParams<{ tag?: string; q?: string }>();
+  const params = useLocalSearchParams<{ tag?: string; q?: string; category?: string }>();
   const tag = params.tag ?? '';
+  const category = params.category ?? '';
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [input, setInput] = useState(params.q ?? '');
   const [query, setQuery] = useState(params.q?.trim() ?? '');
   const [tags, setTags] = useState<Tag[]>([]);
@@ -32,29 +36,32 @@ export default function ExploreScreen() {
     const id = ++requestId.current;
     const qs = new URLSearchParams();
     if (tag) qs.set('tag', tag);
+    if (category) qs.set('category', category);
     if (query) qs.set('q', query);
     try {
-      const [t, p, u] = await Promise.all([
+      const [t, p, u, cats] = await Promise.all([
         api<{ tags: Tag[] }>('/api/tags'),
         api<{ posts: Post[] }>(`/api/posts?${qs}`),
         query ? api<{ users: User[] }>(`/api/users?${new URLSearchParams({ q: query })}`) : Promise.resolve({ users: [] }),
+        api<{ categories: { slug: string; count: number }[] }>('/api/categories'),
       ]);
       if (id !== requestId.current) return; // 已經有更新的搜尋，丟掉舊結果
       setTags(t.tags);
       setPosts(p.posts);
       setUsers(u.users);
+      setCategoryCounts(Object.fromEntries(cats.categories.map((x) => [x.slug, x.count])));
     } catch (err) {
       if (id !== requestId.current) return;
       setPosts((prev) => prev ?? []);
       notify((err as Error).message);
     }
-  }, [tag, query]);
+  }, [tag, query, category]);
 
   useFocusEffect(useCallback(() => {
     load();
   }, [load]));
 
-  const title = query ? tr(`搜尋「${query}」`, `Results for "${query}"`) : tag ? `#${tag}` : tr('探索別人用 AI 做了什麼酷工具', 'See the cool tools people built with AI');
+  const title = query ? tr(`搜尋「${query}」`, `Results for "${query}"`) : tag ? `#${tag}` : category ? categoryOf(category)?.label ?? category : tr('探索別人用 AI 做了什麼酷工具', 'See the cool tools people built with AI');
   const emptyMessage = query
     ? tr(`找不到${tag ? ` #${tag} 裡` : ''}和「${query}」有關的作品`, `No projects${tag ? ` in #${tag}` : ''} match "${query}"`)
     : tr('這個分類還沒有作品', 'Nothing here yet');
@@ -98,8 +105,11 @@ export default function ExploreScreen() {
         >
           {title}
         </Text>
+      </View>
+      <CategoryFilter value={category} counts={categoryCounts} onChange={(slug) => router.setParams({ category: slug })} />
+      <View style={[styles.header, { paddingTop: 0 }]}>
         <View style={styles.chips}>
-          <Chip label={tr('全部', 'All')} active={!tag} onPress={() => router.setParams({ tag: '' })} />
+          <Chip label={tr('全部 AI', 'All AI tools')} active={!tag} onPress={() => router.setParams({ tag: '' })} />
           {tags.map((t) => (
             <Chip
               key={t.name}

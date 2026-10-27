@@ -9,6 +9,7 @@ import { cleanContacts, serializeContacts } from './contacts.js';
 import { parseGitHubRepo } from './github.js';
 import { parseYouTube } from './youtube.js';
 import { requestLang, translate } from './i18n.js';
+import { CATEGORIES, parseCategories } from './categories.js';
 import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
 
 const MAX_MEDIA_PER_POST = 10;
@@ -169,6 +170,7 @@ export function createApp({
     postById: db.prepare('SELECT * FROM posts WHERE id = ?'),
     mediaForPost: db.prepare('SELECT filename, kind FROM post_media WHERE post_id = ? ORDER BY position'),
     toolsForPost: db.prepare('SELECT name FROM post_ai_tools WHERE post_id = ? ORDER BY rowid'),
+    categoriesForPost: db.prepare('SELECT slug FROM post_categories WHERE post_id = ?'),
     voteCounts: db.prepare(
       `SELECT COALESCE(SUM(value = 1), 0) AS cool, COALESCE(SUM(value = -1), 0) AS notCool
        FROM votes WHERE post_id = ?`,
@@ -237,6 +239,10 @@ export function createApp({
       author: publicUser(q.userById.get(post.user_id)),
       media: q.mediaForPost.all(post.id).map((m) => ({ url: `/uploads/${m.filename}`, kind: m.kind })),
       aiTools: q.toolsForPost.all(post.id).map((t) => t.name),
+      categories: (() => {
+        const slugs = new Set(q.categoriesForPost.all(post.id).map((r) => r.slug));
+        return CATEGORIES.filter((c) => slugs.has(c));
+      })(),
       ...voteState(post.id, viewer),
       commentCount: q.commentCount.get(post.id).n,
     };
@@ -351,6 +357,7 @@ export function createApp({
   app.get('/api/posts', (req, res) => {
     const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
     const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
+    const category = typeof req.query.category === 'string' ? req.query.category.trim().toLowerCase() : '';
     const following = req.query.feed === 'following';
     if (following && !req.user) throw new HttpError(401, '請先登入');
 
@@ -360,6 +367,10 @@ export function createApp({
     if (tag) {
       sql += ' AND EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name = ?)';
       params.push(tag);
+    }
+    if (category) {
+      sql += ' AND EXISTS (SELECT 1 FROM post_categories c WHERE c.post_id = p.id AND c.slug = ?)';
+      params.push(category);
     }
     // 搜尋：每個關鍵字都要出現在工具名稱、介紹、GitHub 專案、AI 工具標籤或作者名稱其中之一
     for (const word of searchWords(req.query.q)) {
@@ -396,6 +407,7 @@ export function createApp({
       const toolUrl = cleanToolUrl(req.body.toolUrl);
       const githubUrl = cleanGitHubUrl(req.body.githubUrl);
       const aiTools = parseAiTools(req.body.aiTools);
+      const categories = parseCategories(req.body.categories);
 
       const media = files.map((f) => {
         const type = sniffMedia(f.path);
@@ -419,6 +431,8 @@ export function createApp({
         });
         const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
         aiTools.forEach((name) => insertTool.run(lastInsertRowid, name));
+        const insertCategory = db.prepare('INSERT INTO post_categories (post_id, slug) VALUES (?, ?)');
+        categories.forEach((slug) => insertCategory.run(lastInsertRowid, slug));
         return Number(lastInsertRowid);
       });
 
@@ -475,6 +489,7 @@ export function createApp({
       const toolUrl = cleanToolUrl(req.body.toolUrl);
       const githubUrl = cleanGitHubUrl(req.body.githubUrl);
       const aiTools = parseAiTools(req.body.aiTools);
+      const categories = parseCategories(req.body.categories);
 
       const keptNames = new Set(plan.filter((m) => m.kept).map((m) => m.kept.filename));
       const removed = [...existing.values()].filter((m) => !keptNames.has(m.filename));
@@ -493,6 +508,9 @@ export function createApp({
         db.prepare('DELETE FROM post_ai_tools WHERE post_id = ?').run(post.id);
         const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
         aiTools.forEach((name) => insertTool.run(post.id, name));
+        db.prepare('DELETE FROM post_categories WHERE post_id = ?').run(post.id);
+        const insertCategory = db.prepare('INSERT INTO post_categories (post_id, slug) VALUES (?, ?)');
+        categories.forEach((slug) => insertCategory.run(post.id, slug));
       });
       // 沒用到的上傳檔與被移除的舊圖
       files.filter((f) => !usedNew.has(f)).forEach((f) => fs.rmSync(f.path, { force: true }));
@@ -779,6 +797,15 @@ export function createApp({
   app.delete('/api/push-tokens', requireAuth, (req, res) => {
     db.prepare('DELETE FROM push_tokens WHERE token = ? AND user_id = ?').run(String(req.body?.token ?? ''), req.user.id);
     res.status(204).end();
+  });
+
+  // 應用領域分類與作品數（首頁、探索頁的分類列）
+  app.get('/api/categories', (_req, res) => {
+    const counts = new Map(db.prepare(
+      `SELECT c.slug, COUNT(*) AS count FROM post_categories c JOIN posts p ON p.id = c.post_id
+       WHERE p.hidden = 0 GROUP BY c.slug`,
+    ).all().map((r) => [r.slug, r.count]));
+    res.json({ categories: CATEGORIES.map((slug) => ({ slug, count: counts.get(slug) ?? 0 })) });
   });
 
   // 熱門 AI 工具標籤（探索頁）

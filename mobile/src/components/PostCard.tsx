@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { REPORT_REASONS, api, siteUrl, timeAgo, type Post, type Vote } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { repoName } from '../lib/github';
+import { CategoryBadges } from './CategoryChips';
 import { fonts, glow, useColors } from '../lib/theme';
 import { MediaCarousel } from './MediaCarousel';
 import { Avatar, Chip, chooseOption, confirmAction, notify } from './ui';
@@ -148,6 +149,9 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         <Text style={[styles.title, { color: c.text }]}>{post.title}</Text>
         {post.description ? (
           <Text style={{ color: c.text, lineHeight: 21 }} numberOfLines={full ? undefined : 3}>{post.description}</Text>
+        ) : null}
+        {post.categories?.length ? (
+          <CategoryBadges slugs={post.categories} onPress={(slug) => router.push({ pathname: '/explore', params: { category: slug, tag: '' } })} />
         ) : null}
         {post.aiTools.length ? (
           <View style={styles.chips}>
