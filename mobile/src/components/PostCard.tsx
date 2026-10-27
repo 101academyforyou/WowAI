@@ -6,7 +6,7 @@ import { REPORT_REASONS, api, siteUrl, timeAgo, type Post, type Vote } from '../
 import { useAuth } from '../lib/auth';
 import { repoName } from '../lib/github';
 import { AiToolBadges, CategoryBadges } from './CategoryChips';
-import { fonts, glow, useColors } from '../lib/theme';
+import { fonts, glow, useColors, useContentWidth } from '../lib/theme';
 import { MediaCarousel } from './MediaCarousel';
 import { Avatar, chooseOption, confirmAction, notify } from './ui';
 import { plural, tr } from '../lib/i18n';
@@ -23,6 +23,9 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
     setPost(initial);
   }
   const isMine = user?.id === post.author.id;
+  // ☆ 左邊的文字說明：畫面夠寬顯示「GitHub Star」，中等寬度只寫「GitHub」，小手機只留圖示（避免擠掉分享按鈕）
+  const contentWidth = useContentWidth();
+  const starLabel = contentWidth >= 440 ? 'GitHub Star' : contentWidth >= 420 ? 'GitHub' : '';
 
   function requireLogin() {
     if (user) return true;
@@ -176,6 +179,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
               ? tr(`在 GitHub 按星，目前 ${post.githubStars} 顆星`, `Star on GitHub, ${plural(post.githubStars, 'star')}`)
               : tr('在 GitHub 按星', 'Star on GitHub')}
           >
+            {starLabel ? <Text style={[styles.starLabel, { color: c.muted }]}>{starLabel}</Text> : null}
             <Ionicons name="star-outline" size={21} color={c.text} />
             <Text style={[styles.countText, { color: c.text }]}>{compactCount(post.githubStars ?? 0)}</Text>
           </Pressable>
@@ -282,6 +286,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   username: { fontWeight: '700', fontSize: 15, fontFamily: fonts.mono },
+  starLabel: { fontSize: 11, fontWeight: '700', fontFamily: fonts.mono },
   countButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   countText: { fontWeight: '700', fontSize: 13, fontFamily: fonts.mono },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingTop: 10 },
