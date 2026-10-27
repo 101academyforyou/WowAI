@@ -22,6 +22,9 @@ function deviceLocale(): string {
 function webChoice(): Lang | null {
   if (Platform.OS !== 'web') return null;
   try {
+    // 官方網站的中文頁會用 ?lang=zh 連過來，記下這個選擇
+    const fromUrl = new URLSearchParams(globalThis.location?.search ?? '').get('lang');
+    if (fromUrl === 'zh' || fromUrl === 'en') globalThis.localStorage?.setItem(STORAGE_KEY, fromUrl);
     const v = globalThis.localStorage?.getItem(STORAGE_KEY);
     return v === 'zh' || v === 'en' ? v : null;
   } catch {
