@@ -8,7 +8,8 @@ import { aiToolsFromTopics, fetchGitHubRepo, parseGitHubRepo } from '../lib/gith
 import { parseYouTube, youtubeThumbnail } from '../lib/youtube';
 import { fonts, useColors } from '../lib/theme';
 import { Button, chooseOption, notify } from './ui';
-import { CategoryPicker } from './CategoryChips';
+import { AiToolPicker, CategoryPicker } from './CategoryChips';
+import { MAX_AI_TOOLS, presetTool, splitTools } from '../lib/aiTools';
 import { MAX_CATEGORIES } from '../lib/categories';
 import { plural, tr } from '../lib/i18n';
 
@@ -39,7 +40,11 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
   const [githubUrl, setGithubUrl] = useState(initial?.githubUrl ?? '');
   const [youtubeUrl, setYoutubeUrl] = useState(initial?.youtube?.url ?? '');
   const [importing, setImporting] = useState(false);
-  const [aiTools, setAiTools] = useState(initial?.aiTools.join(', ') ?? '');
+  // AI 工具：常用的用點選（存正式名稱），其他的寫在輸入框
+  const [aiTools, setAiTools] = useState<string[]>(() => (initial?.aiTools ?? []).map((t) => presetTool(t)?.name).filter((t): t is string => Boolean(t)));
+  const [otherTools, setOtherTools] = useState(() => (initial?.aiTools ?? []).filter((t) => !presetTool(t)).join(', '));
+  const [otherToolsOpen, setOtherToolsOpen] = useState(otherTools.length > 0);
+  const allTools = splitTools([...aiTools, ...(otherToolsOpen ? splitTools(otherTools) : [])].join(','));
   const [categories, setCategories] = useState<string[]>(initial?.categories ?? []);
   const [categoryOther, setCategoryOther] = useState(initial?.categoryOther ?? '');
   const [progress, setProgress] = useState<number | null>(null);
@@ -101,7 +106,14 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
       if (!description.trim() && repo.description) setDescription(repo.description.slice(0, 2000));
       if (!toolUrl.trim() && repo.homepage) setToolUrl(repo.homepage);
       const tools = aiToolsFromTopics(repo.topics);
-      if (!aiTools.trim() && tools.length) setAiTools(tools.join(', '));
+      if (!allTools.length && tools.length) {
+        setAiTools(tools.map((t) => presetTool(t)?.name).filter((t): t is string => Boolean(t)));
+        const others = tools.filter((t) => !presetTool(t));
+        if (others.length) {
+          setOtherTools(others.join(', '));
+          setOtherToolsOpen(true);
+        }
+      }
       notify(tr('已從 GitHub 匯入', 'Imported from GitHub'), hasContent ? tr('已幫你填好空白的欄位。', 'Empty fields are filled in.') : tr('已幫你填好空白的欄位，記得附上截圖或 YouTube 影片。', "Empty fields are filled in. Don't forget a screenshot or YouTube demo."));
     } catch (err) {
       notify(tr('匯入失敗', 'Import failed'), (err as Error).message);
@@ -116,7 +128,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
     if (!title.trim()) return notify(tr('請填寫工具名稱', 'Please enter a tool name'));
     setProgress(0);
     try {
-      const post = await onSubmit({ title, description, toolUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools, categories: categories.join(','), categoryOther: categories.includes('other') ? categoryOther : '' }, media, setProgress);
+      const post = await onSubmit({ title, description, toolUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools: allTools.join(', '), categories: categories.join(','), categoryOther: categories.includes('other') ? categoryOther : '' }, media, setProgress);
       onDone(post);
     } catch (err) {
       notify(initial ? tr('儲存失敗', "Couldn't save") : tr('分享失敗', "Couldn't share"), (err as Error).message);
@@ -255,16 +267,27 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
           autoCorrect={false}
         />
 
-        <Text style={[styles.label, { color: c.text }]}>{tr('用了哪些 AI 開發', 'AI tools used')}</Text>
-        <TextInput
-          style={inputStyle}
+        <Text style={[styles.label, { color: c.text }]}>{tr(`用了哪些 AI 開發（最多 ${MAX_AI_TOOLS} 個）`, `AI tools used (up to ${MAX_AI_TOOLS})`)}</Text>
+        <AiToolPicker
           value={aiTools}
-          onChangeText={setAiTools}
-          placeholder="Claude, Cursor, v0"
-          placeholderTextColor={c.muted}
-          autoCapitalize="none"
+          otherOpen={otherToolsOpen}
+          onChange={(names) => {
+            if (names.length > aiTools.length && allTools.length >= MAX_AI_TOOLS) return notify(tr(`最多 ${MAX_AI_TOOLS} 個 AI 工具`, `Up to ${MAX_AI_TOOLS} AI tools`));
+            setAiTools(names);
+          }}
+          onToggleOther={() => setOtherToolsOpen((open) => !open)}
         />
-        <Text style={{ color: c.muted, fontSize: 12 }}>{tr('用逗號分隔，最多 10 個', 'Comma-separated, up to 10')}</Text>
+        {otherToolsOpen ? (
+          <TextInput
+            style={inputStyle}
+            value={otherTools}
+            onChangeText={setOtherTools}
+            placeholder={tr('其他 AI 工具，用逗號分隔，例如：Midjourney, Perplexity', 'Other AI tools, comma-separated, e.g. Midjourney, Perplexity')}
+            placeholderTextColor={c.muted}
+            autoCapitalize="none"
+            accessibilityLabel={tr('其他 AI 工具', 'Other AI tools')}
+          />
+        ) : null}
 
         {progress !== null ? (
           <View style={[styles.progress, { backgroundColor: c.surface2 }]}>

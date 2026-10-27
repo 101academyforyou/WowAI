@@ -5,10 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { REPORT_REASONS, api, siteUrl, timeAgo, type Post, type Vote } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { repoName } from '../lib/github';
-import { CategoryBadges } from './CategoryChips';
+import { AiToolBadges, CategoryBadges } from './CategoryChips';
 import { fonts, glow, useColors } from '../lib/theme';
 import { MediaCarousel } from './MediaCarousel';
-import { Avatar, Chip, chooseOption, confirmAction, notify } from './ui';
+import { Avatar, chooseOption, confirmAction, notify } from './ui';
 import { plural, tr } from '../lib/i18n';
 
 // onRemoved：貼文被刪除、檢舉或作者被封鎖時，讓列表把它拿掉
@@ -184,12 +184,7 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
           <CategoryBadges slugs={post.categories} other={post.categoryOther} onPress={(slug) => router.push({ pathname: '/explore', params: { category: slug, tag: '' } })} />
         ) : null}
         {post.aiTools.length ? (
-          <View style={styles.chips}>
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', fontFamily: fonts.mono }}>built_with:</Text>
-            {post.aiTools.map((t) => (
-              <Chip key={t} label={`#${t}`} onPress={() => router.push({ pathname: '/explore', params: { tag: t } })} />
-            ))}
-          </View>
+          <AiToolBadges tools={post.aiTools} onPress={(t) => router.push({ pathname: '/explore', params: { tag: t } })} />
         ) : null}
         {post.toolUrl || post.githubUrl ? (
           <View style={styles.links}>

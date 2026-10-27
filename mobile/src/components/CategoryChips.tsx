@@ -1,10 +1,11 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CATEGORIES, categoryOf } from '../lib/categories';
+import { AI_TOOLS, aiToolIcon } from '../lib/aiTools';
 import { fonts, useColors } from '../lib/theme';
 import { tr } from '../lib/i18n';
 
-function CategoryChip({ slug, label, icon, active, count, onPress }: {
+export function CategoryChip({ slug, label, icon, active, count, onPress }: {
   slug: string; label: string; icon?: React.ComponentProps<typeof Ionicons>['name']; active: boolean; count?: number; onPress: () => void;
 }) {
   const c = useColors();
@@ -86,6 +87,46 @@ export function CategoryBadges({ slugs, other, onPress }: { slugs: string[]; oth
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+// 分享／編輯用：常用 AI 工具可複選；「其他」打開輸入框自己填
+export function AiToolPicker({ value, otherOpen, onChange, onToggleOther }: {
+  value: string[]; otherOpen: boolean; onChange: (names: string[]) => void; onToggleOther: () => void;
+}) {
+  return (
+    <View style={styles.wrap}>
+      {AI_TOOLS.map((tool) => {
+        const active = value.includes(tool.name);
+        return (
+          <CategoryChip
+            key={tool.name}
+            slug={tool.name}
+            label={tool.name}
+            icon={tool.icon}
+            active={active}
+            onPress={() => onChange(active ? value.filter((n) => n !== tool.name) : [...value, tool.name])}
+          />
+        );
+      })}
+      <CategoryChip slug="other" label={tr('其他', 'Other')} icon="add-circle-outline" active={otherOpen} onPress={onToggleOther} />
+    </View>
+  );
+}
+
+// 貼文上的 AI 工具標籤（點了到探索頁看用同一個工具做的作品）
+export function AiToolBadges({ tools, onPress }: { tools: string[]; onPress: (name: string) => void }) {
+  const c = useColors();
+  return (
+    <View style={styles.wrap}>
+      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600', fontFamily: fonts.mono, alignSelf: 'center' }}>built_with:</Text>
+      {tools.map((name) => (
+        <Pressable key={name} onPress={() => onPress(name)} style={[styles.badge, { borderColor: c.border, backgroundColor: c.surface }]} accessibilityRole="link">
+          <Ionicons name={aiToolIcon(name)} size={13} color={c.accent} />
+          <Text style={{ color: c.text, fontSize: 12, fontWeight: '600' }}>{name}</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
