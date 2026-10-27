@@ -44,6 +44,7 @@ function RootStack() {
       <Stack.Screen name="user/[username]" options={{ title: '' }} />
       <Stack.Screen name="settings" options={{ title: tr('編輯個人檔案', 'Edit profile') }} />
       <Stack.Screen name="login" options={{ presentation: 'modal', title: '' }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
     </Stack>
   );
 }

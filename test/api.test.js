@@ -684,3 +684,33 @@ test('舊資料庫的通知表會升級成可以存「分享」通知，舊通�
   // 再開一次不會重複升級
   openDatabase(file).close();
 });
+
+test('留言：自己可以編輯與刪除；貼文作者可以刪除別人在自己貼文下的留言；其他人不行', async () => {
+  const author = await register('cm_author');
+  const fan = await register('cm_fan');
+  const stranger = await register('cm_stranger');
+  const { post } = await (await createPost(author, { title: '留言測試' }, [{ name: 'a.png', data: PNG }])).json();
+  const add = async (cookie, body) => (await (await fetch(`${base}/api/posts/${post.id}/comments`, {
+    method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
+  })).json()).comment;
+  const c1 = await add(fan, '好酷');
+  const c2 = await add(fan, '第二則');
+  const edit = (cookie, id, body) => fetch(`${base}/api/comments/${id}`, {
+    method: 'PATCH', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
+  });
+  const del = (cookie, id) => fetch(`${base}/api/comments/${id}`, { method: 'DELETE', headers: { cookie } });
+
+  assert.equal((await edit(author, c1.id, '改掉')).status, 403, '貼文作者不能改別人的留言');
+  assert.equal((await edit(fan, c1.id, '  ')).status, 400);
+  const edited = await (await edit(fan, c1.id, '好酷！已經在用了')).json();
+  assert.equal(edited.comment.body, '好酷！已經在用了');
+  assert.equal(edited.comment.edited, true);
+
+  const list = (await (await fetch(`${base}/api/posts/${post.id}/comments`)).json()).comments;
+  assert.deepEqual(list.map((c) => [c.body, c.edited]), [['好酷！已經在用了', true], ['第二則', false]]);
+
+  assert.equal((await del(stranger, c1.id)).status, 403);
+  assert.deepEqual(await (await del(fan, c1.id)).json(), { commentCount: 1 });
+  assert.deepEqual(await (await del(author, c2.id)).json(), { commentCount: 0 });
+  assert.equal((await del(fan, c2.id)).status, 404);
+});

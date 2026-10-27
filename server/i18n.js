@@ -62,6 +62,13 @@ const MESSAGES = {
   一次只能上傳一張大頭貼: 'Upload one avatar at a time',
   '每張圖片不可超過 20MB': 'Each image must be under 20 MB',
   上傳失敗: 'Upload failed',
+  不支援的登入方式: 'Unsupported sign-in method',
+  '登入逾時或連結無效，請再試一次': 'Sign-in expired or the link is invalid. Please try again',
+  'Apple 登入驗證失敗': 'Apple sign-in could not be verified',
+  請輸入你的帳號確認刪除: 'Enter your username to confirm',
+  找不到這則留言: 'Comment not found',
+  只能編輯自己的留言: 'You can only edit your own comments',
+  只能刪除自己的留言或自己貼文下的留言: 'You can only delete your own comments or comments on your posts',
   伺服器發生錯誤: 'Server error',
 };
 
@@ -70,6 +77,8 @@ const PATTERNS = [
   [/^(.+)不可超過 (\d+) 個字$/, (m) => `${FIELDS[m[1]] ?? m[1]} must be ${m[2]} characters or fewer`],
   [/^「(.+)」不是支援的圖片格式（JPG、PNG、GIF、WebP）$/, (m) => `"${m[1]}" isn't a supported image (JPG, PNG, GIF, WebP)`],
   [/^每則分享最多 (\d+) 張截圖$/, (m) => `Up to ${m[1]} screenshots per post`],
+  [/^這個 (.+) 帳號已經綁定其他 YourWowAI 帳號$/, (m) => `This ${m[1]} account is already linked to another YourWowAI account`],
+  [/^(.+) 登入失敗，請再試一次$/, (m) => `${m[1]} sign-in failed. Please try again`],
   [/^分類最多 (\d+) 個$/, (m) => `Up to ${m[1]} categories`],
   [/^請輸入 (.+) 帳號或 (.+) 的網址$/, (m) => `Enter your ${m[1]} username or a link from ${m[2]}`],
 ];

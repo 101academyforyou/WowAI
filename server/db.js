@@ -21,6 +21,32 @@ export function openDatabase(file) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- 第三方登入（github、google、apple）綁定的帳號；一個 YourWowAI 帳號可以綁多個
+    CREATE TABLE IF NOT EXISTS user_identities (
+      provider   TEXT NOT NULL,
+      subject    TEXT NOT NULL,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (provider, subject)
+    );
+    CREATE INDEX IF NOT EXISTS idx_identities_user ON user_identities(user_id);
+
+    -- OAuth 進行中的請求（防 CSRF 的 state），10 分鐘內有效；user_id 有值代表是「綁定」而不是登入
+    CREATE TABLE IF NOT EXISTS oauth_states (
+      state      TEXT PRIMARY KEY,
+      provider   TEXT NOT NULL,
+      client     TEXT NOT NULL CHECK (client IN ('web', 'app')),
+      user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- 第三方登入成功後的一次性代碼，App／網頁用它換登入權杖，5 分鐘內有效
+    CREATE TABLE IF NOT EXISTS oauth_codes (
+      code       TEXT PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS posts (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -80,7 +106,8 @@ export function openDatabase(file) {
       post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
       user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       body       TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      edited_at  TEXT
     );
 
     CREATE TABLE IF NOT EXISTS follows (
@@ -152,6 +179,11 @@ export function openDatabase(file) {
   if (!postColumns.includes('category_other')) {
     // 選「其他」分類時，使用者自己填的領域名稱，例如「烹飪」
     db.exec("ALTER TABLE posts ADD COLUMN category_other TEXT NOT NULL DEFAULT ''");
+  }
+  const commentColumns = db.prepare('PRAGMA table_info(comments)').all().map((c) => c.name);
+  if (!commentColumns.includes('edited_at')) {
+    // 留言最後編輯時間，NULL 代表沒改過
+    db.exec('ALTER TABLE comments ADD COLUMN edited_at TEXT');
   }
   const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userColumns.includes('avatar')) {

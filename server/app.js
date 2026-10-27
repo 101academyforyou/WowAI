@@ -10,6 +10,7 @@ import { parseGitHubRepo } from './github.js';
 import { parseYouTube } from './youtube.js';
 import { requestLang, translate } from './i18n.js';
 import { CATEGORIES, parseCategories } from './categories.js';
+import { OAUTH_PROVIDERS, authorizeUrl, createAppleVerifier, fetchProfile, suggestUsername } from './oauth.js';
 import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
 
 const MAX_MEDIA_PER_POST = 10;
@@ -20,6 +21,7 @@ const PAGE_SIZE = 12;
 // 被不同使用者檢舉達到這個次數的貼文會自動隱藏，等待管理員處理
 const AUTO_HIDE_REPORTS = 3;
 const REPORT_REASONS = ['spam', 'nudity', 'violence', 'harassment', 'ip', 'other'];
+const PROVIDER_LABELS = { github: 'GitHub', google: 'Google', apple: 'Apple' };
 
 // 搜尋字串 → LIKE 用的 pattern；跳脫 % 和 _，避免被當成萬用字元
 function likePattern(word) {
@@ -121,15 +123,21 @@ const DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|10(\.\d+){3}|192\.168(\.
 const STATIC_FILE = /\.(?:html?|js|mjs|css|map|json|txt|xml|ico|png|jpe?g|gif|webp|svg|avif|mp4|mov|webm|woff2?|ttf|otf|webmanifest)$/i;
 
 // webAppDir：App 用 expo export 編譯出的網頁版；publicDir：使用條款等靜態頁
+// oauth：第三方登入設定 { publicUrl, github: { clientId, clientSecret }, google: {…}, appleAudiences, fetch }
 export function createApp({
-  db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], pushSender = expoPushSender,
+  db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], pushSender = expoPushSender, oauth = {},
 }) {
+  const oauthFetch = oauth.fetch ?? globalThis.fetch;
+  const enabledProviders = OAUTH_PROVIDERS.filter((p) => oauth[p]?.clientId && oauth[p]?.clientSecret);
+  const verifyApple = createAppleVerifier({ audiences: oauth.appleAudiences ?? ['com.yourwowai.app'], fetch: oauthFetch });
   const notifier = createNotifier({ db, pushSender });
   const admins = new Set(adminUsernames.map((u) => u.toLowerCase()));
   fs.mkdirSync(uploadDir, { recursive: true });
 
   const app = express();
   app.disable('x-powered-by');
+  // 前面有 Caddy 反向代理：用它轉來的 https 與網域組 OAuth 回呼網址
+  app.set('trust proxy', 'loopback');
   app.use(express.json({ limit: '100kb' }));
 
   if (devCors) {
@@ -316,7 +324,8 @@ export function createApp({
   app.post('/api/auth/login', (req, res) => {
     const user = q.userByName.get(String(req.body?.username ?? ''));
     const password = String(req.body?.password ?? '');
-    if (!user || !verifyPassword(password, user.password_hash)) {
+    // 用 GitHub／Google／Apple 建立的帳號沒有密碼
+    if (!user || !user.password_hash || !verifyPassword(password, user.password_hash)) {
       throw new HttpError(401, '帳號或密碼錯誤');
     }
     const token = startSession(res, user.id);
@@ -347,13 +356,154 @@ export function createApp({
   });
 
   app.get('/api/me', (req, res) => {
-    res.json({ user: req.user ? { ...publicUser(req.user), isAdmin: isAdmin(req.user) } : null });
+    if (!req.user) return res.json({ user: null });
+    res.json({
+      user: {
+        ...publicUser(req.user),
+        isAdmin: isAdmin(req.user),
+        hasPassword: Boolean(req.user.password_hash),
+        identities: db.prepare('SELECT provider FROM user_identities WHERE user_id = ? ORDER BY provider').all(req.user.id).map((r) => r.provider),
+      },
+    });
+  });
+
+  // ---- 第三方登入 ----
+  app.get('/api/auth/providers', (_req, res) => {
+    res.json({ github: enabledProviders.includes('github'), google: enabledProviders.includes('google'), apple: true });
+  });
+
+  // 第三方帳號 → YourWowAI 帳號；第一次登入時自動建立（沒有密碼），並帶入對方的大頭貼
+  function userForIdentity(provider, profile) {
+    const linked = db.prepare('SELECT user_id FROM user_identities WHERE provider = ? AND subject = ?').get(provider, profile.subject);
+    if (linked) return q.userById.get(linked.user_id);
+    const username = suggestUsername(profile.usernameHint, (u) => Boolean(q.userByName.get(u)));
+    const displayName = (profile.displayName || username).trim().slice(0, 50) || username;
+    const userId = transaction(db, () => {
+      const { lastInsertRowid } = db.prepare("INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, '')").run(username, displayName);
+      db.prepare('INSERT INTO user_identities (provider, subject, user_id) VALUES (?, ?, ?)').run(provider, profile.subject, lastInsertRowid);
+      return Number(lastInsertRowid);
+    });
+    if (profile.avatarUrl) importAvatar(userId, profile.avatarUrl).catch(() => {});
+    return q.userById.get(userId);
+  }
+
+  async function importAvatar(userId, url) {
+    const res = await oauthFetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return;
+    const data = Buffer.from(await res.arrayBuffer());
+    if (data.length > MAX_AVATAR_BYTES) return;
+    const tmp = path.join(uploadDir, `tmp-${crypto.randomUUID()}`);
+    fs.writeFileSync(tmp, data);
+    const type = sniffMedia(tmp);
+    if (type?.kind !== 'image') return fs.rmSync(tmp, { force: true });
+    const filename = `avatar-${crypto.randomUUID()}${type.ext}`;
+    fs.renameSync(tmp, path.join(uploadDir, filename));
+    db.prepare("UPDATE users SET avatar = ? WHERE id = ? AND avatar = ''").run(filename, userId);
+  }
+
+  function linkIdentity(userId, provider, subject) {
+    const linked = db.prepare('SELECT user_id FROM user_identities WHERE provider = ? AND subject = ?').get(provider, subject);
+    if (linked && linked.user_id !== userId) throw new HttpError(409, `這個 ${PROVIDER_LABELS[provider]} 帳號已經綁定其他 YourWowAI 帳號`);
+    db.prepare('INSERT OR IGNORE INTO user_identities (provider, subject, user_id) VALUES (?, ?, ?)').run(provider, subject, userId);
+  }
+
+  function oauthCallbackUrl(req, provider) {
+    const base = oauth.publicUrl || `${req.protocol}://${req.get('host')}`;
+    return `${base.replace(/\/$/, '')}/api/auth/oauth/${provider}/callback`;
+  }
+
+  // 1. App／網頁先拿登入網址（綁定時要帶登入權杖），再把使用者帶去 GitHub／Google
+  app.post('/api/auth/oauth/:provider/start', (req, res) => {
+    const { provider } = req.params;
+    if (!enabledProviders.includes(provider)) throw new HttpError(404, '不支援的登入方式');
+    const client = req.body?.client === 'app' ? 'app' : 'web';
+    const link = req.body?.link === true;
+    if (link && !req.user) throw new HttpError(401, '請先登入');
+    db.prepare("DELETE FROM oauth_states WHERE created_at < datetime('now', '-10 minutes')").run();
+    const state = crypto.randomBytes(24).toString('hex');
+    db.prepare('INSERT INTO oauth_states (state, provider, client, user_id) VALUES (?, ?, ?, ?)')
+      .run(state, provider, client, link ? req.user.id : null);
+    // 網頁版：state 同時存在這個瀏覽器的 cookie，回呼時比對，別人寄來的回呼連結不能讓你登入他的帳號
+    if (client === 'web') {
+      res.cookie('oauth_state', state, {
+        httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 10 * 60 * 1000, path: '/api/auth/oauth',
+      });
+    }
+    res.json({ url: authorizeUrl(provider, { clientId: oauth[provider].clientId, redirectUri: oauthCallbackUrl(req, provider), state }) });
+  });
+
+  // 2. GitHub／Google 導回來：換到使用者資料後，帶一次性代碼回 App（yourwowai://auth）或網頁（/auth）
+  app.get('/api/auth/oauth/:provider/callback', async (req, res) => {
+    const { provider } = req.params;
+    const row = db.prepare("SELECT * FROM oauth_states WHERE state = ? AND provider = ? AND created_at >= datetime('now', '-10 minutes')")
+      .get(String(req.query.state ?? ''), provider);
+    if (row) db.prepare('DELETE FROM oauth_states WHERE state = ?').run(row.state);
+    const back = (params) => {
+      const qs = new URLSearchParams(params).toString();
+      res.redirect(row?.client === 'app' ? `yourwowai://auth?${qs}` : `/auth?${qs}`);
+    };
+    const lang = requestLang(req);
+    if (row?.client === 'web') res.clearCookie('oauth_state', { path: '/api/auth/oauth' });
+    const sameBrowser = row?.client !== 'web' || parseCookies(req.headers.cookie).oauth_state === row.state;
+    if (!row || !sameBrowser || !enabledProviders.includes(provider)) return back({ error: translate('登入逾時或連結無效，請再試一次', lang) });
+    if (req.query.error || !req.query.code) return back({ cancelled: '1' });
+
+    let profile;
+    try {
+      profile = await fetchProfile(provider, {
+        ...oauth[provider], redirectUri: oauthCallbackUrl(req, provider), code: String(req.query.code), fetch: oauthFetch,
+      });
+    } catch (err) {
+      console.error(err);
+      return back({ error: translate(`${PROVIDER_LABELS[provider]} 登入失敗，請再試一次`, lang) });
+    }
+    if (row.user_id) {
+      try {
+        linkIdentity(row.user_id, provider, profile.subject);
+      } catch (err) {
+        return back({ error: translate(err.message, lang) });
+      }
+      return back({ linked: provider });
+    }
+    const user = userForIdentity(provider, profile);
+    db.prepare("DELETE FROM oauth_codes WHERE created_at < datetime('now', '-5 minutes')").run();
+    const code = crypto.randomBytes(24).toString('hex');
+    db.prepare('INSERT INTO oauth_codes (code, user_id) VALUES (?, ?)').run(code, user.id);
+    back({ code });
+  });
+
+  // 3. 用一次性代碼換登入權杖
+  app.post('/api/auth/oauth/exchange', (req, res) => {
+    const row = db.prepare("SELECT * FROM oauth_codes WHERE code = ? AND created_at >= datetime('now', '-5 minutes')").get(String(req.body?.code ?? ''));
+    if (!row) throw new HttpError(400, '登入逾時或連結無效，請再試一次');
+    db.prepare('DELETE FROM oauth_codes WHERE code = ?').run(row.code);
+    const token = startSession(res, row.user_id);
+    res.json({ user: publicUser(q.userById.get(row.user_id)), token });
+  });
+
+  // Sign in with Apple（iPhone）：App 拿到 Apple 簽發的 identity token，伺服器驗證後登入
+  app.post('/api/auth/apple', async (req, res) => {
+    const identity = await verifyApple(req.body?.identityToken);
+    if (!identity) throw new HttpError(401, 'Apple 登入驗證失敗');
+    const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().slice(0, 50) : '';
+    const user = userForIdentity('apple', {
+      subject: identity.subject,
+      usernameHint: fullName.replace(/\s+/g, '') || identity.email.split('@')[0] || 'builder',
+      displayName: fullName,
+    });
+    const token = startSession(res, user.id);
+    res.status(201).json({ user: publicUser(user), token });
   });
 
   // 刪除帳號（App Store 規定：可以建立帳號的 App 必須能在 App 內刪除帳號）
   app.delete('/api/me', requireAuth, (req, res) => {
-    const password = String(req.body?.password ?? '');
-    if (!verifyPassword(password, req.user.password_hash)) throw new HttpError(401, '密碼錯誤');
+    if (req.user.password_hash) {
+      const password = String(req.body?.password ?? '');
+      if (!verifyPassword(password, req.user.password_hash)) throw new HttpError(401, '密碼錯誤');
+    } else if (String(req.body?.confirm ?? '').toLowerCase() !== req.user.username.toLowerCase()) {
+      // 第三方登入的帳號沒有密碼：輸入自己的帳號名稱確認
+      throw new HttpError(400, '請輸入你的帳號確認刪除');
+    }
     const files = db.prepare(
       'SELECT m.filename FROM post_media m JOIN posts p ON p.id = m.post_id WHERE p.user_id = ?',
     ).all(req.user.id).map((m) => m.filename);
@@ -591,7 +741,7 @@ export function createApp({
   app.get('/api/posts/:id/comments', (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
     const rows = db.prepare(
-      `SELECT c.id, c.body, c.created_at, u.id AS uid, u.username, u.display_name, u.avatar
+      `SELECT c.id, c.body, c.created_at, c.edited_at, u.id AS uid, u.username, u.display_name, u.avatar
        FROM comments c JOIN users u ON u.id = c.user_id
        WHERE c.post_id = ? AND c.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
        ORDER BY c.id`,
@@ -601,6 +751,7 @@ export function createApp({
         id: r.id,
         body: r.body,
         createdAt: r.created_at,
+        edited: Boolean(r.edited_at),
         author: publicUser({ id: r.uid, username: r.username, display_name: r.display_name, avatar: r.avatar }),
       })),
     });
@@ -614,8 +765,34 @@ export function createApp({
       .run(post.id, req.user.id, body);
     notifier.notify(post.user_id, req.user.id, 'comment', { postId: post.id, text: body });
     res.status(201).json({
-      comment: { id: Number(lastInsertRowid), body, author: publicUser(req.user) },
+      comment: { id: Number(lastInsertRowid), body, edited: false, author: publicUser(req.user) },
     });
+  });
+
+  function getCommentOr404(id, viewer) {
+    const comment = db.prepare('SELECT * FROM comments WHERE id = ?').get(Number(id));
+    if (!comment) throw new HttpError(404, '找不到這則留言');
+    const post = getPostOr404(comment.post_id, viewer);
+    return { comment, post };
+  }
+
+  // 編輯留言：只有留言的人可以改
+  app.patch('/api/comments/:id', requireAuth, (req, res) => {
+    const { comment } = getCommentOr404(req.params.id, req.user);
+    if (comment.user_id !== req.user.id) throw new HttpError(403, '只能編輯自己的留言');
+    const body = cleanText(req.body?.body, { max: 1000, field: '留言', required: true });
+    db.prepare("UPDATE comments SET body = ?, edited_at = datetime('now') WHERE id = ?").run(body, comment.id);
+    res.json({ comment: { id: comment.id, body, edited: true, createdAt: comment.created_at, author: publicUser(req.user) } });
+  });
+
+  // 刪除留言：留言的人、貼文作者（管理自己貼文下的留言）或管理員
+  app.delete('/api/comments/:id', requireAuth, (req, res) => {
+    const { comment, post } = getCommentOr404(req.params.id, req.user);
+    if (comment.user_id !== req.user.id && post.user_id !== req.user.id && !isAdmin(req.user)) {
+      throw new HttpError(403, '只能刪除自己的留言或自己貼文下的留言');
+    }
+    db.prepare('DELETE FROM comments WHERE id = ?').run(comment.id);
+    res.json({ commentCount: q.commentCount.get(post.id).n });
   });
 
   // ---- 使用者 ----

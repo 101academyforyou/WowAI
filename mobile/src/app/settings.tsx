@@ -9,12 +9,13 @@ import { CONTACT_FIELDS, type ContactType } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
 import { Avatar, Button, Loading, chooseOption, confirmAction, notify } from '../components/ui';
 import { siteDoc, tr } from '../lib/i18n';
+import { fetchProviders, startOAuth, PROVIDER_LABEL, type OAuthProvider, type Providers } from '../lib/oauth';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 export default function SettingsScreen() {
   const c = useColors();
-  const { user, setUser, logout, deleteAccount } = useAuth();
+  const { user, setUser, logout, deleteAccount, refresh } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [contacts, setContacts] = useState<Partial<Record<ContactType, string>>>({});
@@ -22,6 +23,12 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [password, setPassword] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [providers, setProviders] = useState<Providers | null>(null);
+  const [linking, setLinking] = useState<OAuthProvider | null>(null);
+
+  useEffect(() => {
+    fetchProviders().then(setProviders).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -93,12 +100,31 @@ export default function SettingsScreen() {
     }
   }
 
+  // 綁定 GitHub／Google：之後也能用它登入這個帳號（網頁版會跳轉，回來時由 /auth 頁處理）
+  async function connect(provider: OAuthProvider) {
+    setLinking(provider);
+    try {
+      const result = await startOAuth(provider, { link: true });
+      if (!result || result.cancelled) return;
+      if (result.error) return notify(result.error);
+      await refresh();
+      notify(tr(`已綁定 ${PROVIDER_LABEL[provider]}`, `${PROVIDER_LABEL[provider]} connected`), tr(`之後也可以用 ${PROVIDER_LABEL[provider]} 登入這個帳號。`, `You can now sign in to this account with ${PROVIDER_LABEL[provider]}.`));
+    } catch (err) {
+      notify((err as Error).message);
+    } finally {
+      setLinking(null);
+    }
+  }
+
+  // 有密碼的帳號輸入密碼確認；用 GitHub／Google／Apple 建立的帳號輸入自己的帳號名稱
+  const hasPassword = user.hasPassword !== false;
+
   // App Store 規定：可以註冊帳號的 App 必須能在 App 內刪除帳號
   async function removeAccount() {
     const ok = await confirmAction(tr('永久刪除帳號？', 'Permanently delete account?'), tr('你的所有作品、留言、追蹤、投票與大頭貼都會永久刪除，無法復原。', "All your posts, comments, follows, votes and avatar will be permanently deleted. This can't be undone."), tr('刪除帳號', 'Delete account'));
     if (!ok) return;
     try {
-      await deleteAccount(password);
+      await deleteAccount(hasPassword ? { password } : { confirm: password });
       router.dismissAll();
       notify(tr('帳號已刪除', 'Account deleted'));
     } catch (err) {
@@ -158,6 +184,28 @@ export default function SettingsScreen() {
 
       <Button title={tr('儲存', 'Save')} variant="primary" onPress={save} loading={saving} style={{ marginTop: 8 }} />
 
+      {providers && (providers.github || providers.google || user.identities?.length) ? (
+        <View style={[styles.section, { borderColor: c.border }]}>
+          <Text style={[styles.label, { color: c.text, marginTop: 0 }]}>{tr('登入方式', 'Sign-in methods')}</Text>
+          {hasPassword ? <Text style={{ color: c.muted }}>{tr(`帳號密碼（@${user.username}）`, `Username and password (@${user.username})`)}</Text> : null}
+          {(['github', 'google', 'apple'] as const).map((p) => {
+            const connected = user.identities?.includes(p);
+            if (!connected && (p === 'apple' || !providers[p])) return null;
+            return (
+              <View key={p} style={[styles.identity, { borderColor: c.border, backgroundColor: c.surface }]}>
+                <Ionicons name={p === 'github' ? 'logo-github' : p === 'google' ? 'logo-google' : 'logo-apple'} size={20} color={c.text} />
+                <Text style={{ color: c.text, fontWeight: '700', flex: 1 }}>{PROVIDER_LABEL[p]}</Text>
+                {connected ? (
+                  <Text style={{ color: c.accent, fontFamily: fonts.mono, fontSize: 13 }}>{tr('已綁定 ✓', 'Connected ✓')}</Text>
+                ) : (
+                  <Button title={tr('綁定', 'Connect')} onPress={() => connect(p as OAuthProvider)} loading={linking === p} disabled={linking !== null} />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
       <View style={[styles.section, { borderColor: c.border }]}>
         <Button title={tr('使用條款', 'Terms of Use')} onPress={() => Linking.openURL(siteDoc('terms'))} />
         <Button title={tr('隱私權政策', 'Privacy Policy')} onPress={() => Linking.openURL(siteDoc('privacy'))} />
@@ -166,15 +214,21 @@ export default function SettingsScreen() {
 
       <View style={[styles.section, { borderColor: c.border }]}>
         <Text style={[styles.label, { color: c.danger }]}>{tr('刪除帳號', 'Delete account')}</Text>
-        <Text style={{ color: c.muted, lineHeight: 20 }}>{tr('刪除後，你的所有作品、留言與追蹤都會永久刪除。請輸入密碼確認。', 'All your posts, comments and follows will be permanently deleted. Enter your password to confirm.')}</Text>
+        <Text style={{ color: c.muted, lineHeight: 20 }}>
+          {hasPassword
+            ? tr('刪除後，你的所有作品、留言與追蹤都會永久刪除。請輸入密碼確認。', 'All your posts, comments and follows will be permanently deleted. Enter your password to confirm.')
+            : tr(`刪除後，你的所有作品、留言與追蹤都會永久刪除。請輸入你的帳號 ${user.username} 確認。`, `All your posts, comments and follows will be permanently deleted. Type your username ${user.username} to confirm.`)}
+        </Text>
         <TextInput
           style={inputStyle}
           value={password}
           onChangeText={setPassword}
-          placeholder={tr('目前的密碼', 'Current password')}
+          placeholder={hasPassword ? tr('目前的密碼', 'Current password') : user.username}
           placeholderTextColor={c.muted}
-          secureTextEntry
-          textContentType="password"
+          secureTextEntry={hasPassword}
+          textContentType={hasPassword ? 'password' : 'none'}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
         <Button title={tr('永久刪除帳號', 'Permanently delete account')} variant="danger" onPress={removeAccount} disabled={!password} />
       </View>
@@ -192,5 +246,6 @@ const styles = StyleSheet.create({
   avatarButtons: { flexDirection: 'row', gap: 8 },
   label: { fontWeight: '700', marginTop: 8, fontFamily: fonts.mono, fontSize: 13 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 8, paddingLeft: 12, paddingRight: 6, paddingVertical: 6, minHeight: 50 },
   section: { marginTop: 28, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },
 });

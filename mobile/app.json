@@ -18,7 +18,8 @@
           "en",
           "zh_TW"
         ]
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -61,7 +62,9 @@
           "backgroundColor": "#05070d"
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "scheme": "yourwowai",
     "experiments": {
