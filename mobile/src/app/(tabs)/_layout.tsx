@@ -2,7 +2,8 @@ import { Tabs } from 'expo-router/js-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, Pressable, Text, type ColorValue } from 'react-native';
 import { fonts, useColors } from '../../lib/theme';
-import { Logo } from '../../components/ui';
+import { chooseOption, Logo } from '../../components/ui';
+import { useAuth } from '../../lib/auth';
 import { useNotifications } from '../../lib/notifications';
 import { lang, setWebLang, tr } from '../../lib/i18n';
 
@@ -34,6 +35,7 @@ function LangToggle() {
 export default function TabsLayout() {
   const c = useColors();
   const { unreadCount } = useNotifications();
+  const { user, logout } = useAuth();
   return (
     <Tabs
       screenOptions={{
@@ -75,7 +77,20 @@ export default function TabsLayout() {
           tabBarBadgeStyle: { backgroundColor: c.notCool, color: '#fff', fontFamily: fonts.mono, fontSize: 11 },
         }}
       />
-      <Tabs.Screen name="me" options={{ title: tr('個人', 'Me'), tabBarIcon: tabIcon('person-circle-outline', 'person-circle') }} />
+      <Tabs.Screen
+        name="me"
+        options={{ title: tr('個人', 'Me'), tabBarIcon: tabIcon('person-circle-outline', 'person-circle') }}
+        // 已經在「個人」頁時再點一次分頁按鈕：跳出登出選項
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            if (!user || !navigation.isFocused()) return;
+            e.preventDefault();
+            chooseOption(`@${user.username}`, [tr('登出', 'Log out')], { destructiveIndex: 0 }).then((i) => {
+              if (i === 0) logout();
+            });
+          },
+        })}
+      />
     </Tabs>
   );
 }
