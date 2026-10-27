@@ -41,6 +41,7 @@ const MESSAGES = {
   截圖資料格式不正確: 'Invalid screenshot data',
   不支援的分類: 'Unsupported category',
   不能檢舉自己的貼文: "You can't report your own post",
+  不能轉分享自己的貼文: "You can't share your own post",
   請選擇檢舉原因: 'Please choose a reason',
   '請選擇 Cool 或 Not Cool': 'Choose Cool or Not Cool',
   請選擇一張圖片: 'Please choose an image',

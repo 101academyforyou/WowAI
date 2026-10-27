@@ -50,6 +50,8 @@ export type Post = {
   notCoolCount: number;
   myVote: Vote | null;
   commentCount: number;
+  repostCount: number;
+  repostedByMe: boolean;
 };
 export type Vote = 'cool' | 'notcool';
 export type Comment = { id: number; body: string; author: User };
@@ -65,7 +67,7 @@ export type Profile = User & {
 
 export type AppNotification = {
   id: number;
-  type: 'cool' | 'comment' | 'follow' | 'new_post';
+  type: 'cool' | 'comment' | 'follow' | 'new_post' | 'repost';
   read: boolean;
   createdAt: string;
   actor: User;

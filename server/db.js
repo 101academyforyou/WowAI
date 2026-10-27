@@ -58,6 +58,15 @@ export function openDatabase(file) {
     );
     CREATE INDEX IF NOT EXISTS idx_post_categories_slug ON post_categories(slug);
 
+    -- 在 YourWowAI 裡轉分享別人的作品，會顯示在自己個人頁的「分享」分頁
+    CREATE TABLE IF NOT EXISTS reposts (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, post_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_reposts_post ON reposts(post_id);
+
     -- 每人對每則貼文最多一票：1 = Cool，-1 = Not Cool
     CREATE TABLE IF NOT EXISTS votes (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -95,12 +104,12 @@ export function openDatabase(file) {
       PRIMARY KEY (blocker_id, blocked_id)
     );
 
-    -- 通知分頁：誰對你做了什麼（cool、comment、follow、new_post）
+    -- 通知分頁：誰對你做了什麼（cool、comment、follow、new_post、repost）
     CREATE TABLE IF NOT EXISTS notifications (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       actor_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type       TEXT NOT NULL CHECK (type IN ('cool', 'comment', 'follow', 'new_post')),
+      type       TEXT NOT NULL CHECK (type IN ('cool', 'comment', 'follow', 'new_post', 'repost')),
       post_id    INTEGER REFERENCES posts(id) ON DELETE CASCADE,
       text       TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -152,6 +161,17 @@ export function openDatabase(file) {
   if (!userColumns.includes('contacts')) {
     // 「聯繫我」的社群／通訊方式，JSON 物件，例如 {"instagram":"amy"}
     db.exec("ALTER TABLE users ADD COLUMN contacts TEXT NOT NULL DEFAULT '{}'");
+  }
+  // 舊資料庫的通知類型不含 repost：SQLite 不能改 CHECK，只能重建資料表
+  const notificationsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notifications'").get().sql;
+  if (!notificationsSql.includes("'repost'")) {
+    transaction(db, () => {
+      db.exec(`ALTER TABLE notifications RENAME TO notifications_old`);
+      db.exec(notificationsSql.replace("'new_post')", "'new_post', 'repost')"));
+      db.exec('INSERT INTO notifications SELECT * FROM notifications_old');
+      db.exec('DROP TABLE notifications_old');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id DESC)');
+    });
   }
   // 舊版的「愛心」改成 Cool 票
   if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'likes'").get()) {
