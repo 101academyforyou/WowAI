@@ -3,6 +3,7 @@ import { ActivityIndicator, ActionSheetIOS, Alert, Modal, Platform, Pressable, S
 import { fonts, glow, useColors } from '../lib/theme';
 import { Image } from 'expo-image';
 import { mediaUri, type User } from '../lib/api';
+import { tr } from '../lib/i18n';
 
 export function Button({
   title, onPress, variant = 'secondary', disabled, loading, style,
@@ -44,7 +45,7 @@ export function Avatar({ user, size = 34 }: { user: Pick<User, 'username' | 'dis
         source={{ uri: mediaUri(user.avatarUrl) }}
         style={[circle, styles.avatar, { borderColor: c.accent, backgroundColor: c.surface2 }]}
         contentFit="cover"
-        accessibilityLabel={`${user.username} 的大頭貼`}
+        accessibilityLabel={tr(`${user.username} 的大頭貼`, `${user.username}'s avatar`)}
       />
     );
   }
@@ -134,7 +135,7 @@ export function DialogHost() {
   };
   return (
     <Modal transparent animationType="fade" visible onRequestClose={() => close(null)}>
-      <Pressable style={styles.overlay} onPress={() => close(null)} accessibilityLabel="關閉">
+      <Pressable style={styles.overlay} onPress={() => close(null)} accessibilityLabel={tr('關閉', 'Close')}>
         <Pressable style={[styles.dialog, { backgroundColor: c.surface, borderColor: c.border }, glow(c.accent, 18)]} onPress={() => {}}>
           <Text style={[styles.dialogTitle, { color: c.text }]}>{req.title}</Text>
           {req.message ? <Text style={{ color: c.muted, lineHeight: 21 }}>{req.message}</Text> : null}
@@ -155,19 +156,19 @@ export function chooseOption(title: string, options: string[], { destructiveInde
     return openWebDialog({
       title,
       options: options.map((label, i) => ({ label, destructive: i === destructiveIndex })),
-      cancelLabel: '取消',
+      cancelLabel: tr('取消', 'Cancel'),
     });
   }
   return new Promise((resolve) => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { title, options: [...options, '取消'], cancelButtonIndex: options.length, destructiveButtonIndex: destructiveIndex },
+        { title, options: [...options, tr('取消', 'Cancel')], cancelButtonIndex: options.length, destructiveButtonIndex: destructiveIndex },
         (i) => resolve(i === options.length ? null : i),
       );
     } else {
       Alert.alert(title, undefined, [
         ...options.map((o, i) => ({ text: o, onPress: () => resolve(i) })),
-        { text: '取消', style: 'cancel' as const, onPress: () => resolve(null) },
+        { text: tr('取消', 'Cancel'), style: 'cancel' as const, onPress: () => resolve(null) },
       ]);
     }
   });
@@ -175,19 +176,19 @@ export function chooseOption(title: string, options: string[], { destructiveInde
 
 export function confirmAction(title: string, message: string, confirmText: string): Promise<boolean> {
   if (Platform.OS === 'web') {
-    return openWebDialog({ title, message, options: [{ label: confirmText, destructive: true }], cancelLabel: '取消' })
+    return openWebDialog({ title, message, options: [{ label: confirmText, destructive: true }], cancelLabel: tr('取消', 'Cancel') })
       .then((i) => i === 0);
   }
   return new Promise((resolve) => {
     Alert.alert(title, message, [
-      { text: '取消', style: 'cancel', onPress: () => resolve(false) },
+      { text: tr('取消', 'Cancel'), style: 'cancel', onPress: () => resolve(false) },
       { text: confirmText, style: 'destructive', onPress: () => resolve(true) },
     ]);
   });
 }
 
 export function notify(title: string, message?: string) {
-  if (Platform.OS === 'web') openWebDialog({ title, message, options: [{ label: '好' }], cancelLabel: null });
+  if (Platform.OS === 'web') openWebDialog({ title, message, options: [{ label: tr('好', 'OK') }], cancelLabel: null });
   else Alert.alert(title, message);
 }
 

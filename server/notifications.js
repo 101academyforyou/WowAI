@@ -24,8 +24,17 @@ export async function expoPushSender(messages) {
 
 const excerpt = (text, max = 60) => (text.length > max ? `${text.slice(0, max)}…` : text);
 
-// 通知文字在讀取時才組出來，名稱改了也會跟著更新
-export function notificationText({ type, actorName, postTitle, text }) {
+// 通知文字在讀取時才組出來，名稱改了也會跟著更新；lang 是收件人的語言
+export function notificationText({ type, actorName, postTitle, text }, lang = 'zh') {
+  if (lang === 'en') {
+    switch (type) {
+      case 'cool': return `${actorName} thinks your "${postTitle}" is Cool ⚡`;
+      case 'comment': return `${actorName} commented: ${excerpt(text)}`;
+      case 'follow': return `${actorName} started following you`;
+      case 'new_post': return `${actorName} shared a new project: "${postTitle}"`;
+      default: return '';
+    }
+  }
   switch (type) {
     case 'cool': return `${actorName} 覺得你的「${postTitle}」很 Cool ⚡`;
     case 'comment': return `${actorName} 留言：${excerpt(text)}`;
@@ -59,7 +68,7 @@ export function createNotifier({ db, pushSender = expoPushSender, log = console 
     ),
     actor: db.prepare('SELECT username, display_name FROM users WHERE id = ?'),
     postTitle: db.prepare('SELECT title FROM posts WHERE id = ?'),
-    tokens: db.prepare('SELECT token FROM push_tokens WHERE user_id = ?'),
+    tokens: db.prepare('SELECT token, lang FROM push_tokens WHERE user_id = ?'),
     deleteToken: db.prepare('DELETE FROM push_tokens WHERE token = ?'),
   };
 
@@ -73,18 +82,20 @@ export function createNotifier({ db, pushSender = expoPushSender, log = console 
   }
 
   async function push(userId, { type, actorId, postId, text }) {
-    const tokens = q.tokens.all(userId).map((t) => t.token);
-    if (!tokens.length) return;
+    const rows = q.tokens.all(userId);
+    if (!rows.length) return;
+    const tokens = rows.map((t) => t.token);
     const actor = q.actor.get(actorId);
-    const body = notificationText({
+    const parts = {
       type,
       actorName: actor.display_name || actor.username,
       postTitle: postId ? q.postTitle.get(postId)?.title ?? '' : '',
       text,
-    });
+    };
     const url = notificationLink({ type, actorUsername: actor.username, postId });
     const badge = unreadCount(userId);
-    const messages = tokens.map((to) => ({ to, title: 'YourWowAI', body, sound: 'default', badge, data: { url } }));
+    // 每台裝置用它登記時的語言顯示推播
+    const messages = rows.map(({ token: to, lang }) => ({ to, title: 'YourWowAI', body: notificationText(parts, lang), sound: 'default', badge, data: { url } }));
     try {
       const tickets = await pushSender(messages);
       // App 被刪除或關掉通知的裝置，Expo 會回 DeviceNotRegistered，把 token 清掉

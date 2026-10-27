@@ -1,6 +1,8 @@
 // 連動 GitHub：貼上專案（owner/repo 或網址），從 GitHub 公開 API 讀取專案資訊，自動填好分享內容。
 // 規則與後端 server/github.js 一致。
 
+import { tr } from './i18n';
+
 const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const REPO = /^[A-Za-z0-9._-]{1,100}$/;
 
@@ -57,11 +59,11 @@ export async function fetchGitHubRepo(ref: GitHubRepoRef): Promise<GitHubRepo> {
       headers: { Accept: 'application/vnd.github+json' },
     });
   } catch {
-    throw new Error('無法連線到 GitHub，請檢查網路');
+    throw new Error(tr('無法連線到 GitHub，請檢查網路', "Can't reach GitHub. Check your connection."));
   }
-  if (res.status === 404) throw new Error('找不到這個 GitHub 專案，或它不是公開專案');
-  if (res.status === 403 || res.status === 429) throw new Error('GitHub 暫時限制查詢次數，請稍後再試');
-  if (!res.ok) throw new Error('讀取 GitHub 專案失敗，請稍後再試');
+  if (res.status === 404) throw new Error(tr('找不到這個 GitHub 專案，或它不是公開專案', "That GitHub repo doesn't exist or isn't public."));
+  if (res.status === 403 || res.status === 429) throw new Error(tr('GitHub 暫時限制查詢次數，請稍後再試', 'GitHub is rate-limiting requests. Try again in a bit.'));
+  if (!res.ok) throw new Error(tr('讀取 GitHub 專案失敗，請稍後再試', "Couldn't read that GitHub repo. Try again later."));
   const data = await res.json();
   const homepage = typeof data.homepage === 'string' && /^https?:\/\//i.test(data.homepage) ? data.homepage : '';
   return {

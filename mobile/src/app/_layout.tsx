@@ -7,6 +7,7 @@ import { NotificationsProvider } from '../lib/notifications';
 import { MAX_CONTENT_WIDTH, fonts, useColors } from '../lib/theme';
 import { DialogHost, Loading } from '../components/ui';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { tr } from '../lib/i18n';
 
 // 點 iPhone 推播 → 打開對應的貼文或個人頁（App 沒開時點進來也一樣）
 function useOpenPushTarget(ready: boolean) {
@@ -38,9 +39,9 @@ function RootStack() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="post/[id]" options={{ title: '貼文' }} />
+      <Stack.Screen name="post/[id]" options={{ title: tr('貼文', 'Post') }} />
       <Stack.Screen name="user/[username]" options={{ title: '' }} />
-      <Stack.Screen name="settings" options={{ title: '編輯個人檔案' }} />
+      <Stack.Screen name="settings" options={{ title: tr('編輯個人檔案', 'Edit profile') }} />
       <Stack.Screen name="login" options={{ presentation: 'modal', title: '' }} />
     </Stack>
   );

@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/auth';
 import { useColors } from '../../lib/theme';
 import { PostCard } from '../../components/PostCard';
 import { Avatar, Button, Empty, Loading, notify } from '../../components/ui';
+import { tr } from '../../lib/i18n';
 
 export default function PostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,7 +28,7 @@ export default function PostScreen() {
     }).catch((err) => setError(err.message));
   }, [id]));
 
-  if (error) return <Empty title="糟糕" message={error} />;
+  if (error) return <Empty title={tr('糟糕', 'Oops')} message={error} />;
   if (!post) return <Loading />;
 
   async function send() {
@@ -62,21 +63,21 @@ export default function PostScreen() {
             </Text>
           </View>
         )}
-        ListEmptyComponent={<Text style={{ color: c.muted, padding: 16 }}>還沒有留言，當第一個留言的人吧！</Text>}
+        ListEmptyComponent={<Text style={{ color: c.muted, padding: 16 }}>{tr('還沒有留言，當第一個留言的人吧！', 'No comments yet. Be the first!')}</Text>}
       />
       <View style={[styles.form, { borderColor: c.border, backgroundColor: c.bg }]}>
         <TextInput
           style={[styles.input, { color: c.text, backgroundColor: c.surface, borderColor: c.border }]}
           value={body}
           onChangeText={setBody}
-          placeholder={user ? '留言給 Cooler…' : '登入後即可留言'}
+          placeholder={user ? tr('留言給 Cooler…', 'Comment to the Cooler…') : tr('登入後即可留言', 'Sign in to comment')}
           placeholderTextColor={c.muted}
           maxLength={1000}
           onFocus={() => { if (!user) router.push('/login'); }}
           onSubmitEditing={send}
           returnKeyType="send"
         />
-        <Button title="留言" variant="primary" onPress={send} loading={sending} disabled={!body.trim()} />
+        <Button title={tr('留言', 'Post')} variant="primary" onPress={send} loading={sending} disabled={!body.trim()} />
       </View>
     </KeyboardAvoidingView>
   );

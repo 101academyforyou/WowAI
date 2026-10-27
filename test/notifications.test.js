@@ -174,3 +174,29 @@ test('網頁版即時更新：有新通知時 stream 立刻送出未讀數', asy
 
   assert.equal((await fetch(`${base}/api/notifications/stream`)).status, 401);
 });
+
+test('英文版 App：通知列表與推播用英文，中文裝置仍收到中文', async () => {
+  const ivy = await register('ivy');
+  const jon = await register('jon');
+  const post = await createPost(ivy, 'Study Buddy');
+  const en = (method, url, body, cookie = ivy) => fetch(`${base}${url}`, {
+    method,
+    headers: { cookie, 'Accept-Language': 'en', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  // 英文 iPhone 和中文 iPad 各登記一台
+  assert.equal((await en('POST', '/api/push-tokens', { token: 'ExponentPushToken[ivy-en]' })).status, 204);
+  assert.equal((await json(ivy, 'POST', '/api/push-tokens', { token: 'ExponentPushToken[ivy-zh]' })).status, 204);
+
+  sent.length = 0;
+  await json(jon, 'PUT', `/api/posts/${post.id}/vote`, { vote: 'cool' });
+  await wait();
+  const bodies = Object.fromEntries(sent.map((m) => [m.to, m.body]));
+  assert.equal(bodies['ExponentPushToken[ivy-en]'], 'JON thinks your "Study Buddy" is Cool ⚡');
+  assert.equal(bodies['ExponentPushToken[ivy-zh]'], 'JON 覺得你的「Study Buddy」很 Cool ⚡');
+
+  await json(jon, 'POST', '/api/users/ivy/follow');
+  const { notifications } = await (await en('GET', '/api/notifications')).json();
+  assert.deepEqual(notifications.map((n) => n.message), ['JON started following you', 'JON thinks your "Study Buddy" is Cool ⚡']);
+});

@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/auth';
 import { fonts, useColors } from '../../lib/theme';
 import { PostCard } from '../../components/PostCard';
 import { Button, Empty, Loading, notify } from '../../components/ui';
+import { tr } from '../../lib/i18n';
 
 type Feed = 'all' | 'following';
 
@@ -49,7 +50,7 @@ export default function HomeScreen() {
       <View style={[styles.tabs, { borderColor: c.border }]}>
         {(['all', 'following'] as const).map((f) => (
           <Pressable key={f} onPress={() => selectFeed(f)} style={[styles.tab, feed === f && { borderColor: c.accent }]}>
-            <Text style={{ color: feed === f ? c.accent : c.muted, fontWeight: '700', fontFamily: fonts.mono }}>{f === 'all' ? '最新分享' : '追蹤中'}</Text>
+            <Text style={{ color: feed === f ? c.accent : c.muted, fontWeight: '700', fontFamily: fonts.mono }}>{f === 'all' ? tr('最新分享', 'Latest') : tr('追蹤中', 'Following')}</Text>
           </Pressable>
         ))}
       </View>
@@ -72,10 +73,10 @@ export default function HomeScreen() {
           }}
           ListEmptyComponent={
             <Empty
-              title={feed === 'following' ? '追蹤的人還沒有分享' : '還沒有人分享'}
-              message="用 AI 做了什麼好玩的工具嗎？附上截圖或 YouTube 影片秀給大家看！"
+              title={feed === 'following' ? tr('追蹤的人還沒有分享', 'Nothing from people you follow yet') : tr('還沒有人分享', 'Nothing shared yet')}
+              message={tr('用 AI 做了什麼好玩的工具嗎？附上截圖或 YouTube 影片秀給大家看！', 'Built something fun with AI? Show everyone with a screenshot or a YouTube demo!')}
             >
-              <Button title="分享我的 AI 工具" variant="primary" onPress={() => router.push('/new')} />
+              <Button title={tr('分享我的 AI 工具', 'Share my AI tool')} variant="primary" onPress={() => router.push('/new')} />
             </Empty>
           }
         />

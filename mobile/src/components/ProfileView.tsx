@@ -8,6 +8,7 @@ import { contactField } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
 import { PostGrid } from './PostGrid';
 import { Avatar, Button, Empty, Loading, confirmAction, notify } from './ui';
+import { tr } from '../lib/i18n';
 
 export function ProfileView({ username }: { username: string }) {
   const c = useColors();
@@ -30,7 +31,7 @@ export function ProfileView({ username }: { username: string }) {
     load();
   }, [load]));
 
-  if (error && !data) return <Empty title="糟糕" message={error} />;
+  if (error && !data) return <Empty title={tr('糟糕', 'Oops')} message={error} />;
   if (!data) return <Loading />;
   const { user, posts } = data;
   const isMe = me?.id === user.id;
@@ -53,7 +54,7 @@ export function ProfileView({ username }: { username: string }) {
   async function toggleBlock() {
     if (!me) return router.push('/login');
     const blocking = !user.blockedByMe;
-    if (blocking && !(await confirmAction(`封鎖 @${user.username}？`, '你將不會再看到對方的貼文和留言，並會互相取消追蹤。', '封鎖'))) return;
+    if (blocking && !(await confirmAction(tr(`封鎖 @${user.username}？`, `Block @${user.username}?`), tr('你將不會再看到對方的貼文和留言，並會互相取消追蹤。', "You won't see their posts or comments, and you'll unfollow each other."), tr('封鎖', 'Block')))) return;
     try {
       await api(`/api/users/${encodeURIComponent(user.username)}/block`, { method: blocking ? 'POST' : 'DELETE' });
       await load();
@@ -71,9 +72,9 @@ export function ProfileView({ username }: { username: string }) {
         <Avatar user={user} size={84} />
         <View style={styles.stats}>
           {[
-            [user.postCount, '作品'],
-            [user.followerCount, '粉絲'],
-            [user.followingCount, '追蹤中'],
+            [user.postCount, tr('作品', 'Projects')],
+            [user.followerCount, tr('粉絲', 'Followers')],
+            [user.followingCount, tr('追蹤中', 'Following')],
           ].map(([n, label]) => (
             <View key={label} style={styles.stat}>
               <Text style={[styles.statNumber, { color: c.accent, fontFamily: fonts.mono }]}>{n}</Text>
@@ -89,7 +90,7 @@ export function ProfileView({ username }: { username: string }) {
       </View>
       {user.contacts.length > 0 && !user.blockedByMe ? (
         <View style={styles.contacts}>
-          <Text style={[styles.contactsTitle, { color: c.muted }]}>{'// 聯繫我'}</Text>
+          <Text style={[styles.contactsTitle, { color: c.muted }]}>{tr('// 聯繫我', '// contact me')}</Text>
           <View style={styles.contactRow}>
             {user.contacts.map((ct) => {
               const field = contactField(ct.type);
@@ -98,11 +99,11 @@ export function ProfileView({ username }: { username: string }) {
                   key={ct.type}
                   onPress={() => Linking.openURL(ct.url)}
                   accessibilityRole="link"
-                  accessibilityLabel={`${ct.label}：${ct.value}`}
+                  accessibilityLabel={`${field.label}${tr('：', ': ')}${ct.value}`}
                   style={({ pressed }) => [styles.contact, { borderColor: c.border, backgroundColor: c.surface, opacity: pressed ? 0.7 : 1 }]}
                 >
                   <Ionicons name={field.icon} size={17} color={field.color} />
-                  <Text style={[styles.contactLabel, { color: c.text }]}>{ct.label}</Text>
+                  <Text style={[styles.contactLabel, { color: c.text }]}>{field.label}</Text>
                 </Pressable>
               );
             })}
@@ -111,26 +112,26 @@ export function ProfileView({ username }: { username: string }) {
       ) : null}
       <View style={styles.actions}>
         {isMe ? (
-          <Button title="編輯個人檔案" onPress={() => router.push('/settings')} style={{ flex: 1 }} />
+          <Button title={tr('編輯個人檔案', 'Edit profile')} onPress={() => router.push('/settings')} style={{ flex: 1 }} />
         ) : (
           <>
             {!user.blockedByMe ? (
               <Button
-                title={user.followedByMe ? '追蹤中' : '追蹤'}
+                title={user.followedByMe ? tr('追蹤中', 'Following') : tr('追蹤', 'Follow')}
                 variant={user.followedByMe ? 'secondary' : 'primary'}
                 onPress={toggleFollow}
                 style={{ flex: 1 }}
               />
             ) : null}
-            <Button title={user.blockedByMe ? '解除封鎖' : '封鎖'} variant="danger" onPress={toggleBlock} style={{ flex: user.blockedByMe ? 1 : undefined }} />
+            <Button title={user.blockedByMe ? tr('解除封鎖', 'Unblock') : tr('封鎖', 'Block')} variant="danger" onPress={toggleBlock} style={{ flex: user.blockedByMe ? 1 : undefined }} />
           </>
         )}
       </View>
       {posts.length ? (
         <PostGrid posts={posts} />
       ) : (
-        <Empty message={user.blockedByMe ? '你已封鎖這位使用者' : isMe ? '你還沒有分享任何 AI 工具' : '還沒有作品'}>
-          {isMe ? <Button title="分享第一個作品" variant="primary" onPress={() => router.push('/new')} /> : null}
+        <Empty message={user.blockedByMe ? tr('你已封鎖這位使用者', "You've blocked this user") : isMe ? tr('你還沒有分享任何 AI 工具', "You haven't shared any AI tools yet") : tr('還沒有作品', 'No projects yet')}>
+          {isMe ? <Button title={tr('分享第一個作品', 'Share your first project')} variant="primary" onPress={() => router.push('/new')} /> : null}
         </Empty>
       )}
     </ScrollView>

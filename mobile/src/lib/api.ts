@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import type { Contact } from './contacts';
+import { lang, tr } from './i18n';
 
 function resolveApiUrl() {
   if (Platform.OS === 'web') {
@@ -73,12 +74,12 @@ export type AppNotification = {
 };
 
 export const REPORT_REASONS = [
-  { value: 'spam', label: '垃圾訊息或詐騙' },
-  { value: 'nudity', label: '色情或裸露內容' },
-  { value: 'violence', label: '暴力或危險內容' },
-  { value: 'harassment', label: '騷擾或仇恨言論' },
-  { value: 'ip', label: '侵害智慧財產權' },
-  { value: 'other', label: '其他' },
+  { value: 'spam', label: tr('垃圾訊息或詐騙', 'Spam or scam') },
+  { value: 'nudity', label: tr('色情或裸露內容', 'Nudity or sexual content') },
+  { value: 'violence', label: tr('暴力或危險內容', 'Violence or dangerous content') },
+  { value: 'harassment', label: tr('騷擾或仇恨言論', 'Harassment or hate speech') },
+  { value: 'ip', label: tr('侵害智慧財產權', 'Intellectual property violation') },
+  { value: 'other', label: tr('其他', 'Other') },
 ] as const;
 
 // ---- 登入權杖：iPhone 存在鑰匙圈（SecureStore），網頁預覽時用 localStorage ----
@@ -110,8 +111,12 @@ export class ApiError extends Error {
   }
 }
 
+const offlineMessage = () => tr('無法連線到伺服器，請檢查網路', "Can't reach the server. Check your connection.");
+const uploadFailedMessage = () => tr('上傳失敗，請再試一次', 'Upload failed. Please try again.');
+
+// Accept-Language：讓伺服器用同一種語言回覆錯誤訊息與通知
 function authHeaders(): Record<string, string> {
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return { 'Accept-Language': lang, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
 
 export async function api<T = unknown>(path: string, { method = 'GET', body }: { method?: string; body?: unknown } = {}): Promise<T> {
@@ -123,11 +128,11 @@ export async function api<T = unknown>(path: string, { method = 'GET', body }: {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError('無法連線到伺服器，請檢查網路', 0);
+    throw new ApiError(offlineMessage(), 0);
   }
   if (res.status === 204) return null as T;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.error || '發生錯誤，請再試一次', res.status);
+  if (!res.ok) throw new ApiError(data.error || tr('發生錯誤，請再試一次', 'Something went wrong. Please try again.'), res.status);
   return data as T;
 }
 
@@ -154,10 +159,10 @@ export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mim
   try {
     res = await fetch(`${API_URL}/api/me/avatar`, { method: 'PUT', headers: authHeaders(), body: form });
   } catch {
-    throw new ApiError('無法連線到伺服器，請檢查網路', 0);
+    throw new ApiError(offlineMessage(), 0);
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.error || '上傳失敗，請再試一次', res.status);
+  if (!res.ok) throw new ApiError(data.error || uploadFailedMessage(), res.status);
   return data.user;
 }
 
@@ -186,9 +191,9 @@ export async function uploadPost(
         // 非 JSON 回應
       }
       if (xhr.status === 201 && data.post) resolve(data.post);
-      else reject(new ApiError(data.error || '上傳失敗，請再試一次', xhr.status));
+      else reject(new ApiError(data.error || uploadFailedMessage(), xhr.status));
     };
-    xhr.onerror = () => reject(new ApiError('無法連線到伺服器，請檢查網路', 0));
+    xhr.onerror = () => reject(new ApiError(offlineMessage(), 0));
     xhr.send(form);
   });
 }
@@ -196,9 +201,9 @@ export async function uploadPost(
 export function timeAgo(sqlDate: string) {
   const then = new Date(`${sqlDate.replace(' ', 'T')}Z`).getTime();
   const s = Math.max(0, (Date.now() - then) / 1000);
-  if (s < 60) return '剛剛';
-  if (s < 3600) return `${Math.floor(s / 60)} 分鐘前`;
-  if (s < 86400) return `${Math.floor(s / 3600)} 小時前`;
-  if (s < 86400 * 7) return `${Math.floor(s / 86400)} 天前`;
-  return new Date(then).toLocaleDateString('zh-TW');
+  if (s < 60) return tr('剛剛', 'just now');
+  if (s < 3600) return tr(`${Math.floor(s / 60)} 分鐘前`, `${Math.floor(s / 60)}m ago`);
+  if (s < 86400) return tr(`${Math.floor(s / 3600)} 小時前`, `${Math.floor(s / 3600)}h ago`);
+  if (s < 86400 * 7) return tr(`${Math.floor(s / 86400)} 天前`, `${Math.floor(s / 86400)}d ago`);
+  return new Date(then).toLocaleDateString(tr('zh-TW', 'en-US'));
 }
