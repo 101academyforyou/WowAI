@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { mediaUri, type Media } from '../lib/api';
 import { youtubeThumbnail } from '../lib/youtube';
 import { fonts, glow, useColors, useContentWidth } from '../lib/theme';
 import { tr } from '../lib/i18n';
+import { YouTubePlayer } from './YouTubePlayer';
 
 function VideoItem({ uri, active, size }: { uri: string; active: boolean; size: { width: number; height: number } }) {
   const player = useVideoPlayer(uri, (p) => {
@@ -21,10 +22,13 @@ function VideoItem({ uri, active, size }: { uri: string; active: boolean; size: 
 
 type Slide = Media | { kind: 'youtube'; url: string; id: string };
 
-// 示範影片：顯示 YouTube 縮圖，點一下到 YouTube 觀看
-function YouTubeItem({ id, url, size, fill }: { id: string; url: string; size: { width: number; height: number }; fill: boolean }) {
+// 示範影片：先顯示 YouTube 縮圖，點一下就在原地播放
+// （滑到別張時，外層會換 key 讓它重新掛載，播放器就會停止）
+function YouTubeItem({ id, size, fill }: { id: string; size: { width: number; height: number }; fill: boolean }) {
+  const [playing, setPlaying] = useState(false);
+  if (playing) return <YouTubePlayer id={id} size={size} />;
   return (
-    <Pressable onPress={() => Linking.openURL(url)} style={[size, styles.black]} accessibilityRole="link" accessibilityLabel={tr('在 YouTube 觀看示範影片', 'Watch the demo on YouTube')}>
+    <Pressable onPress={() => setPlaying(true)} style={[size, styles.black]} accessibilityRole="button" accessibilityLabel={tr('播放示範影片', 'Play the demo video')}>
       <Image source={{ uri: youtubeThumbnail(id) }} style={size} contentFit={fill ? 'cover' : 'contain'} transition={150} />
       <View style={[StyleSheet.absoluteFill, styles.youtubeShade]}>
         <View style={styles.youtubePlay}>
@@ -32,7 +36,7 @@ function YouTubeItem({ id, url, size, fill }: { id: string; url: string; size: {
         </View>
         <View style={styles.youtubeLabel}>
           <Ionicons name="logo-youtube" size={16} color="#fff" />
-          <Text style={styles.youtubeText}>{tr('在 YouTube 觀看示範影片', 'Watch the demo on YouTube')}</Text>
+          <Text style={styles.youtubeText}>{tr('播放示範影片', 'Play demo')}</Text>
         </View>
       </View>
     </Pressable>
@@ -92,7 +96,7 @@ export function MediaCarousel({ media, youtube, onDoubleTap }: { media: Media[];
         scrollEventThrottle={64}
         renderItem={({ item, index: i }) =>
           item.kind === 'youtube' ? (
-            <YouTubeItem id={item.id} url={item.url} size={size} fill={ratio <= WIDE + 0.01} />
+            <YouTubeItem key={i === index ? 'active' : 'idle'} id={item.id} size={size} fill={ratio <= WIDE + 0.01} />
           ) : item.kind === 'video' ? (
             <View style={[size, styles.black]}>
               <VideoItem uri={mediaUri(item.url)} active={i === index} size={size} />
