@@ -19,6 +19,10 @@ before(async () => {
     db: openDatabase(':memory:'),
     uploadDir: path.join(tmpDir, 'uploads'),
     adminUsernames: ['admin'],
+    // 假的 GitHub：octocat/hello 有 1234 顆星，其他專案不存在
+    githubFetch: async (url) => (String(url).toLowerCase() === 'https://api.github.com/repos/octocat/hello'
+      ? new Response(JSON.stringify({ stargazers_count: 1234 }))
+      : new Response('{}', { status: 404 })),
   });
   await new Promise((resolve) => {
     server = app.listen(0, resolve);
@@ -807,4 +811,20 @@ test('AI Webhook：每小時最多 20 則', async () => {
   }
   const limited = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'one more', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' }) });
   assert.equal(limited.status, 429);
+});
+
+test('GitHub 星星數：背景查詢後顯示在貼文上，同一個專案共用快取；沒有 GitHub 專案或找不到時是 null', async () => {
+  const cookie = await register('stars_user');
+  const png = [{ name: 'a.png', data: PNG }];
+  const { post } = await (await createPost(cookie, { title: 'Hello', githubUrl: 'octocat/hello' }, png)).json();
+  const { post: missing } = await (await createPost(cookie, { title: 'Missing', githubUrl: 'octocat/nope' }, png)).json();
+  const { post: plain } = await (await createPost(cookie, { title: 'No repo' }, png)).json();
+  await new Promise((r) => setTimeout(r, 50));
+  const get = async (id) => (await (await fetch(`${base}/api/posts/${id}`)).json()).post.githubStars;
+  assert.equal(await get(post.id), 1234);
+  assert.equal(await get(missing.id), null);
+  assert.equal(await get(plain.id), null);
+  // 另一則貼同一個專案（網址寫法不同）直接用快取
+  const { post: same } = await (await createPost(cookie, { title: 'Again', githubUrl: 'https://github.com/OctoCat/Hello' }, png)).json();
+  assert.equal(same.githubStars, 1234);
 });

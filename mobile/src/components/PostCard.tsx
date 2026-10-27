@@ -155,6 +155,20 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
         <VoteButton kind="cool" count={post.coolCount} active={post.myVote === 'cool'} onPress={() => vote(post.myVote === 'cool' ? null : 'cool')} />
         <VoteButton kind="notcool" count={post.notCoolCount} active={post.myVote === 'notcool'} onPress={() => vote(post.myVote === 'notcool' ? null : 'notcool')} />
         <View style={{ flex: 1 }} />
+        {post.githubUrl ? (
+          <Pressable
+            hitSlop={8}
+            onPress={() => Linking.openURL(post.githubUrl)}
+            style={styles.countButton}
+            accessibilityRole="link"
+            accessibilityLabel={post.githubStars != null
+              ? tr(`在 GitHub 按星，目前 ${post.githubStars} 顆星`, `Star on GitHub, ${plural(post.githubStars, 'star')}`)
+              : tr('在 GitHub 按星', 'Star on GitHub')}
+          >
+            <Ionicons name="star-outline" size={23} color={c.text} />
+            {post.githubStars ? <Text style={[styles.countText, { color: c.text }]}>{compactCount(post.githubStars)}</Text> : null}
+          </Pressable>
+        ) : null}
         <Pressable
           hitSlop={8}
           onPress={openPost}
@@ -214,6 +228,14 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
       </View>
     </View>
   );
+}
+
+// 1234 → 1.2k、15300 → 15k
+function compactCount(n: number) {
+  if (n < 1000) return String(n);
+  if (n < 10000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  if (n < 1000000) return `${Math.round(n / 1000)}k`;
+  return `${(n / 1000000).toFixed(1).replace(/\.0$/, '')}m`;
 }
 
 function VoteButton({ kind, count, active, onPress }: { kind: Vote; count: number; active: boolean; onPress: () => void }) {

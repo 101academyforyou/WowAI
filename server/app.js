@@ -6,7 +6,7 @@ import multer from 'multer';
 import { transaction } from './db.js';
 import { sniffMedia, MEDIA_TYPES } from './media.js';
 import { cleanContacts, serializeContacts } from './contacts.js';
-import { parseGitHubRepo } from './github.js';
+import { createStarCache, parseGitHubRepo } from './github.js';
 import { parseYouTube } from './youtube.js';
 import { requestLang, translate } from './i18n.js';
 import { CATEGORIES, MAX_CATEGORIES, parseCategories } from './categories.js';
@@ -128,9 +128,12 @@ const STATIC_FILE = /\.(?:html?|js|mjs|css|map|json|txt|xml|ico|png|jpe?g|gif|we
 
 // webAppDir：App 用 expo export 編譯出的網頁版；publicDir：使用條款等靜態頁
 // oauth：第三方登入設定 { publicUrl, github: { clientId, clientSecret }, google: {…}, appleAudiences, fetch }
+// githubFetch：查 GitHub 星星數用的 fetch（不給就不查）；githubToken：選填，讓查詢上限從每小時 60 次提高到 5000 次
 export function createApp({
   db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], pushSender = expoPushSender, oauth = {},
+  githubFetch = null, githubToken = '',
 }) {
+  const starCache = createStarCache({ db, fetch: githubFetch, token: githubToken });
   const oauthFetch = oauth.fetch ?? globalThis.fetch;
   const enabledProviders = OAUTH_PROVIDERS.filter((p) => oauth[p]?.clientId && oauth[p]?.clientSecret);
   const verifyApple = createAppleVerifier({ audiences: oauth.appleAudiences ?? ['com.yourwowai.app'], fetch: oauthFetch });
@@ -257,6 +260,7 @@ export function createApp({
       description: post.description,
       toolUrl: post.tool_url,
       githubUrl: post.github_url,
+      githubStars: post.github_url ? starCache.stars(post.github_url) : null,
       youtube: post.youtube_url ? { url: post.youtube_url, id: parseYouTube(post.youtube_url).id } : null,
       createdAt: post.created_at,
       author: publicUser(q.userById.get(post.user_id)),

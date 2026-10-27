@@ -15,6 +15,9 @@ const app = createApp({
   webAppDir: path.join(root, 'web-dist'),
   devCors: process.env.NODE_ENV !== 'production',
   adminUsernames: (process.env.ADMIN_USERNAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+  // 作品的 GitHub 星星數（GITHUB_TOKEN 選填：任何 GitHub 個人權杖，不需要任何權限，只是提高查詢上限）
+  githubFetch: fetch,
+  githubToken: process.env.GITHUB_TOKEN ?? '',
   // 第三方登入：有填 client ID 與 secret 的才會出現在登入畫面
   oauth: {
     publicUrl: process.env.PUBLIC_URL,
