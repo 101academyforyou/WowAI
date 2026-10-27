@@ -101,6 +101,7 @@ test('GitHub 登入：第一次自動建立帳號並帶入大頭貼，之後登�
   const me = await (await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${exchanged.token}` } })).json();
   assert.equal(me.user.hasPassword, false);
   assert.deepEqual(me.user.identities, ['github']);
+  assert.deepEqual(me.user.github, { login: 'octo-cat', id: '42' });
   await new Promise((r) => setTimeout(r, 50));
   const profile = await (await fetch(`${base}/api/users/octo_cat`)).json();
   assert.match(profile.user.avatarUrl, /^\/uploads\/avatar-/);
@@ -146,6 +147,7 @@ test('Google 登入用 email 前半段當帳號；已登入的人可以綁定 Gi
   assert.equal(linked.location, '/auth?linked=github');
   const me = await (await fetch(`${base}/api/me`, { headers: auth })).json();
   assert.deepEqual(me.user.identities, ['github', 'google']);
+  assert.equal(me.user.github.login, 'amy', '綁定後就知道自己的 GitHub 帳號');
 
   // 用這個 GitHub 登入，會進到 amy.lin
   const login = await oauthRound('github');

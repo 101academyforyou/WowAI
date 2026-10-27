@@ -4,7 +4,8 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { MAX_FILE_BYTES, MAX_MEDIA, mediaUri, type EditorMedia, type Post, type PostFields } from '../lib/api';
-import { aiToolsFromTopics, fetchGitHubRepo, parseGitHubRepo } from '../lib/github';
+import { aiToolsFromTopics, fetchGitHubRepo, parseGitHubRepo, type GitHubRepo } from '../lib/github';
+import { GitHubRepoPicker } from './GitHubRepoPicker';
 import { parseYouTube, youtubeThumbnail } from '../lib/youtube';
 import { fonts, useColors } from '../lib/theme';
 import { Button, chooseOption, notify } from './ui';
@@ -40,6 +41,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
   const [githubUrl, setGithubUrl] = useState(initial?.githubUrl ?? '');
   const [youtubeUrl, setYoutubeUrl] = useState(initial?.youtube?.url ?? '');
   const [importing, setImporting] = useState(false);
+  const [pickingRepo, setPickingRepo] = useState(false);
   // AI 工具：常用的用點選（存正式名稱），其他的寫在輸入框
   const [aiTools, setAiTools] = useState<string[]>(() => (initial?.aiTools ?? []).map((t) => presetTool(t)?.name).filter((t): t is string => Boolean(t)));
   const [otherTools, setOtherTools] = useState(() => (initial?.aiTools ?? []).filter((t) => !presetTool(t)).join(', '));
@@ -100,26 +102,30 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
     if (!ref) return notify(tr('GitHub 專案格式不正確', 'Invalid GitHub repo'), tr('請輸入 owner/repo，或貼上 github.com 的專案網址。', 'Enter owner/repo or paste a github.com repo URL.'));
     setImporting(true);
     try {
-      const repo = await fetchGitHubRepo(ref);
-      setGithubUrl(repo.url);
-      if (!title.trim()) setTitle(repo.name.slice(0, 80));
-      if (!description.trim() && repo.description) setDescription(repo.description.slice(0, 2000));
-      if (!toolUrl.trim() && repo.homepage) setToolUrl(repo.homepage);
-      const tools = aiToolsFromTopics(repo.topics);
-      if (!allTools.length && tools.length) {
-        setAiTools(tools.map((t) => presetTool(t)?.name).filter((t): t is string => Boolean(t)));
-        const others = tools.filter((t) => !presetTool(t));
-        if (others.length) {
-          setOtherTools(others.join(', '));
-          setOtherToolsOpen(true);
-        }
-      }
-      notify(tr('已從 GitHub 匯入', 'Imported from GitHub'), hasContent ? tr('已幫你填好空白的欄位。', 'Empty fields are filled in.') : tr('已幫你填好空白的欄位，記得附上截圖或 YouTube 影片。', "Empty fields are filled in. Don't forget a screenshot or YouTube demo."));
+      applyRepo(await fetchGitHubRepo(ref));
     } catch (err) {
       notify(tr('匯入失敗', 'Import failed'), (err as Error).message);
     } finally {
       setImporting(false);
     }
+  }
+
+  // 用 GitHub 專案資料填好空白的欄位（貼網址匯入，或從自己的專案清單挑選）
+  function applyRepo(repo: GitHubRepo) {
+    setGithubUrl(repo.url);
+    if (!title.trim()) setTitle(repo.name.slice(0, 80));
+    if (!description.trim() && repo.description) setDescription(repo.description.slice(0, 2000));
+    if (!toolUrl.trim() && repo.homepage) setToolUrl(repo.homepage);
+    const tools = aiToolsFromTopics(repo.topics);
+    if (!allTools.length && tools.length) {
+      setAiTools(tools.map((t) => presetTool(t)?.name).filter((t): t is string => Boolean(t)));
+      const others = tools.filter((t) => !presetTool(t));
+      if (others.length) {
+        setOtherTools(others.join(', '));
+        setOtherToolsOpen(true);
+      }
+    }
+    notify(tr('已從 GitHub 匯入', 'Imported from GitHub'), hasContent ? tr('已幫你填好空白的欄位。', 'Empty fields are filled in.') : tr('已幫你填好空白的欄位，記得附上截圖或 YouTube 影片。', "Empty fields are filled in. Don't forget a screenshot or YouTube demo."));
   }
 
   async function submit() {
@@ -239,6 +245,14 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
           </View>
           <Button title={tr('匯入', 'Import')} onPress={importFromGitHub} loading={importing} disabled={!githubUrl.trim()} style={{ minHeight: 48 }} />
         </View>
+        {pickingRepo ? (
+          <GitHubRepoPicker onPick={(repo) => { applyRepo(repo); setPickingRepo(false); }} onClose={() => setPickingRepo(false)} />
+        ) : (
+          <Pressable onPress={() => setPickingRepo(true)} style={styles.pickRepo} accessibilityRole="button" hitSlop={6}>
+            <Ionicons name="list-outline" size={16} color={c.accent} />
+            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 14 }}>{tr('從我的 GitHub 專案選擇', 'Pick from my GitHub repos')}</Text>
+          </Pressable>
+        )}
         <Text style={{ color: c.muted, fontSize: 12 }}>{tr('連動公開的 GitHub 專案：自動帶入名稱、介紹與網站，貼文也會附上原始碼連結', 'Link a public repo: we fill in the name, description and website, and your post links to the source code')}</Text>
 
         <Text style={[styles.label, { color: c.text }]}>{tr('工具名稱 *', 'Tool name *')}</Text>
@@ -323,6 +337,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
 }
 
 const styles = StyleSheet.create({
+  pickRepo: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 2 },
   required: { gap: 6, padding: 12, borderRadius: 10, borderWidth: 1 },
   requiredRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   page: { padding: 16, gap: 8, paddingBottom: 48 },

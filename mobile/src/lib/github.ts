@@ -74,3 +74,45 @@ export async function fetchGitHubRepo(ref: GitHubRepoRef): Promise<GitHubRepo> {
     topics: Array.isArray(data.topics) ? data.topics.filter((t: unknown) => typeof t === 'string') : [],
   };
 }
+
+// 自己 GitHub 上的公開專案（分享時從清單挑選）
+export type GitHubRepoSummary = GitHubRepo & { fullName: string; stars: number; fork: boolean; pushedAt: string };
+
+async function githubGet(url: string) {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+  } catch {
+    throw new Error(tr('無法連線到 GitHub，請檢查網路', "Can't reach GitHub. Check your connection."));
+  }
+  if (res.status === 404) throw new Error(tr('找不到這個 GitHub 帳號', "That GitHub account doesn't exist."));
+  if (res.status === 403 || res.status === 429) throw new Error(tr('GitHub 暫時限制查詢次數，請稍後再試', 'GitHub is rate-limiting requests. Try again in a bit.'));
+  if (!res.ok) throw new Error(tr('讀取 GitHub 失敗，請稍後再試', "Couldn't read from GitHub. Try again later."));
+  return res.json();
+}
+
+// 只知道 GitHub 數字 ID 時，查出帳號名稱
+export async function githubLoginById(id: string): Promise<string> {
+  const data = await githubGet(`https://api.github.com/user/${encodeURIComponent(id)}`);
+  return String(data.login ?? '');
+}
+
+export async function fetchUserRepos(login: string): Promise<GitHubRepoSummary[]> {
+  const data = await githubGet(`https://api.github.com/users/${encodeURIComponent(login)}/repos?type=owner&sort=pushed&per_page=100`);
+  if (!Array.isArray(data)) return [];
+  return data
+    .filter((r) => r && typeof r.html_url === 'string' && !r.private)
+    .map((r) => ({
+      url: r.html_url,
+      fullName: String(r.full_name ?? ''),
+      name: String(r.name ?? ''),
+      description: typeof r.description === 'string' ? r.description : '',
+      homepage: typeof r.homepage === 'string' && /^https?:\/\//i.test(r.homepage) ? r.homepage : '',
+      topics: Array.isArray(r.topics) ? r.topics.filter((t: unknown) => typeof t === 'string') : [],
+      stars: Number(r.stargazers_count) || 0,
+      fork: Boolean(r.fork),
+      pushedAt: String(r.pushed_at ?? ''),
+    }))
+    // 自己的專案在前、fork 在後；同一類照最近更新排序（GitHub 已排好）
+    .sort((a, b) => Number(a.fork) - Number(b.fork));
+}

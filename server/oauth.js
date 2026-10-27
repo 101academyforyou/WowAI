@@ -24,7 +24,7 @@ const PROVIDERS = {
       });
       if (!userRes.ok) throw new Error('GitHub profile request failed');
       const u = await userRes.json();
-      return { subject: String(u.id), usernameHint: u.login, displayName: u.name || u.login, avatarUrl: u.avatar_url };
+      return { subject: String(u.id), login: u.login, usernameHint: u.login, displayName: u.name || u.login, avatarUrl: u.avatar_url };
     },
   },
   google: {
