@@ -49,6 +49,14 @@ export function openDatabase(file) {
       PRIMARY KEY (post_id, name)
     );
 
+    -- 應用領域分類（教育、理財、遊戲…），每則最多 3 個
+    CREATE TABLE IF NOT EXISTS post_categories (
+      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      slug    TEXT NOT NULL,
+      PRIMARY KEY (post_id, slug)
+    );
+    CREATE INDEX IF NOT EXISTS idx_post_categories_slug ON post_categories(slug);
+
     -- 每人對每則貼文最多一票：1 = Cool，-1 = Not Cool
     CREATE TABLE IF NOT EXISTS votes (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

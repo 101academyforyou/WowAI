@@ -7,6 +7,7 @@ import { fonts, useColors } from '../../lib/theme';
 import { PostCard } from '../../components/PostCard';
 import { Button, Empty, Loading, notify } from '../../components/ui';
 import { tr } from '../../lib/i18n';
+import { CategoryFilter } from '../../components/CategoryChips';
 
 type Feed = 'all' | 'following';
 
@@ -16,6 +17,7 @@ export default function HomeScreen() {
   const [selectedFeed, setFeed] = useState<Feed>('all');
   // 登出後自動回到「最新分享」
   const feed: Feed = user ? selectedFeed : 'all';
+  const [category, setCategory] = useState('');
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,6 +25,7 @@ export default function HomeScreen() {
 
   const load = useCallback(async (reset: boolean, before?: number | null) => {
     const qs = new URLSearchParams({ feed });
+    if (category) qs.set('category', category);
     if (!reset && before) qs.set('before', String(before));
     try {
       const data = await api<{ posts: Post[]; nextBefore: number | null }>(`/api/posts?${qs}`);
@@ -32,7 +35,7 @@ export default function HomeScreen() {
       setPosts((prev) => prev ?? []);
       notify((err as Error).message);
     }
-  }, [feed]);
+  }, [feed, category]);
 
   // 回到首頁（例如剛分享完、或登入狀態改變）時重新整理
   useFocusEffect(useCallback(() => {
@@ -54,6 +57,15 @@ export default function HomeScreen() {
           </Pressable>
         ))}
       </View>
+      <View style={[styles.categories, { borderColor: c.border }]}>
+        <CategoryFilter
+          value={category}
+          onChange={(slug) => {
+            setPosts(null);
+            setCategory(slug);
+          }}
+        />
+      </View>
       {posts === null ? (
         <Loading />
       ) : (
@@ -73,7 +85,7 @@ export default function HomeScreen() {
           }}
           ListEmptyComponent={
             <Empty
-              title={feed === 'following' ? tr('追蹤的人還沒有分享', 'Nothing from people you follow yet') : tr('還沒有人分享', 'Nothing shared yet')}
+              title={category ? tr('這個領域還沒有作品', 'Nothing in this category yet') : feed === 'following' ? tr('追蹤的人還沒有分享', 'Nothing from people you follow yet') : tr('還沒有人分享', 'Nothing shared yet')}
               message={tr('用 AI 做了什麼好玩的工具嗎？附上截圖或 YouTube 影片秀給大家看！', 'Built something fun with AI? Show everyone with a screenshot or a YouTube demo!')}
             >
               <Button title={tr('分享我的 AI 工具', 'Share my AI tool')} variant="primary" onPress={() => router.push('/new')} />
@@ -87,5 +99,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
+  categories: { borderBottomWidth: StyleSheet.hairlineWidth },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 2, borderColor: 'transparent' },
 });

@@ -38,6 +38,7 @@ const MESSAGES = {
   只能刪除自己的貼文: 'You can only delete your own posts',
   只能編輯自己的貼文: 'You can only edit your own posts',
   截圖資料格式不正確: 'Invalid screenshot data',
+  不支援的分類: 'Unsupported category',
   不能檢舉自己的貼文: "You can't report your own post",
   請選擇檢舉原因: 'Please choose a reason',
   '請選擇 Cool 或 Not Cool': 'Choose Cool or Not Cool',
@@ -67,6 +68,7 @@ const PATTERNS = [
   [/^(.+)不可超過 (\d+) 個字$/, (m) => `${FIELDS[m[1]] ?? m[1]} must be ${m[2]} characters or fewer`],
   [/^「(.+)」不是支援的圖片格式（JPG、PNG、GIF、WebP）$/, (m) => `"${m[1]}" isn't a supported image (JPG, PNG, GIF, WebP)`],
   [/^每則分享最多 (\d+) 張截圖$/, (m) => `Up to ${m[1]} screenshots per post`],
+  [/^分類最多 (\d+) 個$/, (m) => `Up to ${m[1]} categories`],
   [/^請輸入 (.+) 帳號或 (.+) 的網址$/, (m) => `Enter your ${m[1]} username or a link from ${m[2]}`],
 ];
 

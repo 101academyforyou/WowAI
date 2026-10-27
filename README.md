@@ -164,6 +164,7 @@ test/        API 測試（node:test）
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
 | GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（需密碼） |
 | PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
+| GET | `/api/categories` | 應用領域分類與公開作品數（教育、效率、職場、理財、健康、生活、行銷、設計、開發、資料、遊戲、其他）；`/api/posts?category=<slug>` 依分類瀏覽，分享／編輯時用 `categories`（逗號分隔，最多 3 個） |
 | GET | `/api/stats` | 公開統計 `{ users, posts }`（註冊人數、公開作品數），允許任何網站讀取，官方介紹網站用來顯示人數 |
 | GET | `/api/health` | 健康檢查，回傳 `{ ok: true }` |
 | GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`q` 搜尋作品名稱、介紹、GitHub 專案、AI 標籤與作者，空白分隔的關鍵字要全部符合 |

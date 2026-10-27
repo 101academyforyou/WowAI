@@ -44,6 +44,7 @@ export type Post = {
   author: User;
   media: Media[];
   aiTools: string[];
+  categories: string[];
   coolCount: number;
   notCoolCount: number;
   myVote: Vote | null;
@@ -166,7 +167,7 @@ export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mim
   return data.user;
 }
 
-export type PostFields = { title: string; description: string; toolUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string };
+export type PostFields = { title: string; description: string; toolUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string; categories: string };
 // 表單裡的截圖：existingUrl 有值代表是貼文原本就有的圖（編輯時）
 export type EditorMedia = PickedMedia & { existingUrl?: string };
 

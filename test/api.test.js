@@ -576,3 +576,32 @@ test('編輯貼文：改文字與連結、保留／移除／新增截圖並調�
   const still = (await (await fetch(`${base}/api/posts/${created.post.id}`)).json()).post;
   assert.equal(still.media.length, 2, '失敗的編輯不會改到原本的貼文');
 });
+
+test('應用領域分類：分享時選、編輯時改、依分類瀏覽、分類數量', async () => {
+  const cookie = await register('cat_user');
+  const png = [{ name: 'a.png', data: PNG }];
+  const created = await (await createPost(cookie, { title: '單字卡', categories: 'games, education, games' }, png)).json();
+  assert.deepEqual(created.post.categories, ['education', 'games'], '依固定順序、去除重複');
+
+  for (const [categories, message] of [['cooking', /分類/], ['education,finance,health,games', /分類/]]) {
+    const res = await createPost(cookie, { title: 'x', categories }, png);
+    assert.equal(res.status, 400, categories);
+    assert.match((await res.json()).error, message);
+  }
+
+  const before = Object.fromEntries((await (await fetch(`${base}/api/categories`)).json()).categories.map((c) => [c.slug, c.count]));
+  assert.ok(before.education >= 1);
+
+  const { posts } = await (await fetch(`${base}/api/posts?category=education`)).json();
+  assert.ok(posts.some((p) => p.id === created.post.id));
+  assert.ok(posts.every((p) => p.categories.includes('education')));
+
+  const edited = await (await fetch(`${base}/api/posts/${created.post.id}`, {
+    method: 'PATCH',
+    headers: { cookie },
+    body: postForm({ title: '單字卡', categories: 'finance', layout: JSON.stringify(created.post.media.map((m) => m.url)) }),
+  })).json();
+  assert.deepEqual(edited.post.categories, ['finance']);
+  const { posts: still } = await (await fetch(`${base}/api/posts?category=education`)).json();
+  assert.ok(!still.some((p) => p.id === created.post.id));
+});
