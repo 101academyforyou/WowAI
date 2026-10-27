@@ -176,8 +176,8 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
               ? tr(`在 GitHub 按星，目前 ${post.githubStars} 顆星`, `Star on GitHub, ${plural(post.githubStars, 'star')}`)
               : tr('在 GitHub 按星', 'Star on GitHub')}
           >
-            <Ionicons name="star-outline" size={23} color={c.text} />
-            {post.githubStars ? <Text style={[styles.countText, { color: c.text }]}>{compactCount(post.githubStars)}</Text> : null}
+            <Ionicons name="star-outline" size={21} color={c.text} />
+            <Text style={[styles.countText, { color: c.text }]}>{compactCount(post.githubStars ?? 0)}</Text>
           </Pressable>
         ) : null}
         <Pressable
@@ -186,8 +186,8 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
           style={styles.countButton}
           accessibilityLabel={tr(`留言，${post.commentCount} 則`, `Comment, ${plural(post.commentCount, 'comment')}`)}
         >
-          <Ionicons name="chatbubble-outline" size={24} color={c.text} />
-          {post.commentCount ? <Text style={[styles.countText, { color: c.text }]}>{post.commentCount}</Text> : null}
+          <Ionicons name="chatbubble-outline" size={21} color={c.text} />
+          <Text style={[styles.countText, { color: c.text }]}>{compactCount(post.commentCount)}</Text>
         </Pressable>
         <Pressable
           hitSlop={8}
@@ -195,8 +195,8 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
           style={styles.countButton}
           accessibilityLabel={tr(`分享，${post.repostCount} 次`, `Share, ${plural(post.repostCount, 'share')}`)}
         >
-          <Ionicons name={post.repostedByMe ? 'paper-plane' : 'paper-plane-outline'} size={23} color={post.repostedByMe ? c.accent : c.text} />
-          {post.repostCount ? <Text style={[styles.countText, { color: post.repostedByMe ? c.accent : c.text }]}>{post.repostCount}</Text> : null}
+          <Ionicons name={post.repostedByMe ? 'paper-plane' : 'paper-plane-outline'} size={21} color={post.repostedByMe ? c.accent : c.text} />
+          <Text style={[styles.countText, { color: post.repostedByMe ? c.accent : c.text }]}>{compactCount(post.repostCount)}</Text>
         </Pressable>
       </View>
 
@@ -275,16 +275,16 @@ function VoteButton({ kind, count, active, onPress }: { kind: Vote; count: numbe
 }
 
 const styles = StyleSheet.create({
-  vote: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  vote: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
   voteLabel: { fontWeight: '800', fontSize: 14, fontFamily: fonts.mono },
   voteCount: { fontWeight: '700', fontSize: 13, fontFamily: fonts.mono },
   card: { paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   username: { fontWeight: '700', fontSize: 15, fontFamily: fonts.mono },
-  countButton: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  countText: { fontWeight: '700', fontSize: 14, fontFamily: fonts.mono },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10 },
+  countButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  countText: { fontWeight: '700', fontSize: 13, fontFamily: fonts.mono },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingTop: 10 },
   links: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   tryButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
   githubButton: { maxWidth: '100%' },
