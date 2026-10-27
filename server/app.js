@@ -319,6 +319,16 @@ export function createApp({
     res.json({ ok: true });
   });
 
+  // 公開統計：給官方介紹網站顯示「已有幾位 builder 加入」。任何網站都能讀，不含個人資料。
+  app.get('/api/stats', (_req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({
+      users: db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
+      posts: db.prepare('SELECT COUNT(*) AS n FROM posts WHERE hidden = 0').get().n,
+    });
+  });
+
   app.get('/api/me', (req, res) => {
     res.json({ user: req.user ? { ...publicUser(req.user), isAdmin: isAdmin(req.user) } : null });
   });

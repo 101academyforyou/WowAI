@@ -164,6 +164,8 @@ test/        API 測試（node:test）
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
 | GET / PATCH / DELETE | `/api/me` | 目前登入者／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（需密碼） |
 | PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
+| GET | `/api/stats` | 公開統計 `{ users, posts }`（註冊人數、公開作品數），允許任何網站讀取，官方介紹網站用來顯示人數 |
+| GET | `/api/health` | 健康檢查，回傳 `{ ok: true }` |
 | GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`q` 搜尋作品名稱、介紹、GitHub 專案、AI 標籤與作者，空白分隔的關鍵字要全部符合 |
 | GET | `/api/users?q=<關鍵字>` | 搜尋 Cooler（帳號或名稱，最多 10 位） |
 | POST | `/api/posts` | 分享（multipart，`media` 圖片或 `youtubeUrl` 至少要有一個；選填 `githubUrl`，接受 `owner/repo` 或 github.com 網址） |

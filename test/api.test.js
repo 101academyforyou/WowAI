@@ -519,3 +519,15 @@ test('英文版 App：錯誤訊息依 Accept-Language 回英文，沒送語言�
   });
   assert.equal((await contact.json()).error, 'Enter your Instagram username or a link from instagram.com');
 });
+
+test('公開統計：註冊人數與公開作品數，任何網站都能讀取', async () => {
+  const before = await (await fetch(`${base}/api/stats`)).json();
+  const cookie = await register('stats_user');
+  await createPost(cookie, { title: '統計用作品' }, [{ name: 'a.png', data: PNG }]);
+  const res = await fetch(`${base}/api/stats`, { headers: { Origin: 'https://101academyforyou.github.io' } });
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+  const after = await res.json();
+  assert.equal(after.users, before.users + 1);
+  assert.equal(after.posts, before.posts + 1);
+  assert.deepEqual(Object.keys(after).sort(), ['posts', 'users']);
+});
