@@ -52,6 +52,7 @@ img { max-width: 100%; display: block; }
 .nav-actions { display: flex; align-items: center; gap: 6px; }
 .nav-link { padding: 10px 14px; border-radius: 999px; text-decoration: none; color: var(--muted); font-size: 15px; }
 .nav-link:hover { color: var(--text); background: var(--surface); }
+.lang-link { color: var(--text); font-weight: 700; border: 1px solid var(--border); padding: 8px 12px; }
 
 /* ---- 按鈕 ---- */
 .btn {
@@ -200,6 +201,7 @@ img { max-width: 100%; display: block; }
 
 @media (max-width: 640px) {
   .nav-link { display: none; }
+  .nav-link.lang-link { display: inline-block; }
   .site-nav { padding: 12px 16px; }
   .brand-name { font-size: 18px; }
   .btn-sm { padding: 10px 16px; }
