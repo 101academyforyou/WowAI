@@ -11,7 +11,6 @@ export const AI_TOOLS: AiTool[] = [
   { name: 'Gemini', icon: 'diamond-outline' },
   { name: 'GitHub Copilot', icon: 'logo-github' },
   { name: 'Cursor', icon: 'navigate-outline' },
-  { name: 'v0', icon: 'color-palette-outline' },
   { name: 'Lovable', icon: 'heart-outline' },
   { name: 'Bolt', icon: 'flash-outline' },
   { name: 'Replit', icon: 'cube-outline' },
