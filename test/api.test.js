@@ -727,3 +727,84 @@ test('自己的 GitHub 帳號：沒有綁定 GitHub 時，用「聯繫我」填�
   await save('https://github.com/Kai123');
   assert.equal((await me()).github.login, 'Kai123');
 });
+
+test('AI Webhook：產生網址、讀說明、用 JSON（base64 截圖）或 multipart 發文、只改有送的欄位、重新產生後舊網址失效', async () => {
+  const cookie = await register('hook_user');
+  const created = await (await fetch(`${base}/api/me/webhook`, { method: 'POST', headers: { cookie } })).json();
+  assert.match(created.url, /\/api\/hooks\/ywa_[0-9a-f]{48}$/);
+  assert.equal(created.webhook.active, true);
+  assert.equal(created.webhook.hint, created.url.slice(-4));
+  const hook = created.url.replace(/^https?:\/\/[^/]+/, base);
+
+  // 說明：給 AI 讀
+  const info = await (await fetch(hook)).json();
+  assert.equal(info.account, 'hook_user');
+  assert.ok(info.create.fields.title);
+
+  const send = (method, url, body) => fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  // 沒有截圖也沒有影片：英文錯誤訊息
+  const bad = await send('POST', hook, { title: 'x' });
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /screenshot or a YouTube link/);
+  // 不是圖片的 base64
+  assert.equal((await send('POST', hook, { title: 'x', images: [Buffer.from('hello').toString('base64')] })).status, 400);
+
+  const res = await send('POST', hook, {
+    title: 'AI Receipt Tracker',
+    description: 'Snap a receipt',
+    images: [`data:image/png;base64,${PNG.toString('base64')}`],
+    aiTools: ['Claude Code', 'Cursor'],
+    categories: ['finance'],
+    githubUrl: 'octocat/receipt',
+  });
+  assert.equal(res.status, 201);
+  const { post, url } = await res.json();
+  assert.equal(post.author.username, 'hook_user');
+  assert.equal(post.media.length, 1);
+  assert.deepEqual(post.aiTools, ['Claude Code', 'Cursor']);
+  assert.match(url, new RegExp(`/post/${post.id}$`));
+
+  // multipart 也可以
+  const form = postForm({ title: 'Multipart tool', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' });
+  assert.equal((await fetch(hook, { method: 'POST', body: form })).status, 201);
+
+  // 只改介紹，其他保留
+  const patched = await (await send('PATCH', `${hook}/posts/${post.id}`, { description: 'v2: now with charts' })).json();
+  assert.equal(patched.post.description, 'v2: now with charts');
+  assert.equal(patched.post.title, 'AI Receipt Tracker');
+  assert.deepEqual(patched.post.categories, ['finance']);
+  assert.equal(patched.post.media.length, 1);
+  // 換成只有 YouTube：移除截圖
+  const swapped = await (await send('PATCH', `${hook}/posts/${post.id}`, { images: [], youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' })).json();
+  assert.equal(swapped.post.media.length, 0);
+  assert.equal(swapped.post.youtube.id, 'dQw4w9WgXcQ');
+
+  // 不能改別人的貼文
+  const other = await register('hook_other');
+  const { post: theirs } = await (await createPost(other, { title: 'theirs' }, [{ name: 'a.png', data: PNG }])).json();
+  assert.equal((await send('PATCH', `${hook}/posts/${theirs.id}`, { title: 'hacked' })).status, 403);
+
+  const me = await (await fetch(`${base}/api/me`, { headers: { cookie } })).json();
+  assert.ok(me.user.webhook.lastUsedAt);
+
+  // 重新產生：舊網址失效
+  const again = await (await fetch(`${base}/api/me/webhook`, { method: 'POST', headers: { cookie } })).json();
+  assert.notEqual(again.url, created.url);
+  assert.equal((await fetch(hook)).status, 404);
+  // 關閉
+  await fetch(`${base}/api/me/webhook`, { method: 'DELETE', headers: { cookie } });
+  assert.equal((await fetch(again.url.replace(/^https?:\/\/[^/]+/, base))).status, 404);
+  assert.equal((await fetch(`${base}/api/hooks/not-a-token`)).status, 404);
+});
+
+test('AI Webhook：每小時最多 20 則', async () => {
+  const cookie = await register('hook_spam');
+  const { url } = await (await fetch(`${base}/api/me/webhook`, { method: 'POST', headers: { cookie } })).json();
+  const hook = url.replace(/^https?:\/\/[^/]+/, base);
+  for (let i = 0; i < 20; i += 1) {
+    const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: `t${i}`, youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' }) });
+    assert.equal(r.status, 201);
+  }
+  const limited = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'one more', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' }) });
+  assert.equal(limited.status, 429);
+});

@@ -20,6 +20,7 @@
 - **探索與搜尋**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽；用關鍵字搜尋作品名稱、介紹、AI 標籤與作者，也能找到其他 Cooler
 - **Cool／Not Cool 投票**：每人每則一票，可以改票或取消；取代傳統的「愛心」
 - **互動**：留言（可以編輯、刪除；貼文作者也能刪除自己貼文下的留言）、追蹤、在 YourWowAI 裡分享到自己個人頁的「分享」分頁、分享連結
+- **AI Webhook**：在「編輯個人檔案」產生專屬網址交給 AI（Claude Code、ChatGPT、n8n、GitHub Actions…），AI 就能代你分享作品或更新貼文；網址用 GET 打開會回傳給 AI 看的使用說明
 - **多種登入方式**：GitHub、Google、Sign in with Apple（iPhone）或帳號密碼；第一次用第三方登入會自動建立帳號並帶入大頭貼，已有帳號的人可以在「編輯個人檔案 → 登入方式」綁定
 - **科技風介面**：深色底、霓虹青色、等寬字體
 - **個人頁**：IG 風格九宮格作品牆、粉絲／追蹤數、編輯個人檔案、大頭貼
@@ -182,6 +183,10 @@ test/        API 測試（node:test）
 | --- | --- | --- |
 | POST | `/api/auth/register`、`/api/auth/login`、`/api/auth/logout` | 註冊（需 `acceptTerms: true`）／登入／登出，回傳 `token` |
 | GET / PATCH / DELETE | `/api/me` | 目前登入者（含 `hasPassword`、已綁定的 `identities`、自己的 GitHub 帳號 `github: { login, id }`）／更新名稱、自我介紹與聯繫方式（`contacts`）／刪除帳號（有密碼送 `password`，第三方登入的帳號送 `confirm`: 自己的帳號名稱） |
+| POST / DELETE | `/api/me/webhook` | 產生（或重新產生）自己的 AI Webhook 網址，完整網址只回傳這一次／關閉 |
+| GET | `/api/hooks/:token` | AI Webhook：回傳給 AI 讀的使用說明（欄位、分類、範例） |
+| POST | `/api/hooks/:token` | AI Webhook 發文：JSON（截圖用 `images`: base64 或 data URL 陣列）或 multipart（`media` 檔案），欄位同分享；回傳 `{ post, url }`。每小時最多 20 則，錯誤訊息預設英文 |
+| PATCH | `/api/hooks/:token/posts/:id` | AI Webhook 更新自己的貼文：只改有送的欄位，送 `images` 會換掉全部截圖 |
 | GET | `/api/auth/providers` | 可用的登入方式 `{ github, google, apple }` |
 | POST | `/api/auth/oauth/:provider/start` | GitHub／Google 登入或綁定（`client`: `web` 或 `app`，`link: true` 代表綁定到目前帳號），回傳要打開的 `url`；完成後導回 `/auth?code=…`（網站）或 `yourwowai://auth?code=…`（App） |
 | POST | `/api/auth/oauth/exchange` | 用一次性 `code`（5 分鐘內有效）換登入 `token` |

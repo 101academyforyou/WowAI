@@ -9,7 +9,7 @@ import { cleanContacts, serializeContacts } from './contacts.js';
 import { parseGitHubRepo } from './github.js';
 import { parseYouTube } from './youtube.js';
 import { requestLang, translate } from './i18n.js';
-import { CATEGORIES, parseCategories } from './categories.js';
+import { CATEGORIES, MAX_CATEGORIES, parseCategories } from './categories.js';
 import { OAUTH_PROVIDERS, authorizeUrl, createAppleVerifier, fetchProfile, suggestUsername } from './oauth.js';
 import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
 
@@ -22,6 +22,10 @@ const PAGE_SIZE = 12;
 const AUTO_HIDE_REPORTS = 3;
 const REPORT_REASONS = ['spam', 'nudity', 'violence', 'harassment', 'ip', 'other'];
 const PROVIDER_LABELS = { github: 'GitHub', google: 'Google', apple: 'Apple' };
+// AI Webhook：權杖格式、每小時最多發幾則、JSON（含 base64 截圖）大小上限
+const HOOK_TOKEN = /^ywa_[0-9a-f]{48}$/;
+const HOOK_POSTS_PER_HOUR = 20;
+const HOOK_JSON_LIMIT = '30mb';
 
 // 搜尋字串 → LIKE 用的 pattern；跳脫 % 和 _，避免被當成萬用字元
 function likePattern(word) {
@@ -138,7 +142,9 @@ export function createApp({
   app.disable('x-powered-by');
   // 前面有 Caddy 反向代理：用它轉來的 https 與網域組 OAuth 回呼網址
   app.set('trust proxy', 'loopback');
-  app.use(express.json({ limit: '100kb' }));
+  // AI Webhook 可以在 JSON 裡直接帶 base64 截圖，那條路由用自己的大小限制
+  const smallJson = express.json({ limit: '100kb' });
+  app.use((req, res, next) => (req.path.startsWith('/api/hooks/') ? next() : smallJson(req, res, next)));
 
   if (devCors) {
     app.use((req, res, next) => {
@@ -364,6 +370,7 @@ export function createApp({
         hasPassword: Boolean(req.user.password_hash),
         identities: db.prepare('SELECT provider FROM user_identities WHERE user_id = ? ORDER BY provider').all(req.user.id).map((r) => r.provider),
         github: githubAccount(req.user),
+        webhook: webhookInfo(req.user.id),
       },
     });
   });
@@ -429,9 +436,13 @@ export function createApp({
     ).run(provider, profile.subject, userId, profile.login ?? '');
   }
 
+  // 對外的網址（https://yourwowai.onepointzeroone.org），OAuth 回呼與 Webhook 網址用
+  function publicBase(req) {
+    return (oauth.publicUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  }
+
   function oauthCallbackUrl(req, provider) {
-    const base = oauth.publicUrl || `${req.protocol}://${req.get('host')}`;
-    return `${base.replace(/\/$/, '')}/api/auth/oauth/${provider}/callback`;
+    return `${publicBase(req)}/api/auth/oauth/${provider}/callback`;
   }
 
   // 1. App／網頁先拿登入網址（綁定時要帶登入權杖），再把使用者帶去 GitHub／Google
@@ -578,55 +589,66 @@ export function createApp({
     res.json({ post: serializePost(getPostOr404(req.params.id, req.user), req.user) });
   });
 
+  // 建立貼文（App 分享與 AI Webhook 共用）。files 是已存在 uploadDir 的暫存檔 [{ path, originalname }]，
+  // 成功時會改名成正式檔；失敗時由呼叫的人清掉暫存檔
+  function createPostFor(user, body, files) {
+    // YourWowAI 的核心規則：分享一定要附上截圖或 YouTube 示範影片
+    const youtubeUrl = cleanYouTubeUrl(body.youtubeUrl);
+    if (files.length === 0 && !youtubeUrl) throw new HttpError(400, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
+
+    const title = cleanText(body.title, { max: 80, field: '工具名稱', required: true });
+    const description = cleanText(body.description, { max: 2000, field: '介紹' });
+    const toolUrl = cleanToolUrl(body.toolUrl);
+    const githubUrl = cleanGitHubUrl(body.githubUrl);
+    const aiTools = parseAiTools(body.aiTools);
+    const categories = parseCategories(body.categories);
+    const categoryOther = categories.includes('other') ? cleanText(body.categoryOther, { max: 30, field: '自訂分類' }) : '';
+    const media = files.map(checkImage);
+
+    const postId = transaction(db, () => {
+      const { lastInsertRowid } = db
+        .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url, youtube_url, category_other) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(user.id, title, description, toolUrl, githubUrl, youtubeUrl, categoryOther);
+      saveMedia(lastInsertRowid, media);
+      const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
+      aiTools.forEach((name) => insertTool.run(lastInsertRowid, name));
+      const insertCategory = db.prepare('INSERT INTO post_categories (post_id, slug) VALUES (?, ?)');
+      categories.forEach((slug) => insertCategory.run(lastInsertRowid, slug));
+      return Number(lastInsertRowid);
+    });
+
+    // 通知追蹤我的人
+    db.prepare('SELECT follower_id FROM follows WHERE followee_id = ?').all(user.id)
+      .forEach((f) => notifier.notify(f.follower_id, user.id, 'new_post', { postId }));
+    return postId;
+  }
+
+  // 用檔案開頭的 magic bytes 確認是圖片（不信任副檔名）
+  function checkImage(file) {
+    const type = sniffMedia(file.path);
+    if (type?.kind === 'video') throw new HttpError(400, '影片請上傳到 YouTube，再貼上影片連結');
+    if (!type) throw new HttpError(400, `「${file.originalname}」不是支援的圖片格式（JPG、PNG、GIF、WebP）`);
+    return { file, ...type };
+  }
+
+  // 暫存檔改名成正式檔，依順序寫入 post_media（要在 transaction 裡呼叫）
+  function saveMedia(postId, media) {
+    const insertMedia = db.prepare('INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)');
+    media.forEach((m, i) => {
+      const filename = `${crypto.randomUUID()}${m.ext}`;
+      fs.renameSync(m.file.path, path.join(uploadDir, filename));
+      m.file.path = path.join(uploadDir, filename);
+      insertMedia.run(postId, filename, m.kind, i);
+    });
+  }
+
   app.post('/api/posts', requireAuth, upload.array('media', MAX_MEDIA_PER_POST), (req, res) => {
     const files = req.files ?? [];
-    const cleanup = () => files.forEach((f) => fs.rmSync(f.path, { force: true }));
     try {
-      // YourWowAI 的核心規則：分享一定要附上截圖或 YouTube 示範影片
-      const youtubeUrl = cleanYouTubeUrl(req.body.youtubeUrl);
-      if (files.length === 0 && !youtubeUrl) throw new HttpError(400, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
-
-      const title = cleanText(req.body.title, { max: 80, field: '工具名稱', required: true });
-      const description = cleanText(req.body.description, { max: 2000, field: '介紹' });
-      const toolUrl = cleanToolUrl(req.body.toolUrl);
-      const githubUrl = cleanGitHubUrl(req.body.githubUrl);
-      const aiTools = parseAiTools(req.body.aiTools);
-      const categories = parseCategories(req.body.categories);
-      const categoryOther = categories.includes('other') ? cleanText(req.body.categoryOther, { max: 30, field: '自訂分類' }) : '';
-
-      const media = files.map((f) => {
-        const type = sniffMedia(f.path);
-        if (type?.kind === 'video') throw new HttpError(400, '影片請上傳到 YouTube，再貼上影片連結');
-        if (!type) throw new HttpError(400, `「${f.originalname}」不是支援的圖片格式（JPG、PNG、GIF、WebP）`);
-        return { file: f, ...type };
-      });
-
-      const postId = transaction(db, () => {
-        const { lastInsertRowid } = db
-          .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url, youtube_url, category_other) VALUES (?, ?, ?, ?, ?, ?, ?)')
-          .run(req.user.id, title, description, toolUrl, githubUrl, youtubeUrl, categoryOther);
-        const insertMedia = db.prepare(
-          'INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)',
-        );
-        media.forEach((m, i) => {
-          const filename = `${crypto.randomUUID()}${m.ext}`;
-          fs.renameSync(m.file.path, path.join(uploadDir, filename));
-          m.file.path = path.join(uploadDir, filename);
-          insertMedia.run(lastInsertRowid, filename, m.kind, i);
-        });
-        const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
-        aiTools.forEach((name) => insertTool.run(lastInsertRowid, name));
-        const insertCategory = db.prepare('INSERT INTO post_categories (post_id, slug) VALUES (?, ?)');
-        categories.forEach((slug) => insertCategory.run(lastInsertRowid, slug));
-        return Number(lastInsertRowid);
-      });
-
-      // 通知追蹤我的人
-      db.prepare('SELECT follower_id FROM follows WHERE followee_id = ?').all(req.user.id)
-        .forEach((f) => notifier.notify(f.follower_id, req.user.id, 'new_post', { postId }));
+      const postId = createPostFor(req.user, req.body, files);
       res.status(201).json({ post: serializePost(q.postById.get(postId), req.user) });
     } catch (err) {
-      cleanup();
+      files.forEach((f) => fs.rmSync(f.path, { force: true }));
       throw err;
     }
   });
@@ -815,6 +837,172 @@ export function createApp({
     }
     db.prepare('DELETE FROM comments WHERE id = ?').run(comment.id);
     res.json({ commentCount: q.commentCount.get(post.id).n });
+  });
+
+  // ---- AI Webhook：讓 AI 或自動化工具（Claude Code、ChatGPT、n8n、GitHub Actions…）代你發文 ----
+  const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+  function webhookInfo(userId) {
+    const row = db.prepare('SELECT hint, created_at, last_used_at FROM webhooks WHERE user_id = ?').get(userId);
+    return row ? { active: true, hint: row.hint, createdAt: row.created_at, lastUsedAt: row.last_used_at } : { active: false };
+  }
+
+  // 產生（或重新產生）自己的 Webhook 網址；完整網址只在這時回傳一次
+  app.post('/api/me/webhook', requireAuth, (req, res) => {
+    const token = `ywa_${crypto.randomBytes(24).toString('hex')}`;
+    db.prepare(
+      `INSERT INTO webhooks (user_id, token_hash, hint) VALUES (?, ?, ?)
+       ON CONFLICT (user_id) DO UPDATE SET token_hash = excluded.token_hash, hint = excluded.hint, created_at = datetime('now'), last_used_at = NULL`,
+    ).run(req.user.id, hashToken(token), token.slice(-4));
+    res.status(201).json({ url: `${publicBase(req)}/api/hooks/${token}`, webhook: webhookInfo(req.user.id) });
+  });
+
+  app.delete('/api/me/webhook', requireAuth, (req, res) => {
+    db.prepare('DELETE FROM webhooks WHERE user_id = ?').run(req.user.id);
+    res.json({ webhook: webhookInfo(req.user.id) });
+  });
+
+  // 網址裡的權杖 → 使用者。給 AI 用的 API 預設回英文錯誤訊息（送 Accept-Language: zh 則回中文）
+  function hookAuth(req, _res, next) {
+    if (!/^zh/i.test(String(req.headers['accept-language'] ?? ''))) req.headers['accept-language'] = 'en';
+    const token = String(req.params.token ?? '');
+    const row = HOOK_TOKEN.test(token) ? db.prepare('SELECT user_id FROM webhooks WHERE token_hash = ?').get(hashToken(token)) : null;
+    if (!row) return next(new HttpError(404, '找不到這個 Webhook，可能已經重新產生或關閉'));
+    db.prepare("UPDATE webhooks SET last_used_at = datetime('now') WHERE user_id = ?").run(row.user_id);
+    req.hookUser = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
+    next();
+  }
+
+  // 截圖可以用 multipart 的 media 檔案，或 JSON 的 images：["data:image/png;base64,…"] 或 [{ data, name }]
+  function hookFiles(req) {
+    const files = [...(req.files ?? [])];
+    const images = req.body?.images;
+    if (images !== undefined && !Array.isArray(images)) throw new HttpError(400, '截圖資料格式不正確');
+    for (const [i, image] of (images ?? []).entries()) {
+      if (files.length >= MAX_MEDIA_PER_POST) throw new HttpError(400, `每則分享最多 ${MAX_MEDIA_PER_POST} 張截圖`);
+      const raw = typeof image === 'string' ? image : image?.data;
+      const name = typeof image?.name === 'string' ? image.name.slice(0, 100) : `image-${i + 1}`;
+      if (typeof raw !== 'string') throw new HttpError(400, '截圖資料格式不正確');
+      const data = Buffer.from(raw.replace(/^data:[^,]*;base64,/, ''), 'base64');
+      if (!data.length) throw new HttpError(400, '截圖資料格式不正確');
+      if (data.length > MAX_FILE_BYTES) throw new HttpError(400, '每張圖片不可超過 20MB');
+      const tmp = path.join(uploadDir, `tmp-${crypto.randomUUID()}`);
+      fs.writeFileSync(tmp, data);
+      files.push({ path: tmp, originalname: name });
+    }
+    return files;
+  }
+
+  const hookBody = [express.json({ limit: HOOK_JSON_LIMIT }), upload.array('media', MAX_MEDIA_PER_POST)];
+
+  // GET：給 AI 看的使用說明（把網址交給 AI，它讀這裡就知道怎麼發文）
+  app.get('/api/hooks/:token', hookAuth, (req, res) => {
+    const url = `${publicBase(req)}/api/hooks/${req.params.token}`;
+    res.json({
+      ok: true,
+      account: req.hookUser.username,
+      about: 'YourWowAI is a community for sharing tools built with AI. POST to this URL to share a project as this account; keep the URL secret.',
+      create: {
+        method: 'POST',
+        url,
+        contentType: 'application/json (or multipart/form-data with image files in "media")',
+        fields: {
+          title: 'required, tool name, max 80 chars',
+          youtubeUrl: 'YouTube video link (youtube.com / youtu.be / Shorts). A post needs youtubeUrl or at least one image',
+          images: `up to ${MAX_MEDIA_PER_POST} screenshots as base64 strings or data URLs (JPG, PNG, GIF, WebP, 20 MB each), or [{ "data": "...", "name": "shot.png" }]`,
+          description: 'optional, max 2000 chars',
+          toolUrl: 'optional, http(s) link where people can try it',
+          githubUrl: 'optional, owner/repo or a github.com repo URL',
+          aiTools: 'optional, AI tools used, array or comma-separated string, max 10 (e.g. ["Claude Code", "Cursor"])',
+          categories: `optional, up to ${MAX_CATEGORIES} of: ${CATEGORIES.join(', ')}`,
+          categoryOther: 'optional, your own category name when categories includes "other", max 30 chars',
+        },
+        example: {
+          title: 'AI Receipt Tracker',
+          description: 'Snap a receipt and it sorts your spending automatically.',
+          youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ',
+          toolUrl: 'https://example.com',
+          githubUrl: 'octocat/receipt-tracker',
+          aiTools: ['Claude Code'],
+          categories: ['finance', 'productivity'],
+        },
+        returns: '201 { post, url } where url is the public post page',
+      },
+      update: {
+        method: 'PATCH',
+        url: `${url}/posts/{id}`,
+        note: 'Only fields you send are changed. Sending images replaces all screenshots.',
+      },
+      limits: `${HOOK_POSTS_PER_HOUR} new posts per hour`,
+    });
+  });
+
+  // POST：發一則新的分享
+  app.post('/api/hooks/:token', hookAuth, hookBody, (req, res) => {
+    const user = req.hookUser;
+    const { n } = db.prepare("SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND created_at >= datetime('now', '-1 hour')").get(user.id);
+    if (n >= HOOK_POSTS_PER_HOUR) throw new HttpError(429, '發文太頻繁，請一小時後再試');
+    let files = req.files ?? [];
+    try {
+      files = hookFiles(req);
+      const postId = createPostFor(user, req.body ?? {}, files);
+      res.status(201).json({ post: serializePost(q.postById.get(postId), user), url: `${publicBase(req)}/post/${postId}` });
+    } catch (err) {
+      files.forEach((f) => fs.rmSync(f.path, { force: true }));
+      throw err;
+    }
+  });
+
+  // PATCH：更新自己的貼文，只改有送的欄位；有送 images 就換掉全部截圖
+  app.patch('/api/hooks/:token/posts/:id', hookAuth, hookBody, (req, res) => {
+    const user = req.hookUser;
+    let files = req.files ?? [];
+    try {
+      const post = getPostOr404(req.params.id, user);
+      if (post.user_id !== user.id) throw new HttpError(403, '只能編輯自己的貼文');
+      files = hookFiles(req);
+      const body = req.body ?? {};
+      const has = (key) => Object.prototype.hasOwnProperty.call(body, key);
+      const replaceMedia = files.length > 0 || (has('images') && Array.isArray(body.images));
+      const youtubeUrl = has('youtubeUrl') ? cleanYouTubeUrl(body.youtubeUrl) : post.youtube_url;
+      const oldMedia = q.mediaForPost.all(post.id);
+      if ((replaceMedia ? files.length : oldMedia.length) === 0 && !youtubeUrl) {
+        throw new HttpError(400, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
+      }
+      const title = has('title') ? cleanText(body.title, { max: 80, field: '工具名稱', required: true }) : post.title;
+      const description = has('description') ? cleanText(body.description, { max: 2000, field: '介紹' }) : post.description;
+      const toolUrl = has('toolUrl') ? cleanToolUrl(body.toolUrl) : post.tool_url;
+      const githubUrl = has('githubUrl') ? cleanGitHubUrl(body.githubUrl) : post.github_url;
+      const aiTools = has('aiTools') ? parseAiTools(body.aiTools) : null;
+      const categories = has('categories') ? parseCategories(body.categories) : q.categoriesForPost.all(post.id).map((r) => r.slug);
+      const categoryOther = !categories.includes('other') ? ''
+        : has('categoryOther') ? cleanText(body.categoryOther, { max: 30, field: '自訂分類' }) : post.category_other;
+      const media = replaceMedia ? files.map(checkImage) : null;
+
+      transaction(db, () => {
+        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
+          .run(title, description, toolUrl, githubUrl, youtubeUrl, categoryOther, post.id);
+        if (media) {
+          db.prepare('DELETE FROM post_media WHERE post_id = ?').run(post.id);
+          saveMedia(post.id, media);
+        }
+        if (aiTools) {
+          db.prepare('DELETE FROM post_ai_tools WHERE post_id = ?').run(post.id);
+          const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
+          aiTools.forEach((name) => insertTool.run(post.id, name));
+        }
+        if (has('categories')) {
+          db.prepare('DELETE FROM post_categories WHERE post_id = ?').run(post.id);
+          const insertCategory = db.prepare('INSERT INTO post_categories (post_id, slug) VALUES (?, ?)');
+          categories.forEach((slug) => insertCategory.run(post.id, slug));
+        }
+      });
+      if (media) oldMedia.forEach((m) => fs.rmSync(path.join(uploadDir, m.filename), { force: true }));
+      res.json({ post: serializePost(q.postById.get(post.id), user), url: `${publicBase(req)}/post/${post.id}` });
+    } catch (err) {
+      files.forEach((f) => fs.rmSync(f.path, { force: true }));
+      throw err;
+    }
   });
 
   // ---- 使用者 ----

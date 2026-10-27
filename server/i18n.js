@@ -63,6 +63,8 @@ const MESSAGES = {
   '每張圖片不可超過 20MB': 'Each image must be under 20 MB',
   上傳失敗: 'Upload failed',
   不支援的登入方式: 'Unsupported sign-in method',
+  '找不到這個 Webhook，可能已經重新產生或關閉': 'Webhook not found. It may have been regenerated or turned off',
+  '發文太頻繁，請一小時後再試': 'Too many posts. Try again in an hour',
   '登入逾時或連結無效，請再試一次': 'Sign-in expired or the link is invalid. Please try again',
   'Apple 登入驗證失敗': 'Apple sign-in could not be verified',
   請輸入你的帳號確認刪除: 'Enter your username to confirm',
