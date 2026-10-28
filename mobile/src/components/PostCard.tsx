@@ -12,7 +12,8 @@ import { Avatar, chooseOption, confirmAction, notify } from './ui';
 import { plural, tr } from '../lib/i18n';
 
 // onRemoved：貼文被刪除、檢舉或作者被封鎖時，讓列表把它拿掉
-export function PostCard({ post: initial, full = false, onRemoved }: { post: Post; full?: boolean; onRemoved?: () => void }) {
+// rank：在 Cool 排行榜裡的名次（前三名顯示獎牌）
+export function PostCard({ post: initial, full = false, rank, onRemoved }: { post: Post; full?: boolean; rank?: number; onRemoved?: () => void }) {
   const c = useColors();
   const { user } = useAuth();
   const [post, setPost] = useState(initial);
@@ -192,6 +193,11 @@ export function PostCard({ post: initial, full = false, onRemoved }: { post: Pos
   return (
     <View style={[styles.card, { borderColor: c.border }]}>
       <View style={styles.header}>
+        {rank ? (
+          <View style={[styles.rank, { borderColor: rank <= 3 ? c.cool : c.border }]} accessibilityLabel={tr(`第 ${rank} 名`, `Rank ${rank}`)}>
+            <Text style={{ fontSize: rank <= 3 ? 18 : 13, fontWeight: '800', fontFamily: fonts.mono, color: c.text }}>{['🥇', '🥈', '🥉'][rank - 1] ?? `#${rank}`}</Text>
+          </View>
+        ) : null}
         <Pressable style={styles.author} onPress={() => router.push(`/user/${encodeURIComponent(post.author.username)}`)}>
           <Avatar user={post.author} />
           <Text style={[styles.username, { color: c.text }]}>{post.author.username}</Text>
@@ -321,6 +327,7 @@ const styles = StyleSheet.create({
   vote: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
   voteLabel: { fontWeight: '800', fontSize: 14, fontFamily: fonts.mono },
   voteCount: { fontWeight: '700', fontSize: 13, fontFamily: fonts.mono },
+  rank: { minWidth: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   card: { paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
   author: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
