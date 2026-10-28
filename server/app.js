@@ -39,6 +39,23 @@ function searchWords(value) {
   return text ? text.split(/\s+/).slice(0, 5) : [];
 }
 
+// 用 seed 決定的洗牌（mulberry32 + Fisher–Yates）：同一個 seed 永遠得到同一個順序
+function shuffleWithSeed(items, seed) {
+  let t = seed >>> 0;
+  const random = () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -555,41 +572,71 @@ export function createApp({
   });
 
   // ---- 貼文 ----
+  // 動態牆。sort：
+  //   latest（預設）：新到舊，用 before（貼文 id）分頁
+  //   random：打亂順序（每次重新整理換一個 seed 就是新的順序；同一個 seed 分頁不會重複或漏掉），用 offset 分頁
+  //   top：Cool 排行榜，依收到的 Cool 數排序，period＝week／month／all，用 offset 分頁
   app.get('/api/posts', (req, res) => {
+    const sort = ['random', 'top'].includes(req.query.sort) ? req.query.sort : 'latest';
     const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
+    const offset = Math.max(0, Math.floor(Number(req.query.offset) || 0));
     const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
     const category = typeof req.query.category === 'string' ? req.query.category.trim().toLowerCase() : '';
     const following = req.query.feed === 'following';
     if (following && !req.user) throw new HttpError(401, '請先登入');
 
     const visible = visibleSql(req.user);
-    let sql = `SELECT p.* FROM posts p WHERE p.id < ?${visible.sql}`;
-    const params = [before, ...visible.params];
+    let where = `WHERE 1 = 1${visible.sql}`;
+    const params = [...visible.params];
     if (tag) {
-      sql += ' AND EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name = ?)';
+      where += ' AND EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name = ?)';
       params.push(tag);
     }
     if (category) {
-      sql += ' AND EXISTS (SELECT 1 FROM post_categories c WHERE c.post_id = p.id AND c.slug = ?)';
+      where += ' AND EXISTS (SELECT 1 FROM post_categories c WHERE c.post_id = p.id AND c.slug = ?)';
       params.push(category);
     }
     // 搜尋：每個關鍵字都要出現在工具名稱、介紹、GitHub 專案、自訂分類、AI 工具標籤或作者名稱其中之一
     for (const word of searchWords(req.query.q)) {
-      sql += ` AND (p.title LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\' OR p.github_url LIKE ? ESCAPE '\\'
+      where += ` AND (p.title LIKE ? ESCAPE '\\' OR p.description LIKE ? ESCAPE '\\' OR p.github_url LIKE ? ESCAPE '\\'
         OR p.category_other LIKE ? ESCAPE '\\'
         OR EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name LIKE ? ESCAPE '\\')
         OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')))`;
       params.push(...Array(7).fill(likePattern(word)));
     }
     if (following) {
-      sql += ' AND (p.user_id = ? OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))';
+      where += ' AND (p.user_id = ? OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))';
       params.push(req.user.id, req.user.id);
     }
-    sql += ' ORDER BY p.id DESC LIMIT ?';
-    params.push(PAGE_SIZE);
 
-    const posts = db.prepare(sql).all(...params).map((p) => serializePost(p, req.user));
-    res.json({ posts, nextBefore: posts.length === PAGE_SIZE ? posts.at(-1).id : null });
+    const send = (rows, extra) => res.json({ posts: rows.map((p) => serializePost(p, req.user)), nextBefore: null, nextOffset: null, ...extra });
+
+    if (sort === 'top') {
+      const days = { week: 7, month: 30 }[req.query.period];
+      const period = days ? ` AND p.created_at >= datetime('now', '-${days} days')` : '';
+      const rows = db.prepare(
+        `SELECT p.*,
+           (SELECT COUNT(*) FROM votes v WHERE v.post_id = p.id AND v.value = 1) AS cools,
+           (SELECT COUNT(*) FROM votes v WHERE v.post_id = p.id AND v.value = -1) AS not_cools
+         FROM posts p ${where}${period}
+         ORDER BY cools DESC, not_cools ASC, p.id DESC LIMIT ? OFFSET ?`,
+      ).all(...params, PAGE_SIZE, offset);
+      return send(rows, { nextOffset: rows.length === PAGE_SIZE ? offset + PAGE_SIZE : null });
+    }
+
+    if (sort === 'random') {
+      // 符合條件的貼文 id 用 seed 打亂後分頁（不用資料庫自訂函式，舊版 Node 也能跑）
+      const seed = Math.floor(Number(req.query.seed)) || 1;
+      const ids = shuffleWithSeed(db.prepare(`SELECT p.id FROM posts p ${where} ORDER BY p.id`).all(...params).map((r) => r.id), seed);
+      const page = ids.slice(offset, offset + PAGE_SIZE);
+      const byId = new Map(page.length
+        ? db.prepare(`SELECT * FROM posts WHERE id IN (${page.map(() => '?').join(',')})`).all(...page).map((r) => [r.id, r])
+        : []);
+      return send(page.map((id) => byId.get(id)).filter(Boolean), { nextOffset: offset + PAGE_SIZE < ids.length ? offset + PAGE_SIZE : null });
+    }
+
+    const rows = db.prepare(`SELECT p.* FROM posts p ${where} AND p.id < ? ORDER BY p.id DESC LIMIT ?`).all(...params, before, PAGE_SIZE);
+    send(rows, { nextBefore: rows.length === PAGE_SIZE ? rows.at(-1).id : null });
   });
 
   app.get('/api/posts/:id', (req, res) => {

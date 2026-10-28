@@ -872,3 +872,38 @@ test('到 GitHub 按星回來：立刻重新查詢星星數，同一個專案 5 
   const { post: plain } = await (await createPost(cookie, { title: 'No repo' }, [{ name: 'a.png', data: PNG }])).json();
   assert.deepEqual(await (await fetch(`${base}/api/posts/${plain.id}/github-stars`, { method: 'POST' })).json(), { githubStars: null });
 });
+
+test('動態牆排序：random 同一個 seed 順序固定、分頁不重複不漏，換 seed 順序不同；top 依 Cool 數排行並可依期間篩選', async () => {
+  const author = await register('sort_author');
+  const ids = [];
+  for (let i = 1; i <= 15; i += 1) ids.push((await (await createPost(author, { title: `s${i}`, categories: 'games' }, [{ name: 'a.png', data: PNG }])).json()).post.id);
+  const list = async (qs) => (await fetch(`${base}/api/posts?category=games&${qs}`)).json();
+
+  // random：兩頁合起來剛好是全部，沒有重複
+  const p1 = await list('sort=random&seed=42');
+  assert.equal(p1.posts.length, 12);
+  assert.equal(p1.nextOffset, 12);
+  const p2 = await list('sort=random&seed=42&offset=12');
+  const all = [...p1.posts, ...p2.posts].map((p) => p.id);
+  assert.equal(p2.nextOffset, null);
+  assert.deepEqual([...all].sort((a, b) => a - b), [...ids].sort((a, b) => a - b));
+  assert.deepEqual((await list('sort=random&seed=42')).posts.map((p) => p.id), p1.posts.map((p) => p.id), '同一個 seed 順序一樣');
+  const other = (await list('sort=random&seed=7')).posts.map((p) => p.id);
+  assert.notDeepEqual(other, p1.posts.map((p) => p.id), '換 seed 順序不同');
+  assert.notDeepEqual(p1.posts.map((p) => p.id), [...ids].reverse().slice(0, 12), '不是新到舊');
+
+  // top：s3 有 2 個 Cool、s7 有 1 個 Cool 1 個 Not Cool、s9 有 1 個 Cool
+  const fans = [await register('sort_fan1'), await register('sort_fan2')];
+  const vote = (cookie, id, v) => fetch(`${base}/api/posts/${id}/vote`, { method: 'PUT', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ vote: v }) });
+  await vote(fans[0], ids[2], 'cool'); await vote(fans[1], ids[2], 'cool');
+  await vote(fans[0], ids[6], 'cool'); await vote(fans[1], ids[6], 'notcool');
+  await vote(fans[0], ids[8], 'cool');
+  const top = (await list('sort=top')).posts.map((p) => p.title);
+  assert.deepEqual(top.slice(0, 3), ['s3', 's9', 's7']);
+  assert.deepEqual((await list('sort=top&period=week')).posts.map((p) => p.title).slice(0, 3), ['s3', 's9', 's7'], '這週發的也算');
+
+  // 預設仍是新到舊（舊版 App 不受影響）
+  const latest = await list('');
+  assert.deepEqual(latest.posts.map((p) => p.id), [...ids].reverse().slice(0, 12));
+  assert.equal(latest.nextBefore, latest.posts.at(-1).id);
+});

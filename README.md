@@ -16,7 +16,7 @@
 - **一定要有截圖或 YouTube 影片**：截圖每則最多 10 張（JPG／PNG／GIF／WebP，單張 20MB 內）；示範影片貼 YouTube 連結（watch、youtu.be、Shorts 都可以），不在伺服器存影片檔
   - 前端：沒選檔案時無法按下「分享」
   - 後端：沒有媒體一律拒絕，並用檔案開頭的 magic bytes 驗證真的是圖片（不信任副檔名）；影片檔一律拒絕，請改貼 YouTube 連結
-- **動態牆**：「最新分享」與「追蹤中」兩種，左右滑動看多張截圖，雙擊圖片 = Cool
+- **動態牆**：「推薦」（每次打開順序都不同）、「最新」、「排行」（Cool 排行榜，可看本週／本月／全部）與「追蹤中」，左右滑動看多張截圖，雙擊圖片 = Cool
 - **探索與搜尋**：依 AI 工具標籤（#Claude、#Cursor…）瀏覽；用關鍵字搜尋作品名稱、介紹、AI 標籤與作者，也能找到其他 Cooler
 - **Cool／Not Cool 投票**：每人每則一票，可以改票或取消；取代傳統的「愛心」
 - **互動**：留言（可以編輯、刪除；貼文作者也能刪除自己貼文下的留言）、追蹤、在 YourWowAI 裡分享到自己個人頁的「分享」分頁、分享連結
@@ -195,7 +195,7 @@ test/        API 測試（node:test）
 | GET | `/api/categories` | 應用領域分類與公開作品數（教育、效率、職場、理財、健康、生活、行銷、設計、開發、資料、遊戲、其他）；`/api/posts?category=<slug>` 依分類瀏覽，分享／編輯時用 `categories`（逗號分隔，最多 3 個） |
 | GET | `/api/stats` | 公開統計 `{ users, posts }`（註冊人數、公開作品數），允許任何網站讀取，官方介紹網站用來顯示人數 |
 | GET | `/api/health` | 健康檢查，回傳 `{ ok: true }` |
-| GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`q` 搜尋作品名稱、介紹、GitHub 專案、AI 標籤與作者，空白分隔的關鍵字要全部符合 |
+| GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`sort=random&seed=<數字>&offset=` 打亂順序（同一個 seed 順序固定，App 每次重新整理換 seed），`sort=top&period=week|month|all&offset=` 是 Cool 排行榜；不帶 `sort` 是新到舊；`q` 搜尋作品名稱、介紹、GitHub 專案、AI 標籤與作者，空白分隔的關鍵字要全部符合 |
 | GET | `/api/users?q=<關鍵字>` | 搜尋 Cooler（帳號或名稱，最多 10 位） |
 | POST | `/api/posts` | 分享（multipart，`media` 圖片或 `youtubeUrl` 至少要有一個；選填 `githubUrl`，接受 `owner/repo` 或 github.com 網址） |
 | GET / DELETE | `/api/posts/:id` | 單則貼文／刪除自己的貼文 |
