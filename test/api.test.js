@@ -919,6 +919,38 @@ test('釘選：最多 3 則、排在個人頁最前面（最近釘選的在前�
   assert.deepEqual((await order()).slice(0, 3), [['p4', true], ['p2', true], ['p1', true]]);
 });
 
+test('個人頁排列：作品與分享各自照自己排的順序，釘選仍在最前面，新作品排在已排好的前面，不能排別人的', async () => {
+  const me = await register('arr_me');
+  const other = await register('arr_other');
+  const mk = async (cookie, title) => (await (await createPost(cookie, { title }, [{ name: 'a.png', data: PNG }])).json()).post.id;
+  const [a, b, c] = [await mk(me, 'A'), await mk(me, 'B'), await mk(me, 'C')];
+  const [x, y] = [await mk(other, 'X'), await mk(other, 'Y')];
+  const put = (url, ids, cookie = me) => fetch(`${base}${url}`, { method: 'PUT', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+  const profile = async () => (await (await fetch(`${base}/api/users/arr_me`)).json());
+  const titles = (ps) => ps.map((p) => p.title);
+
+  assert.deepEqual(titles((await profile()).posts), ['C', 'B', 'A']);
+  assert.equal((await put('/api/me/posts/order', [a, b, c])).status, 200);
+  assert.deepEqual(titles((await profile()).posts), ['A', 'B', 'C']);
+
+  // 釘選的永遠在最前面
+  await fetch(`${base}/api/posts/${c}/pin`, { method: 'PUT', headers: { cookie: me } });
+  assert.deepEqual(titles((await profile()).posts), ['C', 'A', 'B']);
+  // 新作品排在已排好的前面
+  await mk(me, 'D');
+  assert.deepEqual(titles((await profile()).posts), ['C', 'D', 'A', 'B']);
+
+  assert.equal((await put('/api/me/posts/order', [a, x])).status, 403);
+  assert.equal((await put('/api/me/posts/order', 'nope')).status, 400);
+  assert.equal((await put('/api/me/posts/order', [a, a])).status, 400);
+
+  for (const id of [x, y]) await fetch(`${base}/api/posts/${id}/repost`, { method: 'PUT', headers: { cookie: me } });
+  assert.deepEqual(titles((await profile()).reposts), ['Y', 'X']);
+  assert.equal((await put('/api/me/reposts/order', [x, y])).status, 200);
+  assert.deepEqual(titles((await profile()).reposts), ['X', 'Y']);
+  assert.equal((await put('/api/me/reposts/order', [a])).status, 403);
+});
+
 test('到 GitHub 按星回來：立刻重新查詢星星數，同一個專案 5 秒內不重複查', async () => {
   const cookie = await register('star_refresh');
   const { post } = await (await createPost(cookie, { title: 'Star me', githubUrl: 'octocat/starme' }, [{ name: 'a.png', data: PNG }])).json();

@@ -8,9 +8,15 @@ import { youtubeThumbnail } from '../lib/youtube';
 import { useColors, useContentWidth } from '../lib/theme';
 import { tr } from '../lib/i18n';
 
+// 排列模式：每格出現左右移動按鈕，作品分頁還有釘選按鈕；點格子不會打開貼文
+export type ArrangeHandlers = {
+  onMove: (index: number, delta: -1 | 1) => void;
+  onTogglePin?: (post: Post) => void;
+};
+
 // IG 風格的三欄九宮格
 // pinned：顯示釘選圖示（只有個人頁的「作品」分頁用）
-export function PostGrid({ posts, pinned = false }: { posts: Post[]; pinned?: boolean }) {
+export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pinned?: boolean; arrange?: ArrangeHandlers }) {
   // 用格子實際的寬度（網頁版有捲軸、邊框，視窗寬度會多算），取整數避免第三格被擠到下一行
   const fallback = useContentWidth();
   const [measured, setMeasured] = useState<number | null>(null);
@@ -19,7 +25,7 @@ export function PostGrid({ posts, pinned = false }: { posts: Post[]; pinned?: bo
   const size = Math.floor((width - GAP * 2) / 3);
   return (
     <View style={styles.grid} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
-      {posts.map((p) => {
+      {posts.map((p, index) => {
         const image = p.media.find((m) => m.kind === 'image');
         const cover = image ? mediaUri(image.url) : p.youtube ? youtubeThumbnail(p.youtube.id) : null;
         const count = p.media.length + (p.youtube ? 1 : 0);
@@ -27,7 +33,7 @@ export function PostGrid({ posts, pinned = false }: { posts: Post[]; pinned?: bo
         return (
           <Pressable
             key={p.id}
-            onPress={() => router.push(`/post/${p.id}`)}
+            onPress={arrange ? undefined : () => router.push(`/post/${p.id}`)}
             style={[styles.tile, { width: size, height: size, backgroundColor: c.surface2 }]}
             accessibilityLabel={p.title}
           >
@@ -42,9 +48,47 @@ export function PostGrid({ posts, pinned = false }: { posts: Post[]; pinned?: bo
             {badge ? (
               <Ionicons name={badge} size={18} color="#fff" style={styles.badge} />
             ) : null}
-            {pinned && p.pinned ? (
+            {pinned && p.pinned && !arrange ? (
               <View style={styles.pin} accessibilityLabel={tr('已釘選', 'Pinned')}>
                 <Ionicons name="pin" size={14} color="#fff" style={{ transform: [{ rotate: '45deg' }] }} />
+              </View>
+            ) : null}
+            {arrange ? (
+              <View style={[StyleSheet.absoluteFill, styles.arrange]}>
+                {arrange.onTogglePin ? (
+                  <Pressable
+                    onPress={() => arrange.onTogglePin!(p)}
+                    hitSlop={6}
+                    style={[styles.control, styles.pinControl, p.pinned && { backgroundColor: c.accent }]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: Boolean(p.pinned) }}
+                    accessibilityLabel={p.pinned ? tr(`取消釘選「${p.title}」`, `Unpin "${p.title}"`) : tr(`釘選「${p.title}」`, `Pin "${p.title}"`)}
+                  >
+                    <Ionicons name={p.pinned ? 'pin' : 'pin-outline'} size={16} color={p.pinned ? '#000' : '#fff'} style={{ transform: [{ rotate: '45deg' }] }} />
+                  </Pressable>
+                ) : null}
+                <View style={styles.moves}>
+                  <Pressable
+                    onPress={() => arrange.onMove(index, -1)}
+                    disabled={index === 0}
+                    hitSlop={6}
+                    style={[styles.control, index === 0 && styles.disabled]}
+                    accessibilityRole="button"
+                    accessibilityLabel={tr(`「${p.title}」往前移`, `Move "${p.title}" earlier`)}
+                  >
+                    <Ionicons name="chevron-back" size={18} color="#fff" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => arrange.onMove(index, 1)}
+                    disabled={index === posts.length - 1}
+                    hitSlop={6}
+                    style={[styles.control, index === posts.length - 1 && styles.disabled]}
+                    accessibilityRole="button"
+                    accessibilityLabel={tr(`「${p.title}」往後移`, `Move "${p.title}" later`)}
+                  >
+                    <Ionicons name="chevron-forward" size={18} color="#fff" />
+                  </Pressable>
+                </View>
               </View>
             ) : null}
           </Pressable>
@@ -61,6 +105,11 @@ const styles = StyleSheet.create({
   // 圖片只顯示在自己的格子裡
   tile: { overflow: 'hidden' },
   pin: { position: 'absolute', top: 6, left: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  arrange: { backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'space-between', padding: 6 },
+  control: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
+  pinControl: { alignSelf: 'flex-start' },
+  moves: { flexDirection: 'row', justifyContent: 'space-between' },
+  disabled: { opacity: 0.25 },
   badge: { position: 'absolute', top: 6, right: 6, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
   videoTile: { backgroundColor: '#2a1f4a', alignItems: 'center', justifyContent: 'center', padding: 8, gap: 6 },
   videoTitle: { color: '#fff', fontSize: 12, fontWeight: '600', textAlign: 'center' },
