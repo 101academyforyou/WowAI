@@ -73,7 +73,8 @@ export type Post = {
   pinned?: boolean;
 };
 export type Vote = 'cool' | 'notcool';
-export type Comment = { id: number; body: string; edited?: boolean; author: User };
+// parentId：回覆哪一則留言（null 是直接留言）；coolCount／cooledByMe：留言的 ⚡ 數（舊版伺服器沒有這些欄位）
+export type Comment = { id: number; body: string; edited?: boolean; parentId?: number | null; coolCount?: number; cooledByMe?: boolean; author: User };
 export type Profile = User & {
   bio: string;
   postCount: number;
@@ -86,7 +87,7 @@ export type Profile = User & {
 
 export type AppNotification = {
   id: number;
-  type: 'cool' | 'comment' | 'follow' | 'new_post' | 'repost';
+  type: 'cool' | 'comment' | 'follow' | 'new_post' | 'repost' | 'reply' | 'comment_cool';
   read: boolean;
   createdAt: string;
   actor: User;

@@ -934,32 +934,50 @@ export function createApp({
 
   app.get('/api/posts/:id/comments', (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
+    const viewerId = req.user?.id ?? 0;
     const rows = db.prepare(
-      `SELECT c.id, c.body, c.created_at, c.edited_at, u.id AS uid, u.username, u.display_name, u.avatar
+      `SELECT c.id, c.body, c.parent_id, c.created_at, c.edited_at, u.id AS uid, u.username, u.display_name, u.avatar,
+         (SELECT COUNT(*) FROM comment_cools cc WHERE cc.comment_id = c.id) AS cools,
+         EXISTS (SELECT 1 FROM comment_cools cc WHERE cc.comment_id = c.id AND cc.user_id = ?) AS mine
        FROM comments c JOIN users u ON u.id = c.user_id
        WHERE c.post_id = ? AND c.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
        ORDER BY c.id`,
-    ).all(post.id, req.user?.id ?? 0);
+    ).all(viewerId, post.id, viewerId);
     res.json({
       comments: rows.map((r) => ({
         id: r.id,
         body: r.body,
+        parentId: r.parent_id,
         createdAt: r.created_at,
         edited: Boolean(r.edited_at),
+        coolCount: r.cools,
+        cooledByMe: Boolean(r.mine),
         author: publicUser({ id: r.uid, username: r.username, display_name: r.display_name, avatar: r.avatar }),
       })),
     });
   });
 
+  // 留言或回覆。parentId：要回覆的留言；回覆的回覆會掛在最上層那則底下（只有一層）
   app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
     const body = cleanText(req.body?.body, { max: 1000, field: '留言', required: true });
+    let parent = null;
+    if (req.body?.parentId != null) {
+      parent = db.prepare('SELECT * FROM comments WHERE id = ? AND post_id = ?').get(Number(req.body.parentId), post.id);
+      if (!parent) throw new HttpError(404, '找不到要回覆的留言');
+      if (parent.parent_id) parent = db.prepare('SELECT * FROM comments WHERE id = ?').get(parent.parent_id);
+    }
     const { lastInsertRowid } = db
-      .prepare('INSERT INTO comments (post_id, user_id, body) VALUES (?, ?, ?)')
-      .run(post.id, req.user.id, body);
-    notifier.notify(post.user_id, req.user.id, 'comment', { postId: post.id, text: body });
+      .prepare('INSERT INTO comments (post_id, user_id, body, parent_id) VALUES (?, ?, ?, ?)')
+      .run(post.id, req.user.id, body, parent?.id ?? null);
+    // 被回覆的人收到「回覆」通知；貼文作者（如果不是同一個人）照樣收到「留言」通知
+    const replyTo = req.body?.parentId != null
+      ? db.prepare('SELECT user_id FROM comments WHERE id = ?').get(Number(req.body.parentId))?.user_id ?? parent?.user_id
+      : null;
+    if (replyTo) notifier.notify(replyTo, req.user.id, 'reply', { postId: post.id, text: body });
+    if (post.user_id !== replyTo) notifier.notify(post.user_id, req.user.id, 'comment', { postId: post.id, text: body });
     res.status(201).json({
-      comment: { id: Number(lastInsertRowid), body, edited: false, author: publicUser(req.user) },
+      comment: { id: Number(lastInsertRowid), body, parentId: parent?.id ?? null, edited: false, coolCount: 0, cooledByMe: false, author: publicUser(req.user) },
     });
   });
 
@@ -976,7 +994,7 @@ export function createApp({
     if (comment.user_id !== req.user.id) throw new HttpError(403, '只能編輯自己的留言');
     const body = cleanText(req.body?.body, { max: 1000, field: '留言', required: true });
     db.prepare("UPDATE comments SET body = ?, edited_at = datetime('now') WHERE id = ?").run(body, comment.id);
-    res.json({ comment: { id: comment.id, body, edited: true, createdAt: comment.created_at, author: publicUser(req.user) } });
+    res.json({ comment: { id: comment.id, body, parentId: comment.parent_id, edited: true, createdAt: comment.created_at, author: publicUser(req.user) } });
   });
 
   // 刪除留言：留言的人、貼文作者（管理自己貼文下的留言）或管理員
@@ -987,6 +1005,23 @@ export function createApp({
     }
     db.prepare('DELETE FROM comments WHERE id = ?').run(comment.id);
     res.json({ commentCount: q.commentCount.get(post.id).n });
+  });
+
+  // 對留言按 Cool（⚡）
+  const commentCoolState = (commentId, viewer) => ({
+    coolCount: db.prepare('SELECT COUNT(*) AS n FROM comment_cools WHERE comment_id = ?').get(commentId).n,
+    cooledByMe: Boolean(db.prepare('SELECT 1 FROM comment_cools WHERE comment_id = ? AND user_id = ?').get(commentId, viewer.id)),
+  });
+  app.put('/api/comments/:id/cool', requireAuth, (req, res) => {
+    const { comment, post } = getCommentOr404(req.params.id, req.user);
+    const { changes } = db.prepare('INSERT OR IGNORE INTO comment_cools (comment_id, user_id) VALUES (?, ?)').run(comment.id, req.user.id);
+    if (changes) notifier.notify(comment.user_id, req.user.id, 'comment_cool', { postId: post.id, text: comment.body });
+    res.json(commentCoolState(comment.id, req.user));
+  });
+  app.delete('/api/comments/:id/cool', requireAuth, (req, res) => {
+    const { comment } = getCommentOr404(req.params.id, req.user);
+    db.prepare('DELETE FROM comment_cools WHERE comment_id = ? AND user_id = ?').run(comment.id, req.user.id);
+    res.json(commentCoolState(comment.id, req.user));
   });
 
   // ---- AI Webhook：讓 AI 或自動化工具（Claude Code、ChatGPT、n8n、GitHub Actions…）代你發文 ----
