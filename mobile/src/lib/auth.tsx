@@ -2,11 +2,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api, loadToken, saveToken, type User } from './api';
 import { unregisterPush } from './push';
 
+// email／emailCode：伺服器有開啟 Email 驗證時才需要
+type RegisterInput = { username: string; password: string; displayName: string; acceptTerms: boolean; email?: string; emailCode?: string };
+
 type AuthState = {
   user: User | null;
   ready: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (input: { username: string; password: string; displayName: string; acceptTerms: boolean }) => Promise<void>;
+  register: (input: RegisterInput) => Promise<void>;
   // 第三方登入（GitHub、Google、Apple）拿到權杖後
   signIn: (res: { user: User; token: string }) => Promise<void>;
   // 重新讀取自己的帳號資料（例如綁定了 GitHub）
@@ -51,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refresh().catch(() => {});
   }, [refresh]);
 
-  const register = useCallback(async (input: { username: string; password: string; displayName: string; acceptTerms: boolean }) => {
+  const register = useCallback(async (input: RegisterInput) => {
     const res = await api<{ user: User; token: string }>('/api/auth/register', { method: 'POST', body: input });
     await saveToken(res.token);
     setUser(res.user);

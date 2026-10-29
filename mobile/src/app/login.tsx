@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,8 @@ import { fonts, useColors } from '../lib/theme';
 import { Button, Logo, notify } from '../components/ui';
 import { SocialSignIn } from '../components/SocialSignIn';
 import { siteDoc, tr } from '../lib/i18n';
+import { api } from '../lib/api';
+import { fetchProviders } from '../lib/oauth';
 
 export default function LoginScreen() {
   const c = useColors();
@@ -18,12 +20,43 @@ export default function LoginScreen() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const isRegister = mode === 'register';
+  // 伺服器有開啟 Email 驗證時，註冊要填 Email 並輸入寄到信箱的驗證碼
+  const [needEmail, setNeedEmail] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [codeSentTo, setCodeSentTo] = useState('');
+  const [sending, setSending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    fetchProviders().then((p) => setNeedEmail(Boolean(p.emailVerification))).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function sendCode() {
+    setSending(true);
+    try {
+      await api('/api/auth/email-code', { method: 'POST', body: { email: email.trim() } });
+      setCodeSentTo(email.trim());
+      setCooldown(60);
+    } catch (err) {
+      notify((err as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+  const emailReady = !isRegister || !needEmail || (email.trim() && emailCode.trim().length === 6);
 
   async function submit() {
     if (isRegister && !acceptTerms) return notify(tr('請先同意使用條款', 'Please agree to the Terms of Use first'));
     setBusy(true);
     try {
-      if (isRegister) await register({ username: username.trim(), password, displayName, acceptTerms });
+      if (isRegister) await register({ username: username.trim(), password, displayName, acceptTerms, ...(needEmail ? { email: email.trim(), emailCode: emailCode.trim() } : {}) });
       else await login(username.trim(), password);
       router.back();
     } catch (err) {
@@ -68,6 +101,48 @@ export default function LoginScreen() {
           autoComplete={isRegister ? 'new-password' : 'current-password'}
         />
 
+        {isRegister && needEmail ? (
+          <>
+            <View style={styles.row}>
+              <TextInput
+                style={[inputStyle, { flex: 1, minWidth: 0 }]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Email"
+                placeholderTextColor={c.muted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="emailAddress"
+                autoComplete="email"
+              />
+              <Button
+                title={cooldown > 0 ? `${cooldown}s` : codeSentTo ? tr('重新寄送', 'Resend') : tr('寄驗證碼', 'Send code')}
+                onPress={sendCode}
+                loading={sending}
+                disabled={!email.trim() || cooldown > 0}
+                style={{ alignSelf: 'stretch', minWidth: 104 }}
+              />
+            </View>
+            {codeSentTo ? (
+              <>
+                <TextInput
+                  style={[inputStyle, emailCode ? styles.code : null]}
+                  value={emailCode}
+                  onChangeText={(t) => setEmailCode(t.replace(/\D/g, '').slice(0, 6))}
+                  placeholder={tr('6 位數驗證碼', '6-digit code')}
+                  placeholderTextColor={c.muted}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                />
+                <Text style={{ color: c.muted, fontSize: 12 }}>{tr(`驗證碼已寄到 ${codeSentTo}，沒收到的話看看垃圾郵件`, `We sent a code to ${codeSentTo}. Check spam if you don't see it`)}</Text>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
         {isRegister ? (
           <Pressable style={styles.terms} onPress={() => setAcceptTerms(!acceptTerms)} accessibilityRole="checkbox" accessibilityState={{ checked: acceptTerms }}>
             <Ionicons name={acceptTerms ? 'checkbox' : 'square-outline'} size={22} color={acceptTerms ? c.accent : c.muted} />
@@ -79,7 +154,7 @@ export default function LoginScreen() {
           </Pressable>
         ) : null}
 
-        <Button title={isRegister ? tr('註冊', 'Sign up') : tr('登入', 'Sign in')} variant="primary" onPress={submit} loading={busy} disabled={!username || !password} style={{ marginTop: 8, minHeight: 50 }} />
+        <Button title={isRegister ? tr('註冊', 'Sign up') : tr('登入', 'Sign in')} variant="primary" onPress={submit} loading={busy} disabled={!username || !password || !emailReady} style={{ marginTop: 8, minHeight: 50 }} />
 
         <View style={styles.switch}>
           <Text style={{ color: c.muted }}>{isRegister ? tr('已經有帳號了？', 'Already have an account?') : tr('還沒有帳號？', "Don't have an account?")}</Text>
@@ -96,6 +171,8 @@ const styles = StyleSheet.create({
   page: { padding: 24, paddingTop: 40, gap: 12 },
   logo: { alignItems: 'center' },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  code: { fontFamily: fonts.mono, fontSize: 20, letterSpacing: 6 },
   terms: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 4 },
   switch: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 },
 });

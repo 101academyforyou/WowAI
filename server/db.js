@@ -225,6 +225,21 @@ export function openDatabase(file) {
     // 「聯繫我」的社群／通訊方式，JSON 物件，例如 {"instagram":"amy"}
     db.exec("ALTER TABLE users ADD COLUMN contacts TEXT NOT NULL DEFAULT '{}'");
   }
+  if (!userColumns.includes('email')) {
+    // 註冊時驗證過的 Email（不公開）；舊帳號與第三方登入的帳號是 NULL
+    db.exec('ALTER TABLE users ADD COLUMN email TEXT');
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL');
+  // 註冊驗證碼：只存雜湊，10 分鐘有效，最多試 5 次
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_codes (
+      email      TEXT PRIMARY KEY,
+      code_hash  TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      sent_at    INTEGER NOT NULL,
+      attempts   INTEGER NOT NULL DEFAULT 0
+    )
+  `);
   // 舊資料庫的通知類型不含 repost：SQLite 不能改 CHECK，只能重建資料表
   const notificationsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notifications'").get().sql;
   if (!notificationsSql.includes("'repost'")) {

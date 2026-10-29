@@ -4,7 +4,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { api, type User } from './api';
 
 export type OAuthProvider = 'github' | 'google';
-export type Providers = { github: boolean; google: boolean; apple: boolean };
+// emailVerification：註冊要不要驗證 Email（舊版伺服器沒有這個欄位）
+export type Providers = { github: boolean; google: boolean; apple: boolean; emailVerification?: boolean };
 export const PROVIDER_LABEL = { github: 'GitHub', google: 'Google', apple: 'Apple' } as const;
 
 // 伺服器導回來時帶的結果：登入代碼、綁定成功、錯誤或使用者取消

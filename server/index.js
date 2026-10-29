@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from './db.js';
 import { createApp } from './app.js';
+import { createResendMailer } from './mail.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.DATA_DIR ?? path.join(root, 'data');
@@ -19,6 +20,12 @@ const app = createApp({
   githubFetch: fetch,
   githubToken: process.env.GITHUB_TOKEN ?? '',
   // 第三方登入：有填 client ID 與 secret 的才會出現在登入畫面
+  // 註冊驗證 Email：填了 RESEND_API_KEY 才會要求驗證
+  mailer: process.env.RESEND_API_KEY
+    ? createResendMailer({ apiKey: process.env.RESEND_API_KEY, from: process.env.MAIL_FROM || 'YourWowAI <no-reply@onepointzeroone.org>' })
+    : null,
+  // iPhone 1.0 的註冊畫面沒有 Email 欄位：1.1 上架後再設成 1，App 也一律要驗證
+  requireEmailForApp: process.env.REQUIRE_EMAIL_FOR_APP === '1',
   oauth: {
     publicUrl: process.env.PUBLIC_URL,
     github: { clientId: process.env.GITHUB_CLIENT_ID, clientSecret: process.env.GITHUB_CLIENT_SECRET },

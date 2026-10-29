@@ -9,6 +9,7 @@ import { cleanContacts, serializeContacts } from './contacts.js';
 import { createStarCache, parseGitHubRepo } from './github.js';
 import { parseYouTube } from './youtube.js';
 import { requestLang, translate } from './i18n.js';
+import { verificationEmail } from './mail.js';
 import { CATEGORIES, MAX_CATEGORIES, parseCategories } from './categories.js';
 import { OAUTH_PROVIDERS, authorizeUrl, createAppleVerifier, fetchProfile, suggestUsername } from './oauth.js';
 import { PUSH_TOKEN, createNotifier, expoPushSender, notificationLink, notificationText } from './notifications.js';
@@ -151,7 +152,7 @@ const STATIC_FILE = /\.(?:html?|js|mjs|css|map|json|txt|xml|ico|png|jpe?g|gif|we
 // githubFetch：查 GitHub 星星數用的 fetch（不給就不查）；githubToken：選填，讓查詢上限從每小時 60 次提高到 5000 次
 export function createApp({
   db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], pushSender = expoPushSender, oauth = {},
-  githubFetch = null, githubToken = '',
+  githubFetch = null, githubToken = '', mailer = null, requireEmailForApp = false,
 }) {
   const starCache = createStarCache({ db, fetch: githubFetch, token: githubToken });
   const oauthFetch = oauth.fetch ?? globalThis.fetch;
@@ -335,6 +336,69 @@ export function createApp({
     return token;
   }
 
+  // ---- 註冊驗證 Email ----
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const CODE_TTL = 10 * 60 * 1000;
+  const RESEND_AFTER = 60 * 1000;
+  const sendsByIp = new Map(); // ip → 最近一小時寄信的時間
+  const codeHash = (email, code) => crypto.createHash('sha256').update(`${email}:${code}`).digest('hex');
+
+  function cleanEmail(value) {
+    const email = String(value ?? '').trim().toLowerCase();
+    if (!email) throw new HttpError(400, '請輸入 Email');
+    if (email.length > 254 || !EMAIL_RE.test(email)) throw new HttpError(400, 'Email 格式不正確');
+    return email;
+  }
+
+  app.post('/api/auth/email-code', async (req, res) => {
+    if (!mailer) throw new HttpError(404, '找不到這個頁面');
+    const email = cleanEmail(req.body?.email);
+    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, '這個 Email 已經註冊過了');
+    const now = Date.now();
+    const last = db.prepare('SELECT sent_at FROM email_codes WHERE email = ?').get(email);
+    if (last && now - last.sent_at < RESEND_AFTER) {
+      throw new HttpError(429, `請等 ${Math.ceil((RESEND_AFTER - (now - last.sent_at)) / 1000)} 秒後再重新寄送`);
+    }
+    const recent = (sendsByIp.get(req.ip) ?? []).filter((t) => now - t < 60 * 60 * 1000);
+    if (recent.length >= 10) throw new HttpError(429, '寄送太頻繁，請稍後再試');
+    sendsByIp.set(req.ip, [...recent, now]);
+
+    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    try {
+      await mailer({ to: email, ...verificationEmail(code, requestLang(req)) });
+    } catch (err) {
+      console.error('寄送驗證信失敗', err);
+      throw new HttpError(502, '驗證信寄送失敗，請稍後再試');
+    }
+    db.prepare(`INSERT INTO email_codes (email, code_hash, expires_at, sent_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, sent_at = excluded.sent_at, attempts = 0`)
+      .run(email, codeHash(email, code), now + CODE_TTL, now);
+    res.json({ ok: true });
+  });
+
+  // 註冊時檢查驗證碼，成功就回傳 Email；不需要驗證時回傳 null
+  function verifiedEmail(req) {
+    if (!mailer) return null;
+    const body = req.body ?? {};
+    // iPhone 1.0 的註冊畫面沒有 Email 欄位（不會送 email，也沒有瀏覽器的 Origin）：等 1.1 上架後才一起要求
+    if (body.email === undefined && !req.headers.origin) {
+      if (requireEmailForApp) throw new HttpError(400, '請更新 App 到最新版本再註冊');
+      return null;
+    }
+    const email = cleanEmail(body.email);
+    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, '這個 Email 已經註冊過了');
+    const row = db.prepare('SELECT * FROM email_codes WHERE email = ?').get(email);
+    if (!row) throw new HttpError(400, '請先取得 Email 驗證碼');
+    if (Date.now() > row.expires_at) throw new HttpError(400, '驗證碼已過期，請重新寄送');
+    if (row.attempts >= 5) throw new HttpError(400, '驗證碼錯誤太多次，請重新寄送');
+    const code = String(body.emailCode ?? '').replace(/\s/g, '');
+    if (!crypto.timingSafeEqual(Buffer.from(codeHash(email, code)), Buffer.from(row.code_hash))) {
+      db.prepare('UPDATE email_codes SET attempts = attempts + 1 WHERE email = ?').run(email);
+      throw new HttpError(400, '驗證碼錯誤');
+    }
+    return email;
+  }
+
   app.post('/api/auth/register', (req, res) => {
     const username = cleanText(req.body?.username, { max: 30, field: '帳號', required: true });
     if (!/^[a-zA-Z0-9_.]{3,30}$/.test(username)) {
@@ -345,10 +409,12 @@ export function createApp({
     if (req.body?.acceptTerms !== true) throw new HttpError(400, '請先同意使用條款');
     const displayName = cleanText(req.body?.displayName, { max: 50, field: '名稱' }) || username;
     if (q.userByName.get(username)) throw new HttpError(409, '這個帳號已經有人使用');
+    const email = verifiedEmail(req);
 
     const { lastInsertRowid } = db
-      .prepare('INSERT INTO users (username, display_name, password_hash) VALUES (?, ?, ?)')
-      .run(username, displayName, hashPassword(password));
+      .prepare('INSERT INTO users (username, display_name, password_hash, email) VALUES (?, ?, ?, ?)')
+      .run(username, displayName, hashPassword(password), email);
+    if (email) db.prepare('DELETE FROM email_codes WHERE email = ?').run(email);
     const token = startSession(res, Number(lastInsertRowid));
     res.status(201).json({ user: publicUser(q.userById.get(lastInsertRowid)), token });
   });
@@ -418,7 +484,7 @@ export function createApp({
 
   // ---- 第三方登入 ----
   app.get('/api/auth/providers', (_req, res) => {
-    res.json({ github: enabledProviders.includes('github'), google: enabledProviders.includes('google'), apple: true });
+    res.json({ github: enabledProviders.includes('github'), google: enabledProviders.includes('google'), apple: true, emailVerification: Boolean(mailer) });
   });
 
   // 第三方帳號 → YourWowAI 帳號；第一次登入時自動建立（沒有密碼），並帶入對方的大頭貼
