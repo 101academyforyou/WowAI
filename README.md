@@ -224,8 +224,10 @@ test/        API 測試（node:test）
 | GET | `/api/users/:username` | 個人頁與作品 |
 | POST / DELETE | `/api/users/:username/follow` | 追蹤／取消追蹤 |
 | POST / DELETE | `/api/users/:username/block` | 封鎖／解除封鎖 |
-| GET | `/api/admin/reports` | 管理員：被檢舉的貼文 |
-| POST | `/api/admin/posts/:id/restore` | 管理員：檢舉不成立，恢復貼文 |
+| GET | `/api/admin/reports` | 管理員：被檢舉的貼文（各原因次數、是否隱藏、作者是否停權）與已停權的帳號；App 裡在「編輯個人檔案」→「管理員：檢舉處理」 |
+| POST | `/api/admin/posts/:id/restore` | 管理員：檢舉不成立，清掉檢舉並恢復貼文 |
+| POST | `/api/admin/posts/:id/hide` | 管理員：先把貼文下架（隱藏） |
+| POST / DELETE | `/api/admin/users/:username/ban` | 管理員：停權（登出所有裝置、不能登入、貼文與留言對別人隱藏）／解除停權 |
 | GET | `/api/tags` | 熱門 AI 工具標籤 |
 | GET | `/api/notifications?before=<id>` | 通知列表（含未讀數） |
 | GET | `/api/notifications/unread-count` | 未讀通知數 |

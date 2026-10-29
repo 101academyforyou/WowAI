@@ -209,6 +209,12 @@ export default function SettingsScreen() {
 
       <WebhookSection />
 
+      {user.isAdmin ? (
+        <View style={[styles.section, { borderColor: c.border }]}>
+          <Button title={tr('管理員：檢舉處理', 'Admin: reports')} variant="primary" onPress={() => router.push('/admin')} />
+        </View>
+      ) : null}
+
       <View style={[styles.section, { borderColor: c.border }]}>
         <Button title={tr('使用條款', 'Terms of Use')} onPress={() => Linking.openURL(siteDoc('terms'))} />
         <Button title={tr('隱私權政策', 'Privacy Policy')} onPress={() => Linking.openURL(siteDoc('privacy'))} />

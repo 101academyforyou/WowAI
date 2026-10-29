@@ -233,6 +233,56 @@ test('檢舉：檢舉者不再看到貼文，3 人檢舉後自動隱藏，管理
   assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 200);
 });
 
+test('管理員：手動隱藏、恢復；停權後不能登入、所有裝置登出、貼文和留言對別人隱藏、個人頁找不到，解除後恢復', async () => {
+  // admin 帳號在前面的測試已經註冊過，這裡登入就好
+  const adminLogin = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'password123' }) });
+  const admin = adminLogin.headers.get('set-cookie').split(';')[0];
+  const bad = await register('badactor');
+  const viewer = await register('banviewer');
+  const { post } = await (await createPost(bad, { title: '停權測試' }, [{ name: 'a.png', data: PNG }])).json();
+  const { post: other } = await (await createPost(viewer, { title: '正常貼文' }, [{ name: 'a.png', data: PNG }])).json();
+  await fetch(`${base}/api/posts/${other.id}/comments`, { method: 'POST', headers: { cookie: bad, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: '壞留言' }) });
+  await fetch(`${base}/api/posts/${post.id}/report`, { method: 'POST', headers: { cookie: viewer, 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'spam' }) });
+  const adminPost = (url, method = 'POST', cookie = admin) => fetch(`${base}${url}`, { method, headers: { cookie } });
+
+  // 非管理員不能用
+  assert.equal((await adminPost(`/api/admin/posts/${post.id}/hide`, 'POST', viewer)).status, 403);
+  assert.equal((await adminPost('/api/admin/users/badactor/ban', 'POST', viewer)).status, 403);
+
+  const list = await (await fetch(`${base}/api/admin/reports`, { headers: { cookie: admin } })).json();
+  const entry = list.reports.find((r) => r.post.id === post.id);
+  assert.deepEqual(entry.reasons, [{ reason: 'spam', count: 1 }]);
+  assert.equal(entry.hidden, false);
+
+  // 手動隱藏
+  await adminPost(`/api/admin/posts/${post.id}/hide`);
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 404);
+  await adminPost(`/api/admin/posts/${post.id}/restore`);
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 200);
+
+  // 停權
+  assert.equal((await adminPost('/api/admin/users/admin/ban')).status, 400, '不能停權管理員');
+  assert.equal((await adminPost('/api/admin/users/badactor/ban')).status, 200);
+  assert.equal((await (await fetch(`${base}/api/me`, { headers: { cookie: bad } })).json()).user, null, '所有裝置登出');
+  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept-Language': 'en' }, body: JSON.stringify({ username: 'badactor', password: 'password123' }) });
+  assert.equal(login.status, 403);
+  assert.equal((await login.json()).error, 'This account has been suspended');
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`, { headers: { cookie: viewer } })).status, 404);
+  assert.equal((await fetch(`${base}/api/users/badactor`)).status, 404);
+  assert.equal((await fetch(`${base}/api/users/badactor`, { headers: { cookie: admin } })).status, 200, '管理員還看得到');
+  const feed = await (await fetch(`${base}/api/posts?sort=latest`)).json();
+  assert.ok(!feed.posts.some((p) => p.id === post.id));
+  const comments = (await (await fetch(`${base}/api/posts/${other.id}/comments`)).json()).comments;
+  assert.ok(!comments.some((c) => c.body === '壞留言'));
+  const banned = (await (await fetch(`${base}/api/admin/reports`, { headers: { cookie: admin } })).json()).banned;
+  assert.ok(banned.some((u) => u.username === 'badactor'));
+
+  // 解除停權
+  await adminPost('/api/admin/users/badactor/ban', 'DELETE');
+  assert.equal((await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'badactor', password: 'password123' }) })).status, 200);
+  assert.equal((await fetch(`${base}/api/posts/${post.id}`)).status, 200);
+});
+
 test('封鎖：看不到對方的貼文與留言，並解除追蹤', async () => {
   const troll = await register('troll');
   const victim = await register('victim');
