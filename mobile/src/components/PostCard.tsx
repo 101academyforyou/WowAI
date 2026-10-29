@@ -12,7 +12,7 @@ import { Avatar, chooseOption, confirmAction, notify } from './ui';
 import { plural, tr } from '../lib/i18n';
 
 // onRemoved：貼文被刪除、檢舉或作者被封鎖時，讓列表把它拿掉
-// rank：在 Cool 排行榜裡的名次（前三名顯示獎牌）
+// rank：在 Cool 排行榜裡的名次（前三名用 Cool 的顏色框起來）
 export function PostCard({ post: initial, full = false, rank, onRemoved }: { post: Post; full?: boolean; rank?: number; onRemoved?: () => void }) {
   const c = useColors();
   const { user } = useAuth();
@@ -195,7 +195,7 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
       <View style={styles.header}>
         {rank ? (
           <View style={[styles.rank, { borderColor: rank <= 3 ? c.cool : c.border }]} accessibilityLabel={tr(`第 ${rank} 名`, `Rank ${rank}`)}>
-            <Text style={{ fontSize: rank <= 3 ? 18 : 13, fontWeight: '800', fontFamily: fonts.mono, color: c.text }}>{['🥇', '🥈', '🥉'][rank - 1] ?? `#${rank}`}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', fontFamily: fonts.mono, color: rank <= 3 ? c.cool : c.text }}>#{rank}</Text>
           </View>
         ) : null}
         <Pressable style={styles.author} onPress={() => router.push(`/user/${encodeURIComponent(post.author.username)}`)}>
