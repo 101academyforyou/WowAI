@@ -16,6 +16,8 @@ const app = createApp({
   webAppDir: path.join(root, 'web-dist'),
   devCors: process.env.NODE_ENV !== 'production',
   adminUsernames: (process.env.ADMIN_USERNAMES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+  // 用註冊時驗證過的 Email 指定管理員（逗號分隔）
+  adminEmails: (process.env.ADMIN_EMAILS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   // 作品的 GitHub 星星數（GITHUB_TOKEN 選填：任何 GitHub 個人權杖，不需要任何權限，只是提高查詢上限）
   githubFetch: fetch,
   githubToken: process.env.GITHUB_TOKEN ?? '',

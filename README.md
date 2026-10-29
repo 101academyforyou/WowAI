@@ -59,6 +59,7 @@ npm test             # 執行 API 測試
 | `HOST` | 全部網路介面 | 設為 `127.0.0.1` 時只接受本機連線（前面有 Caddy 等反向代理時使用） |
 | `NODE_ENV` | — | 設為 `production` 時 cookie 會加上 `Secure`，並關閉開發用的跨來源存取 |
 | `ADMIN_USERNAMES` | — | 管理員帳號（逗號分隔），可查看檢舉、刪除或恢復貼文 |
+| `ADMIN_EMAILS` | — | 用 Email 指定管理員（逗號分隔）；比對的是用帳號密碼註冊時驗證過的 Email |
 | `EXPO_ACCESS_TOKEN` | — | 選填。在 Expo 開啟「推播加強安全」時才需要 |
 
 ## 部署到 Oracle Cloud（永久免費）
