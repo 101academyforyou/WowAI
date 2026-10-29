@@ -533,8 +533,18 @@ export function createApp({
   });
 
   // 第三方帳號 → YourWowAI 帳號；第一次登入時自動建立（沒有密碼），並帶入對方的大頭貼
+  // 用 Google／Apple 登入時，如果驗證過的 email 列在 ADMIN_EMAILS，就記在帳號上讓他成為管理員；
+  // 其他人的 email 一律不存（隱私權政策的承諾）
+  function claimAdminEmail(userId, profile) {
+    const email = String(profile.email ?? '').trim().toLowerCase();
+    if (!email || !adminEmailSet.has(email)) return;
+    const owner = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (!owner) db.prepare('UPDATE users SET email = ? WHERE id = ? AND email IS NULL').run(email, userId);
+  }
+
   function userForIdentity(provider, profile) {
     const linked = db.prepare('SELECT user_id FROM user_identities WHERE provider = ? AND subject = ?').get(provider, profile.subject);
+    if (linked) claimAdminEmail(linked.user_id, profile);
     if (linked) {
       // GitHub 改名時跟著更新
       if (profile.login) db.prepare('UPDATE user_identities SET username = ? WHERE provider = ? AND subject = ?').run(profile.login, provider, profile.subject);
@@ -547,6 +557,7 @@ export function createApp({
       db.prepare('INSERT INTO user_identities (provider, subject, user_id, username) VALUES (?, ?, ?, ?)').run(provider, profile.subject, lastInsertRowid, profile.login ?? '');
       return Number(lastInsertRowid);
     });
+    claimAdminEmail(userId, profile);
     if (profile.avatarUrl) importAvatar(userId, profile.avatarUrl).catch(() => {});
     return q.userById.get(userId);
   }
@@ -571,6 +582,7 @@ export function createApp({
     db.prepare(
       'INSERT INTO user_identities (provider, subject, user_id, username) VALUES (?, ?, ?, ?) ON CONFLICT (provider, subject) DO UPDATE SET username = excluded.username',
     ).run(provider, profile.subject, userId, profile.login ?? '');
+    claimAdminEmail(userId, profile);
   }
 
   // 對外的網址（https://yourwowai.onepointzeroone.org），OAuth 回呼與 Webhook 網址用
