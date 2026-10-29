@@ -86,6 +86,7 @@ const MESSAGES = {
   '驗證信寄送失敗，請稍後再試': "Couldn't send the email. Please try again later",
   '寄送太頻繁，請稍後再試': 'Too many emails sent. Please try again later',
   '請更新 App 到最新版本再註冊': 'Please update the app to the latest version to sign up',
+  '這個 Email 沒有註冊過': "There's no account with that email",
 };
 
 const PATTERNS = [

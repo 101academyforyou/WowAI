@@ -19,13 +19,15 @@ function leave() {
 export default function LoginScreen() {
   const c = useColors();
   const { user, login, register, signIn } = useAuth();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  // reset：忘記密碼，用註冊時驗證的 Email 收驗證碼並設定新密碼
+  const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const isRegister = mode === 'register';
+  const isReset = mode === 'reset';
   // 這個畫面自己完成登入後由 leave() 離開，不要再被下面的 Redirect 帶走
   const [finished, setFinished] = useState(false);
   // 伺服器有開啟 Email 驗證時，註冊要填 Email 並輸入寄到信箱的驗證碼
@@ -46,10 +48,17 @@ export default function LoginScreen() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
+  function switchMode(next: typeof mode) {
+    setMode(next);
+    setEmailCode('');
+    setCodeSentTo('');
+    setPassword('');
+  }
+
   async function sendCode() {
     setSending(true);
     try {
-      await api('/api/auth/email-code', { method: 'POST', body: { email: email.trim() } });
+      await api(isReset ? '/api/auth/password-reset/code' : '/api/auth/email-code', { method: 'POST', body: { email: email.trim() } });
       setCodeSentTo(email.trim());
       setCooldown(60);
     } catch (err) {
@@ -59,6 +68,24 @@ export default function LoginScreen() {
     }
   }
   const emailReady = !isRegister || !needEmail || (email.trim() && emailCode.trim().length === 6);
+
+  async function resetPassword() {
+    setBusy(true);
+    try {
+      const res = await api<{ user: Parameters<typeof signIn>[0]['user']; token: string }>('/api/auth/password-reset', {
+        method: 'POST',
+        body: { email: email.trim(), code: emailCode.trim(), password },
+      });
+      await signIn(res);
+      notify(tr('密碼已更新', 'Password updated'), tr(`已經幫你登入 @${res.user.username}，其他裝置上的登入都已登出`, `You're signed in as @${res.user.username}. You've been signed out everywhere else`));
+      setFinished(true);
+      leave();
+    } catch (err) {
+      notify((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit() {
     if (isRegister && !acceptTerms) return notify(tr('請先同意使用條款', 'Please agree to the Terms of Use first'));
@@ -83,6 +110,88 @@ export default function LoginScreen() {
   if (user && !busy && !finished) return <Redirect href="/" />;
 
   const inputStyle = [styles.input, { color: c.text, backgroundColor: c.surface, borderColor: c.border }];
+
+  // Email ＋「寄驗證碼」＋驗證碼欄位（註冊與重設密碼共用）
+  const emailFields = (
+    <>
+      <View style={styles.row}>
+        <TextInput
+          style={[inputStyle, { flex: 1, minWidth: 0 }]}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Email"
+          placeholderTextColor={c.muted}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="emailAddress"
+          autoComplete="email"
+        />
+        <Button
+          title={cooldown > 0 ? `${cooldown}s` : codeSentTo ? tr('重新寄送', 'Resend') : tr('寄驗證碼', 'Send code')}
+          onPress={sendCode}
+          loading={sending}
+          disabled={!email.trim() || cooldown > 0}
+          style={{ alignSelf: 'stretch', minWidth: 104 }}
+        />
+      </View>
+      {codeSentTo ? (
+        <>
+          <TextInput
+            style={[inputStyle, emailCode ? styles.code : null]}
+            value={emailCode}
+            onChangeText={(t) => setEmailCode(t.replace(/\D/g, '').slice(0, 6))}
+            placeholder={tr('6 位數驗證碼', '6-digit code')}
+            placeholderTextColor={c.muted}
+            keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="one-time-code"
+            maxLength={6}
+          />
+          <Text style={{ color: c.muted, fontSize: 12 }}>{tr(`驗證碼已寄到 ${codeSentTo}，沒收到的話看看垃圾郵件`, `We sent a code to ${codeSentTo}. Check spam if you don't see it`)}</Text>
+        </>
+      ) : null}
+    </>
+  );
+
+  if (isReset) {
+    return (
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+          <View style={styles.logo}><Logo size={38} /></View>
+          <Text style={{ color: c.text, fontSize: 20, fontWeight: '800', fontFamily: fonts.mono, textAlign: 'center', marginTop: 8 }}>{tr('重設密碼', 'Reset password')}</Text>
+          <Text style={{ color: c.muted, textAlign: 'center', marginBottom: 8, lineHeight: 20 }}>{tr('輸入註冊時驗證的 Email，我們會寄一組驗證碼給你。', "Enter the email you verified when you signed up and we'll send you a code.")}</Text>
+          {emailFields}
+          {codeSentTo ? (
+            <TextInput
+              style={inputStyle}
+              value={password}
+              onChangeText={setPassword}
+              placeholder={tr('新密碼（至少 8 個字元）', 'New password (at least 8 characters)')}
+              placeholderTextColor={c.muted}
+              secureTextEntry
+              textContentType="newPassword"
+              autoComplete="new-password"
+            />
+          ) : null}
+          <Button
+            title={tr('設定新密碼', 'Set new password')}
+            variant="primary"
+            onPress={resetPassword}
+            loading={busy}
+            disabled={!email.trim() || emailCode.length !== 6 || password.length < 8}
+            style={{ marginTop: 8, minHeight: 50 }}
+          />
+          <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{tr('用 GitHub、Google、Apple 登入的帳號沒有密碼，請直接用原本的方式登入。', 'Accounts created with GitHub, Google or Apple have no password. Just sign in the same way.')}</Text>
+          <View style={styles.switch}>
+            <Pressable onPress={() => switchMode('login')}>
+              <Text style={{ color: c.accent, fontWeight: '800' }}>{tr('‹ 回到登入', '‹ Back to sign in')}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -117,47 +226,7 @@ export default function LoginScreen() {
           autoComplete={isRegister ? 'new-password' : 'current-password'}
         />
 
-        {isRegister && needEmail ? (
-          <>
-            <View style={styles.row}>
-              <TextInput
-                style={[inputStyle, { flex: 1, minWidth: 0 }]}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                placeholderTextColor={c.muted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="emailAddress"
-                autoComplete="email"
-              />
-              <Button
-                title={cooldown > 0 ? `${cooldown}s` : codeSentTo ? tr('重新寄送', 'Resend') : tr('寄驗證碼', 'Send code')}
-                onPress={sendCode}
-                loading={sending}
-                disabled={!email.trim() || cooldown > 0}
-                style={{ alignSelf: 'stretch', minWidth: 104 }}
-              />
-            </View>
-            {codeSentTo ? (
-              <>
-                <TextInput
-                  style={[inputStyle, emailCode ? styles.code : null]}
-                  value={emailCode}
-                  onChangeText={(t) => setEmailCode(t.replace(/\D/g, '').slice(0, 6))}
-                  placeholder={tr('6 位數驗證碼', '6-digit code')}
-                  placeholderTextColor={c.muted}
-                  keyboardType="number-pad"
-                  textContentType="oneTimeCode"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                />
-                <Text style={{ color: c.muted, fontSize: 12 }}>{tr(`驗證碼已寄到 ${codeSentTo}，沒收到的話看看垃圾郵件`, `We sent a code to ${codeSentTo}. Check spam if you don't see it`)}</Text>
-              </>
-            ) : null}
-          </>
-        ) : null}
+        {isRegister && needEmail ? emailFields : null}
 
         {isRegister ? (
           <Pressable style={styles.terms} onPress={() => setAcceptTerms(!acceptTerms)} accessibilityRole="checkbox" accessibilityState={{ checked: acceptTerms }}>
@@ -172,9 +241,15 @@ export default function LoginScreen() {
 
         <Button title={isRegister ? tr('註冊', 'Sign up') : tr('登入', 'Sign in')} variant="primary" onPress={submit} loading={busy} disabled={!username || !password || !emailReady} style={{ marginTop: 8, minHeight: 50 }} />
 
+        {!isRegister && needEmail ? (
+          <Pressable onPress={() => switchMode('reset')} style={{ alignSelf: 'center' }} hitSlop={8}>
+            <Text style={{ color: c.muted, fontWeight: '700' }}>{tr('忘記密碼？', 'Forgot password?')}</Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.switch}>
           <Text style={{ color: c.muted }}>{isRegister ? tr('已經有帳號了？', 'Already have an account?') : tr('還沒有帳號？', "Don't have an account?")}</Text>
-          <Pressable onPress={() => setMode(isRegister ? 'login' : 'register')}>
+          <Pressable onPress={() => switchMode(isRegister ? 'login' : 'register')}>
             <Text style={{ color: c.accent, fontWeight: '800' }}>{isRegister ? tr('登入', 'Sign in') : tr('註冊', 'Sign up')}</Text>
           </Pressable>
         </View>

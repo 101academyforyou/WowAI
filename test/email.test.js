@@ -119,3 +119,42 @@ test('寄信失敗回 502，沒有設定寄信時不需要驗證', async () => {
     server.close();
   }
 });
+
+test('忘記密碼：用註冊時驗證的 Email 收驗證碼、設定新密碼後自動登入、其他裝置登出、舊密碼失效', async () => {
+  const { base, post, sent, close } = await start();
+  try {
+    await post('/api/auth/email-code', { email: 'reset@example.com' }, WEB);
+    let res = await post('/api/auth/register', signup({ username: 'resetme', email: 'reset@example.com', emailCode: lastCode(sent) }), WEB);
+    const oldToken = (await res.json()).token;
+
+    assert.equal((await post('/api/auth/password-reset/code', { email: 'nobody@example.com' })).status, 404);
+    // 剛註冊完那組驗證碼已經用掉，不能拿來重設
+    res = await post('/api/auth/password-reset', { email: 'reset@example.com', code: lastCode(sent), password: 'newpassword1' });
+    assert.equal(res.status, 400);
+
+    res = await post('/api/auth/password-reset/code', { email: 'Reset@Example.com' }, { 'Accept-Language': 'en' });
+    assert.equal(res.status, 200);
+    assert.match(sent.at(-1).subject, /^Reset your YourWowAI password: \d{6}$/);
+    const code = lastCode(sent);
+
+    assert.equal((await post('/api/auth/password-reset', { email: 'reset@example.com', code, password: 'short' })).status, 400);
+    const wrong = code === '000000' ? '111111' : '000000';
+    assert.equal((await post('/api/auth/password-reset', { email: 'reset@example.com', code: wrong, password: 'newpassword1' })).status, 400);
+
+    res = await post('/api/auth/password-reset', { email: 'reset@example.com', code, password: 'newpassword1' });
+    assert.equal(res.status, 200);
+    const { user, token } = await res.json();
+    assert.equal(user.username, 'resetme');
+    assert.ok(token);
+
+    // 舊的登入失效、舊密碼不能用、新密碼可以
+    assert.equal((await (await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${oldToken}` } })).json()).user, null);
+    assert.equal((await (await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${token}` } })).json()).user.username, 'resetme');
+    assert.equal((await post('/api/auth/login', { username: 'resetme', password: 'password123' })).status, 401);
+    assert.equal((await post('/api/auth/login', { username: 'resetme', password: 'newpassword1' })).status, 200);
+    // 驗證碼只能用一次
+    assert.equal((await post('/api/auth/password-reset', { email: 'reset@example.com', code, password: 'another123' })).status, 400);
+  } finally {
+    close();
+  }
+});

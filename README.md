@@ -128,7 +128,7 @@ curl -fsSL https://raw.githubusercontent.com/101academyforyou/WowAI/main/deploy/
    存檔後 `sudo systemctl restart yourwowai`
 
 ### 註冊驗證 Email（選用）
-填了 `RESEND_API_KEY` 後，用帳號密碼註冊要先收 Email 驗證碼（6 位數、10 分鐘有效、同一個 Email 只能註冊一個帳號）。沒填就不需要驗證。
+填了 `RESEND_API_KEY` 後，用帳號密碼註冊要先收 Email 驗證碼（6 位數、10 分鐘有效、同一個 Email 只能註冊一個帳號），登入畫面也會出現「忘記密碼？」，用註冊時驗證的 Email 收驗證碼重設密碼（重設後其他裝置會被登出）。沒填就不需要驗證，也沒有忘記密碼。
 
 1. 到 [resend.com](https://resend.com) 註冊 → **Domains → Add Domain** 輸入 `onepointzeroone.org`，照畫面把 DNS 記錄加到網域後台，等狀態變成 Verified
 2. **API Keys → Create API Key**（權限選 Sending access）

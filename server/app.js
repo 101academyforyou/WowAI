@@ -350,10 +350,8 @@ export function createApp({
     return email;
   }
 
-  app.post('/api/auth/email-code', async (req, res) => {
-    if (!mailer) throw new HttpError(404, '找不到這個頁面');
-    const email = cleanEmail(req.body?.email);
-    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, '這個 Email 已經註冊過了');
+  // 寄 6 位數驗證碼到 email（註冊與重設密碼共用）；60 秒內不能重寄，同一個 IP 每小時最多 10 封
+  async function sendEmailCode(req, email, purpose) {
     const now = Date.now();
     const last = db.prepare('SELECT sent_at FROM email_codes WHERE email = ?').get(email);
     if (last && now - last.sent_at < RESEND_AFTER) {
@@ -365,7 +363,7 @@ export function createApp({
 
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
     try {
-      await mailer({ to: email, ...verificationEmail(code, requestLang(req)) });
+      await mailer({ to: email, ...verificationEmail(code, requestLang(req), purpose) });
     } catch (err) {
       console.error('寄送驗證信失敗', err);
       throw new HttpError(502, '驗證信寄送失敗，請稍後再試');
@@ -373,7 +371,54 @@ export function createApp({
     db.prepare(`INSERT INTO email_codes (email, code_hash, expires_at, sent_at) VALUES (?, ?, ?, ?)
       ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, sent_at = excluded.sent_at, attempts = 0`)
       .run(email, codeHash(email, code), now + CODE_TTL, now);
+  }
+
+  // 檢查驗證碼：10 分鐘內有效、最多錯 5 次；對了就刪掉，不能再用第二次
+  function checkEmailCode(email, value) {
+    const row = db.prepare('SELECT * FROM email_codes WHERE email = ?').get(email);
+    if (!row) throw new HttpError(400, '請先取得 Email 驗證碼');
+    if (Date.now() > row.expires_at) throw new HttpError(400, '驗證碼已過期，請重新寄送');
+    if (row.attempts >= 5) throw new HttpError(400, '驗證碼錯誤太多次，請重新寄送');
+    const code = String(value ?? '').replace(/\s/g, '');
+    if (!crypto.timingSafeEqual(Buffer.from(codeHash(email, code)), Buffer.from(row.code_hash))) {
+      db.prepare('UPDATE email_codes SET attempts = attempts + 1 WHERE email = ?').run(email);
+      throw new HttpError(400, '驗證碼錯誤');
+    }
+  }
+
+  app.post('/api/auth/email-code', async (req, res) => {
+    if (!mailer) throw new HttpError(404, '找不到這個頁面');
+    const email = cleanEmail(req.body?.email);
+    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, '這個 Email 已經註冊過了');
+    await sendEmailCode(req, email, 'signup');
     res.json({ ok: true });
+  });
+
+  // ---- 忘記密碼：寄驗證碼到註冊時驗證過的 Email，再設定新密碼 ----
+  app.post('/api/auth/password-reset/code', async (req, res) => {
+    if (!mailer) throw new HttpError(404, '找不到這個頁面');
+    const email = cleanEmail(req.body?.email);
+    if (!db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(404, '這個 Email 沒有註冊過');
+    await sendEmailCode(req, email, 'reset');
+    res.json({ ok: true });
+  });
+
+  app.post('/api/auth/password-reset', (req, res) => {
+    if (!mailer) throw new HttpError(404, '找不到這個頁面');
+    const email = cleanEmail(req.body?.email);
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (!user) throw new HttpError(404, '這個 Email 沒有註冊過');
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (password.length < 8) throw new HttpError(400, '密碼至少 8 個字元');
+    checkEmailCode(email, req.body?.code);
+    transaction(db, () => {
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), user.id);
+      db.prepare('DELETE FROM email_codes WHERE email = ?').run(email);
+      // 其他裝置上的登入一律登出（可能是被盜用才來重設）
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+    });
+    const token = startSession(res, user.id);
+    res.json({ user: publicUser(q.userById.get(user.id)), token });
   });
 
   // 註冊時檢查驗證碼，成功就回傳 Email；不需要驗證時回傳 null
@@ -387,15 +432,7 @@ export function createApp({
     }
     const email = cleanEmail(body.email);
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, '這個 Email 已經註冊過了');
-    const row = db.prepare('SELECT * FROM email_codes WHERE email = ?').get(email);
-    if (!row) throw new HttpError(400, '請先取得 Email 驗證碼');
-    if (Date.now() > row.expires_at) throw new HttpError(400, '驗證碼已過期，請重新寄送');
-    if (row.attempts >= 5) throw new HttpError(400, '驗證碼錯誤太多次，請重新寄送');
-    const code = String(body.emailCode ?? '').replace(/\s/g, '');
-    if (!crypto.timingSafeEqual(Buffer.from(codeHash(email, code)), Buffer.from(row.code_hash))) {
-      db.prepare('UPDATE email_codes SET attempts = attempts + 1 WHERE email = ?').run(email);
-      throw new HttpError(400, '驗證碼錯誤');
-    }
+    checkEmailCode(email, body.emailCode);
     return email;
   }
 
