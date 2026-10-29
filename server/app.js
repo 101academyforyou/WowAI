@@ -92,17 +92,18 @@ function cleanText(value, { max, field, required = false }) {
   return text;
 }
 
-function cleanToolUrl(value) {
-  const text = cleanText(value, { max: 500, field: '工具連結' });
+// field：工具連結（Try it）或教學連結（Learn it）
+function cleanToolUrl(value, field = '工具連結') {
+  const text = cleanText(value, { max: 500, field });
   if (!text) return '';
   let url;
   try {
     url = new URL(text);
   } catch {
-    throw new HttpError(400, '工具連結格式不正確');
+    throw new HttpError(400, `${field}格式不正確`);
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new HttpError(400, '工具連結必須是 http 或 https');
+    throw new HttpError(400, `${field}必須是 http 或 https`);
   }
   return url.toString();
 }
@@ -278,6 +279,7 @@ export function createApp({
       title: post.title,
       description: post.description,
       toolUrl: post.tool_url,
+      learnUrl: post.learn_url ?? '',
       githubUrl: post.github_url,
       githubStars: post.github_url ? starCache.stars(post.github_url) : null,
       youtube: post.youtube_url ? { url: post.youtube_url, id: parseYouTube(post.youtube_url).id } : null,
@@ -653,6 +655,7 @@ export function createApp({
     const title = cleanText(body.title, { max: 80, field: '工具名稱', required: true });
     const description = cleanText(body.description, { max: 2000, field: '介紹' });
     const toolUrl = cleanToolUrl(body.toolUrl);
+    const learnUrl = cleanToolUrl(body.learnUrl, '教學連結');
     const githubUrl = cleanGitHubUrl(body.githubUrl);
     const aiTools = parseAiTools(body.aiTools);
     const categories = parseCategories(body.categories);
@@ -661,8 +664,8 @@ export function createApp({
 
     const postId = transaction(db, () => {
       const { lastInsertRowid } = db
-        .prepare('INSERT INTO posts (user_id, title, description, tool_url, github_url, youtube_url, category_other) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(user.id, title, description, toolUrl, githubUrl, youtubeUrl, categoryOther);
+        .prepare('INSERT INTO posts (user_id, title, description, tool_url, learn_url, github_url, youtube_url, category_other) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(user.id, title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther);
       saveMedia(lastInsertRowid, media);
       const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
       aiTools.forEach((name) => insertTool.run(lastInsertRowid, name));
@@ -748,6 +751,8 @@ export function createApp({
       const title = cleanText(req.body.title, { max: 80, field: '工具名稱', required: true });
       const description = cleanText(req.body.description, { max: 2000, field: '介紹' });
       const toolUrl = cleanToolUrl(req.body.toolUrl);
+      // 舊版 App 不會送 learnUrl：沒送就保留原本的
+      const learnUrl = req.body.learnUrl === undefined ? post.learn_url : cleanToolUrl(req.body.learnUrl, '教學連結');
       const githubUrl = cleanGitHubUrl(req.body.githubUrl);
       const aiTools = parseAiTools(req.body.aiTools);
       const categories = parseCategories(req.body.categories);
@@ -756,8 +761,8 @@ export function createApp({
       const keptNames = new Set(plan.filter((m) => m.kept).map((m) => m.kept.filename));
       const removed = [...existing.values()].filter((m) => !keptNames.has(m.filename));
       transaction(db, () => {
-        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
-          .run(title, description, toolUrl, githubUrl, youtubeUrl, categoryOther, post.id);
+        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, learn_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
+          .run(title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther, post.id);
         db.prepare('DELETE FROM post_media WHERE post_id = ?').run(post.id);
         const insertMedia = db.prepare('INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)');
         plan.forEach((m, i) => {
@@ -991,6 +996,7 @@ export function createApp({
           images: `up to ${MAX_MEDIA_PER_POST} screenshots as base64 strings or data URLs (JPG, PNG, GIF, WebP, 20 MB each), or [{ "data": "...", "name": "shot.png" }]`,
           description: 'optional, max 2000 chars',
           toolUrl: 'optional, http(s) link where people can try it',
+          learnUrl: 'optional, http(s) link to a tutorial or write-up on how it was built (blog, YouTube, Notion…)',
           githubUrl: 'optional, owner/repo or a github.com repo URL',
           aiTools: 'optional, AI tools used, array or comma-separated string, max 10 (e.g. ["Claude Code", "Cursor"])',
           categories: `optional, up to ${MAX_CATEGORIES} of: ${CATEGORIES.join(', ')}`,
@@ -1051,6 +1057,7 @@ export function createApp({
       const title = has('title') ? cleanText(body.title, { max: 80, field: '工具名稱', required: true }) : post.title;
       const description = has('description') ? cleanText(body.description, { max: 2000, field: '介紹' }) : post.description;
       const toolUrl = has('toolUrl') ? cleanToolUrl(body.toolUrl) : post.tool_url;
+      const learnUrl = has('learnUrl') ? cleanToolUrl(body.learnUrl, '教學連結') : post.learn_url;
       const githubUrl = has('githubUrl') ? cleanGitHubUrl(body.githubUrl) : post.github_url;
       const aiTools = has('aiTools') ? parseAiTools(body.aiTools) : null;
       const categories = has('categories') ? parseCategories(body.categories) : q.categoriesForPost.all(post.id).map((r) => r.slug);
@@ -1059,8 +1066,8 @@ export function createApp({
       const media = replaceMedia ? files.map(checkImage) : null;
 
       transaction(db, () => {
-        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
-          .run(title, description, toolUrl, githubUrl, youtubeUrl, categoryOther, post.id);
+        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, learn_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
+          .run(title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther, post.id);
         if (media) {
           db.prepare('DELETE FROM post_media WHERE post_id = ?').run(post.id);
           saveMedia(post.id, media);

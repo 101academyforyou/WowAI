@@ -51,6 +51,8 @@ export type Post = {
   title: string;
   description: string;
   toolUrl: string;
+  // 教學連結（Learn it）；舊版伺服器沒有這個欄位
+  learnUrl?: string;
   githubUrl: string;
   // GitHub 上的星星數（伺服器每幾小時更新一次）；還沒查到或找不到是 null
   githubStars?: number | null;
@@ -187,7 +189,7 @@ export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mim
   return data.user;
 }
 
-export type PostFields = { title: string; description: string; toolUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string; categories: string; categoryOther: string };
+export type PostFields = { title: string; description: string; toolUrl: string; learnUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string; categories: string; categoryOther: string };
 // 表單裡的截圖：existingUrl 有值代表是貼文原本就有的圖（編輯時）
 export type EditorMedia = PickedMedia & { existingUrl?: string };
 
