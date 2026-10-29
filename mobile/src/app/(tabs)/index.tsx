@@ -82,13 +82,17 @@ export default function HomeScreen() {
   }, [load]));
 
   // 點 Logo 或再點一次首頁按鈕：捲回最上面並重新整理（推薦會換一個順序）
-  useEffect(() => onHomeTop(() => {
+  const refreshTop = useCallback(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
     load(true);
-  }), [load]);
+  }, [load]);
+  useEffect(() => onHomeTop(refreshTop), [refreshTop]);
 
+  // 再點一次目前的分頁／分類／期間：條件沒變，不會自動重新載入，所以直接回到最上面並重新整理
+  // （若先清空列表再設定同樣的值，會一直轉圈圈）
   function selectFeed(f: Feed) {
     if (f === 'following' && !user) return router.push('/login');
+    if (f === feed) return refreshTop();
     setPosts(null);
     setFeed(f);
   }
@@ -106,6 +110,7 @@ export default function HomeScreen() {
         <CategoryFilter
           value={category}
           onChange={(slug) => {
+            if (slug === category) return refreshTop();
             setPosts(null);
             setCategory(slug);
           }}
@@ -125,7 +130,11 @@ export default function HomeScreen() {
               {PERIODS.map((p) => (
                 <Pressable
                   key={p.value}
-                  onPress={() => { setPosts(null); setPeriod(p.value); }}
+                  onPress={() => {
+                    if (p.value === period) return refreshTop();
+                    setPosts(null);
+                    setPeriod(p.value);
+                  }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: period === p.value }}
                   style={[styles.period, { borderColor: period === p.value ? c.accent : c.border, backgroundColor: period === p.value ? `${c.accent}22` : c.surface }]}
