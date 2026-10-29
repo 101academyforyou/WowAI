@@ -229,6 +229,10 @@ export function openDatabase(file) {
     // 註冊時驗證過的 Email（不公開）；舊帳號與第三方登入的帳號是 NULL
     db.exec('ALTER TABLE users ADD COLUMN email TEXT');
   }
+  if (!userColumns.includes('banned_at')) {
+    // 管理員停權的時間：停權後不能登入，貼文與留言對其他人隱藏
+    db.exec('ALTER TABLE users ADD COLUMN banned_at TEXT');
+  }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL');
   // 註冊驗證碼：只存雜湊，10 分鐘有效，最多試 5 次
   db.exec(`

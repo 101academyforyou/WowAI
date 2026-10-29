@@ -218,16 +218,19 @@ export function createApp({
     myRepost: db.prepare('SELECT 1 FROM reposts WHERE user_id = ? AND post_id = ?'),
     myVote: db.prepare('SELECT value FROM votes WHERE user_id = ? AND post_id = ?'),
     userById: db.prepare('SELECT id, username, display_name, avatar FROM users WHERE id = ?'),
+    isBanned: db.prepare('SELECT 1 FROM users WHERE id = ? AND banned_at IS NOT NULL'),
     blocked: db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?'),
   };
 
   const isAdmin = (user) => Boolean(user && admins.has(user.username.toLowerCase()));
 
   // 貼文對某位使用者是否可見：被隱藏、作者被封鎖、或自己檢舉過的貼文都不顯示
+  // 被停權的作者，貼文對所有人隱藏
+  const NOT_BANNED = (alias) => ` AND ${alias}.user_id NOT IN (SELECT id FROM users WHERE banned_at IS NOT NULL)`;
   function visibleSql(viewer, alias = 'p') {
-    if (!viewer) return { sql: ` AND ${alias}.hidden = 0`, params: [] };
+    if (!viewer) return { sql: ` AND ${alias}.hidden = 0${NOT_BANNED(alias)}`, params: [] };
     return {
-      sql: ` AND (${alias}.user_id = ? OR (${alias}.hidden = 0
+      sql: `${NOT_BANNED(alias)} AND (${alias}.user_id = ? OR (${alias}.hidden = 0
         AND ${alias}.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
         AND ${alias}.id NOT IN (SELECT post_id FROM reports WHERE reporter_id = ?)))`,
       params: [viewer.id, viewer.id, viewer.id],
@@ -235,7 +238,9 @@ export function createApp({
   }
 
   function canSee(post, viewer) {
-    if (viewer && (viewer.id === post.user_id || isAdmin(viewer))) return true;
+    if (isAdmin(viewer)) return true;
+    if (q.isBanned.get(post.user_id)) return false;
+    if (viewer && viewer.id === post.user_id) return true;
     if (post.hidden) return false;
     if (!viewer) return true;
     if (q.blocked.get(viewer.id, post.user_id)) return false;
@@ -325,6 +330,7 @@ export function createApp({
   }
 
   function startSession(res, userId) {
+    if (q.isBanned.get(userId)) throw new HttpError(403, '這個帳號已被停權');
     const token = crypto.randomBytes(32).toString('hex');
     db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
     res.cookie('sid', token, {
@@ -751,6 +757,7 @@ export function createApp({
   // 建立貼文（App 分享與 AI Webhook 共用）。files 是已存在 uploadDir 的暫存檔 [{ path, originalname }]，
   // 成功時會改名成正式檔；失敗時由呼叫的人清掉暫存檔
   function createPostFor(user, body, files) {
+    if (user.banned_at) throw new HttpError(403, '這個帳號已被停權');
     // YourWowAI 的核心規則：分享一定要附上截圖或 YouTube 示範影片
     const youtubeUrl = cleanYouTubeUrl(body.youtubeUrl);
     if (files.length === 0 && !youtubeUrl) throw new HttpError(400, '分享時一定要附上至少一張截圖或一個 YouTube 影片連結');
@@ -1021,7 +1028,7 @@ export function createApp({
          (SELECT COUNT(*) FROM comment_cools cc WHERE cc.comment_id = c.id) AS cools,
          EXISTS (SELECT 1 FROM comment_cools cc WHERE cc.comment_id = c.id AND cc.user_id = ?) AS mine
        FROM comments c JOIN users u ON u.id = c.user_id
-       WHERE c.post_id = ? AND c.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
+       WHERE c.post_id = ? AND c.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?) AND u.banned_at IS NULL
        ORDER BY c.id`,
     ).all(viewerId, post.id, viewerId);
     res.json({
@@ -1296,6 +1303,7 @@ export function createApp({
 
   app.get('/api/users/:username', (req, res) => {
     const user = getUserOr404(req.params.username);
+    if (user.banned_at && !isAdmin(req.user)) throw new HttpError(404, '找不到這位使用者');
     const count = (sql) => db.prepare(sql).get(user.id).n;
     const blockedByMe = req.user ? Boolean(q.blocked.get(req.user.id, user.id)) : false;
     const visible = visibleSql(req.user);
@@ -1396,33 +1404,68 @@ export function createApp({
     res.json({ blockedByMe: false });
   });
 
-  // 管理員：查看被檢舉的貼文（App Store 要求開發者處理檢舉）
-  app.get('/api/admin/reports', requireAuth, (req, res) => {
-    if (!isAdmin(req.user)) throw new HttpError(403, '需要管理員權限');
+  // ---- 管理員：處理檢舉、隱藏／恢復貼文、停權（App Store 要求開發者處理檢舉） ----
+  function requireAdmin(req, _res, next) {
+    if (!req.user) return next(new HttpError(401, '請先登入'));
+    if (!isAdmin(req.user)) return next(new HttpError(403, '需要管理員權限'));
+    next();
+  }
+
+  // 被檢舉的貼文：每個原因各幾次、最近一次檢舉時間、作者是否已停權
+  app.get('/api/admin/reports', requireAdmin, (req, res) => {
     const rows = db.prepare(
-      `SELECT p.*, COUNT(r.reporter_id) AS report_count, GROUP_CONCAT(DISTINCT r.reason) AS reasons
+      `SELECT p.*, COUNT(r.reporter_id) AS report_count, MAX(r.created_at) AS last_reported_at
        FROM reports r JOIN posts p ON p.id = r.post_id
-       GROUP BY p.id ORDER BY report_count DESC, p.id DESC LIMIT 100`,
+       GROUP BY p.id ORDER BY p.hidden DESC, last_reported_at DESC LIMIT 200`,
     ).all();
+    const reasons = db.prepare('SELECT reason, COUNT(*) AS n FROM reports WHERE post_id = ? GROUP BY reason ORDER BY n DESC');
     res.json({
       reports: rows.map((r) => ({
         post: serializePost(r, req.user),
         reportCount: r.report_count,
-        reasons: r.reasons.split(','),
+        lastReportedAt: r.last_reported_at,
+        reasons: reasons.all(r.id).map((x) => ({ reason: x.reason, count: x.n })),
         hidden: Boolean(r.hidden),
+        authorBanned: Boolean(q.isBanned.get(r.user_id)),
       })),
+      banned: db.prepare('SELECT * FROM users WHERE banned_at IS NOT NULL ORDER BY banned_at DESC').all()
+        .map((u) => ({ ...publicUser(u), bannedAt: u.banned_at })),
     });
   });
 
-  // 管理員：檢舉不成立時恢復貼文
-  app.post('/api/admin/posts/:id/restore', requireAuth, (req, res) => {
-    if (!isAdmin(req.user)) throw new HttpError(403, '需要管理員權限');
+  // 檢舉不成立：清掉檢舉並恢復貼文
+  app.post('/api/admin/posts/:id/restore', requireAdmin, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
     transaction(db, () => {
       db.prepare('DELETE FROM reports WHERE post_id = ?').run(post.id);
       db.prepare('UPDATE posts SET hidden = 0 WHERE id = ?').run(post.id);
     });
     res.json({ ok: true });
+  });
+
+  // 檢舉還沒到自動隱藏的門檻，但管理員判斷要先下架
+  app.post('/api/admin/posts/:id/hide', requireAdmin, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    db.prepare('UPDATE posts SET hidden = 1 WHERE id = ?').run(post.id);
+    res.json({ ok: true });
+  });
+
+  // 停權：不能登入、所有裝置登出，貼文與留言對其他人隱藏；可以解除
+  app.post('/api/admin/users/:username/ban', requireAdmin, (req, res) => {
+    const user = getUserOr404(req.params.username);
+    if (user.id === req.user.id || isAdmin(user)) throw new HttpError(400, '不能停權管理員');
+    transaction(db, () => {
+      db.prepare("UPDATE users SET banned_at = datetime('now') WHERE id = ?").run(user.id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM push_tokens WHERE user_id = ?').run(user.id);
+    });
+    res.json({ banned: true });
+  });
+
+  app.delete('/api/admin/users/:username/ban', requireAdmin, (req, res) => {
+    const user = getUserOr404(req.params.username);
+    db.prepare('UPDATE users SET banned_at = NULL WHERE id = ?').run(user.id);
+    res.json({ banned: false });
   });
 
   // ---- 通知 ----
@@ -1519,8 +1562,75 @@ export function createApp({
     },
   }));
   app.use('/uploads', (_req, _res, next) => next(new HttpError(404, '找不到檔案')));
-  if (webAppDir) app.use(express.static(webAppDir));
+  // index: false：首頁也走下面的 renderIndex，才能加上分享預覽
+  if (webAppDir) app.use(express.static(webAppDir, { index: false }));
   if (publicDir) app.use(express.static(publicDir));
+
+  // ---- 分享預覽：LINE、FB、Threads、Discord、X 抓網址時看到的標題、說明和圖片 ----
+  const escapeAttr = (text) => String(text).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  const clip = (text, max) => { const t = String(text ?? '').replace(/\s+/g, ' ').trim(); return t.length > max ? `${t.slice(0, max - 1)}…` : t; };
+  const SITE_DESCRIPTION = 'Share the tools you build with AI. Every post shows the real thing: a screenshot or a YouTube demo. 分享你用 AI 做的工具。';
+
+  // 依網址找出這一頁的預覽內容；找不到或看不到（被隱藏、停權）就用網站預設
+  function pageMeta(req) {
+    const base = publicBase(req);
+    const absolute = (url) => (url && url.startsWith('/') ? `${base}${url}` : url);
+    const meta = { title: 'YourWowAI', description: SITE_DESCRIPTION, image: `${base}/og-image.png`, url: `${base}${req.path}`, type: 'website', large: true };
+    const postMatch = req.path.match(/^\/post\/(\d+)\/?$/);
+    if (postMatch) {
+      const post = q.postById.get(Number(postMatch[1]));
+      if (post && canSee(post, null)) {
+        const p = serializePost(post, null);
+        const image = p.media.find((m) => m.kind === 'image');
+        const by = `@${p.author.username}`;
+        const tools = p.aiTools.length ? ` · built with ${p.aiTools.join(', ')}` : '';
+        return {
+          ...meta,
+          title: `${clip(p.title, 80)} · YourWowAI`,
+          description: clip(p.description ? `${p.description} — ${by}` : `${by}${tools}`, 200),
+          image: image ? absolute(image.url) : p.youtube ? `https://i.ytimg.com/vi/${p.youtube.id}/hqdefault.jpg` : meta.image,
+          type: 'article',
+        };
+      }
+    }
+    const userMatch = req.path.match(/^\/user\/([^/]+)\/?$/);
+    if (userMatch) {
+      const user = q.userByName.get(decodeURIComponent(userMatch[1]));
+      if (user && !user.banned_at) {
+        const u = publicUser(user);
+        const { n } = db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND hidden = 0').get(user.id);
+        return {
+          ...meta,
+          title: `${clip(u.displayName, 50)} (@${u.username}) · YourWowAI`,
+          description: clip(user.bio || `${n} AI project${n === 1 ? '' : 's'} on YourWowAI`, 200),
+          image: absolute(u.avatarUrl) || meta.image,
+          type: 'profile',
+          large: !u.avatarUrl,
+        };
+      }
+    }
+    return meta;
+  }
+
+  function renderIndex(req, html) {
+    const m = pageMeta(req);
+    const tags = [
+      ['property', 'og:site_name', 'YourWowAI'],
+      ['property', 'og:type', m.type],
+      ['property', 'og:title', m.title],
+      ['property', 'og:description', m.description],
+      ['property', 'og:image', m.image],
+      ['property', 'og:url', m.url],
+      ['name', 'twitter:card', m.large ? 'summary_large_image' : 'summary'],
+      ['name', 'twitter:title', m.title],
+      ['name', 'twitter:description', m.description],
+      ['name', 'twitter:image', m.image],
+    ].map(([attr, key, value]) => `<meta ${attr}="${key}" content="${escapeAttr(value)}">`).join('\n');
+    return html
+      .replace(/<title>[^<]*<\/title>/, `<title>${escapeAttr(m.title)}</title>`)
+      .replace(/<meta name="description"[^>]*>/, `<meta name="description" content="${escapeAttr(m.description)}">`)
+      .replace('</head>', `${tags}\n</head>`);
+  }
 
   // 網頁版是單頁應用：/post/3、/user/amy 這類網址都回傳 App 的 index.html，交給前端路由
   if (webAppDir) {
@@ -1531,7 +1641,7 @@ export function createApp({
         && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/')
         && !STATIC_FILE.test(req.path);
       if (!isPage) return next();
-      if (fs.existsSync(indexHtml)) return res.sendFile(indexHtml);
+      if (fs.existsSync(indexHtml)) return res.type('html').send(renderIndex(req, fs.readFileSync(indexHtml, 'utf8')));
       res.status(503).type('html').send(
         '<meta charset="utf-8"><p style="font-family:sans-serif">網頁版還沒有建置，請先執行 <code>npm run build:web</code>。</p>',
       );

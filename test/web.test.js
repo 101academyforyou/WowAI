@@ -21,7 +21,7 @@ async function start(opts) {
 before(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yourwowai-web-'));
   fs.mkdirSync(path.join(tmpDir, 'web'));
-  fs.writeFileSync(path.join(tmpDir, 'web', 'index.html'), '<html>YourWowAI web app</html>');
+  fs.writeFileSync(path.join(tmpDir, 'web', 'index.html'), '<html><head><title>YourWowAI</title><meta name="description" content="x"></head><body>YourWowAI web app</body></html>');
   fs.mkdirSync(path.join(tmpDir, 'public'));
   fs.writeFileSync(path.join(tmpDir, 'public', 'terms.html'), '<html>terms</html>');
 });
@@ -69,4 +69,36 @@ test('開發模式只允許本機與區網網址跨來源呼叫 API', async () =
   const prod = await start({ devCors: false });
   const res = await fetch(`${prod}/api/me`, { headers: { Origin: 'http://localhost:8081' } });
   assert.equal(res.headers.get('access-control-allow-origin'), null);
+});
+
+test('分享預覽：貼文與個人頁有自己的標題、說明和圖片，看不到的貼文用網站預設', async () => {
+  const base = await start({ webAppDir: path.join(tmpDir, 'web'), oauth: { publicUrl: 'https://yourwowai.example' } });
+  const json = (url, body, cookie) => fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });
+  const reg = await json('/api/auth/register', { username: 'kai.builds', displayName: 'Kai <3', password: 'password123', acceptTerms: true });
+  const cookie = reg.headers.get('set-cookie').split(';')[0];
+  await fetch(`${base}/api/me`, { method: 'PATCH', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: 'Kai <3', bio: 'I build "AI" tools' }) });
+  const { post } = await (await json('/api/posts', { title: 'AI 記帳 & 分類', description: '拍發票自動記帳', youtubeUrl: 'https://youtu.be/dQw4w9WgXcQ' }, cookie)).json();
+
+  const page = async (url) => (await fetch(base + url)).text();
+  const meta = (html, key) => html.match(new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)">`))?.[1];
+
+  const postHtml = await page(`/post/${post.id}`);
+  assert.match(postHtml, /<title>AI 記帳 &amp; 分類 · YourWowAI<\/title>/);
+  assert.equal(meta(postHtml, 'og:title'), 'AI 記帳 &amp; 分類 · YourWowAI');
+  assert.equal(meta(postHtml, 'og:description'), '拍發票自動記帳 — @kai.builds');
+  assert.equal(meta(postHtml, 'og:image'), 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+  assert.equal(meta(postHtml, 'og:url'), `https://yourwowai.example/post/${post.id}`);
+  assert.equal(meta(postHtml, 'twitter:card'), 'summary_large_image');
+  assert.equal(meta(postHtml, 'description'), '拍發票自動記帳 — @kai.builds');
+  assert.match(postHtml, /YourWowAI web app/, '還是同一個網頁 App');
+
+  const userHtml = await page('/user/kai.builds');
+  assert.equal(meta(userHtml, 'og:title'), 'Kai &lt;3 (@kai.builds) · YourWowAI');
+  assert.equal(meta(userHtml, 'og:description'), 'I build &quot;AI&quot; tools');
+
+  for (const url of ['/', '/post/99999', '/user/nobody', '/explore']) {
+    const html = await page(url);
+    assert.equal(meta(html, 'og:title'), 'YourWowAI', url);
+    assert.equal(meta(html, 'og:image'), 'https://yourwowai.example/og-image.png', url);
+  }
 });

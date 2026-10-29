@@ -74,6 +74,8 @@ const MESSAGES = {
   請輸入你的帳號確認刪除: 'Enter your username to confirm',
   找不到這則留言: 'Comment not found',
   順序格式不正確: 'Invalid order',
+  這個帳號已被停權: 'This account has been suspended',
+  不能停權管理員: "Admins can't be suspended",
   只能排列自己的作品: 'You can only arrange your own projects',
   只能排列自己分享的作品: 'You can only arrange projects you shared',
   找不到要回覆的留言: "The comment you're replying to was not found",
