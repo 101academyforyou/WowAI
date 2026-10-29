@@ -81,7 +81,7 @@ async function oauthRound(provider, { client = 'web', code = 'good', headers = {
 }
 
 test('登入方式：有設定的服務才會開啟，Apple 一律可用', async () => {
-  assert.deepEqual(await (await fetch(`${base}/api/auth/providers`)).json(), { github: true, google: true, apple: true });
+  assert.deepEqual(await (await fetch(`${base}/api/auth/providers`)).json(), { github: true, google: true, apple: true, emailVerification: false });
   assert.equal((await jsonPost('/api/auth/oauth/facebook/start', {})).status, 404);
 });
 

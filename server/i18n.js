@@ -76,6 +76,15 @@ const MESSAGES = {
   只能編輯自己的留言: 'You can only edit your own comments',
   只能刪除自己的留言或自己貼文下的留言: 'You can only delete your own comments or comments on your posts',
   伺服器發生錯誤: 'Server error',
+  '請輸入 Email': 'Please enter your email',
+  '這個 Email 已經註冊過了': 'That email is already registered. Sign in instead',
+  '請先取得 Email 驗證碼': 'Get an email verification code first',
+  '驗證碼錯誤': 'Wrong verification code',
+  '驗證碼已過期，請重新寄送': 'The code has expired. Send a new one',
+  '驗證碼錯誤太多次，請重新寄送': 'Too many wrong codes. Send a new one',
+  '驗證信寄送失敗，請稍後再試': "Couldn't send the email. Please try again later",
+  '寄送太頻繁，請稍後再試': 'Too many emails sent. Please try again later',
+  '請更新 App 到最新版本再註冊': 'Please update the app to the latest version to sign up',
 };
 
 const PATTERNS = [
@@ -86,6 +95,7 @@ const PATTERNS = [
   [/^這個 (.+) 帳號已經綁定其他 YourWowAI 帳號$/, (m) => `This ${m[1]} account is already linked to another YourWowAI account`],
   [/^(.+) 登入失敗，請再試一次$/, (m) => `${m[1]} sign-in failed. Please try again`],
   [/^最多只能釘選 (\d+) 則貼文，請先取消其他釘選$/, (m) => `You can pin up to ${m[1]} posts. Unpin one first`],
+  [/^請等 (\d+) 秒後再重新寄送$/, (m) => `Wait ${m[1]} seconds before sending another code`],
   [/^分類最多 (\d+) 個$/, (m) => `Up to ${m[1]} categories`],
   [/^請輸入 (.+) 帳號或 (.+) 的網址$/, (m) => `Enter your ${m[1]} username or a link from ${m[2]}`],
 ];

@@ -127,6 +127,20 @@ curl -fsSL https://raw.githubusercontent.com/101academyforyou/WowAI/main/deploy/
    ```
    存檔後 `sudo systemctl restart yourwowai`
 
+### 註冊驗證 Email（選用）
+填了 `RESEND_API_KEY` 後，用帳號密碼註冊要先收 Email 驗證碼（6 位數、10 分鐘有效、同一個 Email 只能註冊一個帳號）。沒填就不需要驗證。
+
+1. 到 [resend.com](https://resend.com) 註冊 → **Domains → Add Domain** 輸入 `onepointzeroone.org`，照畫面把 DNS 記錄加到網域後台，等狀態變成 Verified
+2. **API Keys → Create API Key**（權限選 Sending access）
+3. 在主機上 `sudo nano /etc/yourwowai.env`，拿掉行首的 `#` 並填入：
+   ```
+   RESEND_API_KEY=re_…
+   MAIL_FROM=YourWowAI <no-reply@onepointzeroone.org>
+   ```
+   存檔後 `sudo systemctl restart yourwowai`
+
+iPhone App 1.0 的註冊畫面沒有 Email 欄位，所以暫時只有網站與新版 App 會要求驗證。App 1.1 上架後，再加上 `REQUIRE_EMAIL_FOR_APP=1`，舊版 App 註冊時會提示更新。
+
 ### 之後
 - **更新到最新版**：再執行一次上面的安裝指令（設定與資料都會保留）
 - **查看紀錄**：`journalctl -u yourwowai -f`
