@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { fonts, useColors } from '../lib/theme';
@@ -10,9 +10,15 @@ import { siteDoc, tr } from '../lib/i18n';
 import { api } from '../lib/api';
 import { fetchProviders } from '../lib/oauth';
 
+// 登入／註冊完成後回到上一頁；網頁直接打開 /login 時沒有上一頁，就回首頁
+function leave() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/');
+}
+
 export default function LoginScreen() {
   const c = useColors();
-  const { login, register, signIn } = useAuth();
+  const { user, login, register, signIn } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -20,6 +26,8 @@ export default function LoginScreen() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const isRegister = mode === 'register';
+  // 這個畫面自己完成登入後由 leave() 離開，不要再被下面的 Redirect 帶走
+  const [finished, setFinished] = useState(false);
   // 伺服器有開啟 Email 驗證時，註冊要填 Email 並輸入寄到信箱的驗證碼
   const [needEmail, setNeedEmail] = useState(false);
   const [email, setEmail] = useState('');
@@ -56,15 +64,23 @@ export default function LoginScreen() {
     if (isRegister && !acceptTerms) return notify(tr('請先同意使用條款', 'Please agree to the Terms of Use first'));
     setBusy(true);
     try {
-      if (isRegister) await register({ username: username.trim(), password, displayName, acceptTerms, ...(needEmail ? { email: email.trim(), emailCode: emailCode.trim() } : {}) });
-      else await login(username.trim(), password);
-      router.back();
+      if (isRegister) {
+        await register({ username: username.trim(), password, displayName, acceptTerms, ...(needEmail ? { email: email.trim(), emailCode: emailCode.trim() } : {}) });
+        notify(tr('註冊成功！', 'You\'re signed up!'), tr(`歡迎加入 YourWowAI，已經幫你登入 @${username.trim()}`, `Welcome to YourWowAI. You're signed in as @${username.trim()}`));
+      } else {
+        await login(username.trim(), password);
+      }
+      setFinished(true);
+      leave();
     } catch (err) {
       notify((err as Error).message);
     } finally {
       setBusy(false);
     }
   }
+
+  // 已經登入（例如註冊完重新整理網頁）就不用再看到登入畫面
+  if (user && !busy && !finished) return <Redirect href="/" />;
 
   const inputStyle = [styles.input, { color: c.text, backgroundColor: c.surface, borderColor: c.border }];
 
@@ -74,7 +90,7 @@ export default function LoginScreen() {
         <View style={styles.logo}><Logo size={38} /></View>
         <Text style={{ color: c.muted, textAlign: 'center', marginBottom: 20, fontFamily: fonts.mono, fontSize: 13 }}>{tr('// 分享你用 AI 打造的工具', '// share the tools you build with AI')}</Text>
 
-        <SocialSignIn onSignedIn={async (res) => { await signIn(res); router.back(); }} />
+        <SocialSignIn onSignedIn={async (res) => { await signIn(res); setFinished(true); leave(); }} />
 
         <TextInput
           style={inputStyle}
