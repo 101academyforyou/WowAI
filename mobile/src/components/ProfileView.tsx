@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import { api, type Post, type Profile } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -93,6 +94,17 @@ export function ProfileView({ username }: { username: string }) {
     }
   }
 
+  // Email 直接複製（不一定有設定郵件 App）；其他聯繫方式打開連結
+  async function openContact(ct: Profile['contacts'][number]) {
+    if (ct.type !== 'email') return Linking.openURL(ct.url);
+    try {
+      await Clipboard.setStringAsync(ct.value);
+      notify(tr('已複製 Email', 'Email copied'), ct.value);
+    } catch (err) {
+      notify((err as Error).message);
+    }
+  }
+
   async function toggleBlock() {
     if (!me) return router.push('/login');
     const blocking = !user.blockedByMe;
@@ -139,8 +151,8 @@ export function ProfileView({ username }: { username: string }) {
               return (
                 <Pressable
                   key={ct.type}
-                  onPress={() => Linking.openURL(ct.url)}
-                  accessibilityRole="link"
+                  onPress={() => openContact(ct)}
+                  accessibilityRole={ct.type === 'email' ? 'button' : 'link'}
                   accessibilityLabel={`${field.label}${tr('：', ': ')}${ct.value}`}
                   style={({ pressed }) => [styles.contact, { borderColor: c.border, backgroundColor: c.surface, opacity: pressed ? 0.7 : 1 }]}
                 >
