@@ -949,6 +949,17 @@ test('個人頁排列：作品與分享各自照自己排的順序，釘選仍�
   assert.equal((await put('/api/me/reposts/order', [x, y])).status, 200);
   assert.deepEqual(titles((await profile()).reposts), ['X', 'Y']);
   assert.equal((await put('/api/me/reposts/order', [a])).status, 403);
+
+  // 分享分頁也能釘選（和作品分開算），釘選的排最前面；pinned 是自己的釘選，不是作者的
+  await fetch(`${base}/api/posts/${x}/pin`, { method: 'PUT', headers: { cookie: other } });
+  let reposts = (await profile()).reposts;
+  assert.deepEqual(reposts.map((p) => [p.title, p.pinned]), [['X', false], ['Y', false]]);
+  assert.equal((await fetch(`${base}/api/me/reposts/${y}/pin`, { method: 'PUT', headers: { cookie: me } })).status, 200);
+  reposts = (await profile()).reposts;
+  assert.deepEqual(reposts.map((p) => [p.title, p.pinned]), [['Y', true], ['X', false]]);
+  assert.equal((await fetch(`${base}/api/me/reposts/${a}/pin`, { method: 'PUT', headers: { cookie: me } })).status, 404);
+  await fetch(`${base}/api/me/reposts/${y}/pin`, { method: 'DELETE', headers: { cookie: me } });
+  assert.deepEqual(titles((await profile()).reposts), ['X', 'Y']);
 });
 
 test('到 GitHub 按星回來：立刻重新查詢星星數，同一個專案 5 秒內不重複查', async () => {
