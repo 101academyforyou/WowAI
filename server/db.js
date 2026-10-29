@@ -71,6 +71,7 @@ export function openDatabase(file) {
       tool_url    TEXT NOT NULL DEFAULT '',
       github_url  TEXT NOT NULL DEFAULT '',
       youtube_url TEXT NOT NULL DEFAULT '',
+      learn_url   TEXT NOT NULL DEFAULT '',
       category_other TEXT NOT NULL DEFAULT '',
       pinned_at   TEXT,
       hidden      INTEGER NOT NULL DEFAULT 0,
@@ -200,6 +201,10 @@ export function openDatabase(file) {
   if (!postColumns.includes('category_other')) {
     // 選「其他」分類時，使用者自己填的領域名稱，例如「烹飪」
     db.exec("ALTER TABLE posts ADD COLUMN category_other TEXT NOT NULL DEFAULT ''");
+  }
+  if (!postColumns.includes('learn_url')) {
+    // 作者附上的教學連結（部落格、YouTube 教學、Notion…），卡片上顯示成「Learn it」
+    db.exec("ALTER TABLE posts ADD COLUMN learn_url TEXT NOT NULL DEFAULT ''");
   }
   const identityColumns = db.prepare('PRAGMA table_info(user_identities)').all().map((c) => c.name);
   if (!identityColumns.includes('username')) {

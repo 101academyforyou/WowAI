@@ -38,6 +38,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [toolUrl, setToolUrl] = useState(initial?.toolUrl ?? '');
+  const [learnUrl, setLearnUrl] = useState(initial?.learnUrl ?? '');
   const [githubUrl, setGithubUrl] = useState(initial?.githubUrl ?? '');
   const [youtubeUrl, setYoutubeUrl] = useState(initial?.youtube?.url ?? '');
   const [importing, setImporting] = useState(false);
@@ -134,7 +135,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
     if (!title.trim()) return notify(tr('請填寫工具名稱', 'Please enter a tool name'));
     setProgress(0);
     try {
-      const post = await onSubmit({ title, description, toolUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools: allTools.join(', '), categories: categories.join(','), categoryOther: categories.includes('other') ? categoryOther : '' }, media, setProgress);
+      const post = await onSubmit({ title, description, toolUrl, learnUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools: allTools.join(', '), categories: categories.join(','), categoryOther: categories.includes('other') ? categoryOther : '' }, media, setProgress);
       onDone(post);
     } catch (err) {
       notify(initial ? tr('儲存失敗', "Couldn't save") : tr('分享失敗', "Couldn't share"), (err as Error).message);
@@ -295,6 +296,20 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
           autoCapitalize="none"
           autoCorrect={false}
         />
+
+        <Text style={[styles.label, { color: c.text }]}>{tr('教學連結（選填）', 'Link to learn how (optional)')}</Text>
+        <TextInput
+          style={inputStyle}
+          value={learnUrl}
+          onChangeText={setLearnUrl}
+          placeholder="https://…"
+          placeholderTextColor={c.muted}
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel={tr('教學連結', 'Learn link')}
+        />
+        <Text style={{ color: c.muted, fontSize: 12 }}>{tr('分享你怎麼做出來的：部落格文章、YouTube 教學、Notion 筆記都可以', 'Show how you built it: a blog post, YouTube tutorial or Notion page')}</Text>
 
         <Text style={[styles.label, { color: c.text }]}>{tr(`用了哪些 AI 開發（最多 ${MAX_AI_TOOLS} 個）`, `AI tools used (up to ${MAX_AI_TOOLS})`)}</Text>
         <AiToolPicker

@@ -162,6 +162,20 @@ test('工具連結只接受 http/https', async () => {
   assert.equal(res.status, 400);
 });
 
+test('教學連結（Learn it）：分享時填、只接受 http/https、編輯時沒送就保留（舊版 App）、可以清掉', async () => {
+  const cookie = await register('learner');
+  const bad = await createPost(cookie, { title: 'x', learnUrl: 'javascript:alert(1)' }, [{ name: 'a.png', data: PNG }]);
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /教學連結/);
+
+  const { post } = await (await createPost(cookie, { title: 'x', learnUrl: 'https://example.com/how' }, [{ name: 'a.png', data: PNG }])).json();
+  assert.equal(post.learnUrl, 'https://example.com/how');
+  const layout = JSON.stringify(post.media.map((m) => m.url));
+  const patch = (fields) => fetch(`${base}/api/posts/${post.id}`, { method: 'PATCH', headers: { cookie }, body: postForm({ title: 'x', layout, ...fields }) }).then((r) => r.json());
+  assert.equal((await patch({})).post.learnUrl, 'https://example.com/how');
+  assert.equal((await patch({ learnUrl: '' })).post.learnUrl, '');
+});
+
 test('註冊必須同意使用條款', async () => {
   const res = await fetch(`${base}/api/auth/register`, {
     method: 'POST',

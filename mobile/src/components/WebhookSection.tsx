@@ -11,8 +11,8 @@ import { tr } from '../lib/i18n';
 // 交給 AI 的一段話：AI 先 GET 網址讀說明，再 POST 發文
 function aiPrompt(url: string) {
   return tr(
-    `請幫我把這個作品分享到 YourWowAI。先用 GET 讀取 ${url} 的使用說明，再用 POST 把作品以 JSON 送到同一個網址：工具名稱（title）、介紹（description）、YouTube 示範影片連結（youtubeUrl）或截圖（images，base64）、試用連結（toolUrl）、GitHub 專案（githubUrl）、用到的 AI 工具（aiTools）和分類（categories）。這個網址等同我的帳號，請不要公開。`,
-    `Please share this project on YourWowAI for me. First GET ${url} to read the instructions, then POST the project as JSON to the same URL: title, description, a YouTube demo link (youtubeUrl) or screenshots (images, base64), a link to try it (toolUrl), the GitHub repo (githubUrl), the AI tools used (aiTools) and categories. This URL acts as my account, so keep it private.`,
+    `請幫我把這個作品分享到 YourWowAI。先用 GET 讀取 ${url} 的使用說明，再用 POST 把作品以 JSON 送到同一個網址：工具名稱（title）、介紹（description）、YouTube 示範影片連結（youtubeUrl）或截圖（images，base64）、試用連結（toolUrl）、教學連結（learnUrl）、GitHub 專案（githubUrl）、用到的 AI 工具（aiTools）和分類（categories）。這個網址等同我的帳號，請不要公開。`,
+    `Please share this project on YourWowAI for me. First GET ${url} to read the instructions, then POST the project as JSON to the same URL: title, description, a YouTube demo link (youtubeUrl) or screenshots (images, base64), a link to try it (toolUrl), a tutorial link (learnUrl), the GitHub repo (githubUrl), the AI tools used (aiTools) and categories. This URL acts as my account, so keep it private.`,
   );
 }
 

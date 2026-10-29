@@ -12,6 +12,7 @@ const FIELDS = {
   工具名稱: 'Tool name',
   介紹: 'Description',
   工具連結: 'Tool link',
+  教學連結: 'Learn link',
   'YouTube 影片連結': 'YouTube link',
   'GitHub 專案': 'GitHub repo',
   留言: 'Comment',
@@ -22,6 +23,8 @@ const FIELDS = {
 const MESSAGES = {
   工具連結格式不正確: 'The tool link is not a valid URL',
   '工具連結必須是 http 或 https': 'The tool link must start with http or https',
+  教學連結格式不正確: 'The learn link is not a valid URL',
+  '教學連結必須是 http 或 https': 'The learn link must start with http or https',
   'YouTube 影片連結格式不正確，請貼上 youtube.com 或 youtu.be 的影片網址': 'Invalid YouTube link. Paste a youtube.com or youtu.be video URL',
   'GitHub 專案請輸入 owner/repo 或 github.com 的專案網址': 'For the GitHub repo, enter owner/repo or a github.com repo URL',
   'AI 工具標籤最多 10 個': 'Up to 10 AI tool tags',
