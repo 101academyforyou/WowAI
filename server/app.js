@@ -982,6 +982,22 @@ export function createApp({
     res.json({ ok: true });
   });
 
+  // 把分享的作品釘選在「分享」分頁最上方，最多 MAX_PINNED 則
+  app.put('/api/me/reposts/:postId/pin', requireAuth, (req, res) => {
+    const repost = db.prepare('SELECT * FROM reposts WHERE user_id = ? AND post_id = ?').get(req.user.id, Number(req.params.postId));
+    if (!repost) throw new HttpError(404, '找不到這則貼文');
+    if (!repost.pinned_at) {
+      const { n } = db.prepare('SELECT COUNT(*) AS n FROM reposts WHERE user_id = ? AND pinned_at IS NOT NULL').get(req.user.id);
+      if (n >= MAX_PINNED) throw new HttpError(400, `最多只能釘選 ${MAX_PINNED} 則貼文，請先取消其他釘選`);
+      db.prepare("UPDATE reposts SET pinned_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE user_id = ? AND post_id = ?").run(req.user.id, repost.post_id);
+    }
+    res.json({ pinned: true });
+  });
+  app.delete('/api/me/reposts/:postId/pin', requireAuth, (req, res) => {
+    db.prepare('UPDATE reposts SET pinned_at = NULL WHERE user_id = ? AND post_id = ?').run(req.user.id, Number(req.params.postId));
+    res.json({ pinned: false });
+  });
+
   // 在 YourWowAI 裡轉分享別人的作品（顯示在自己個人頁的「分享」分頁）
   app.put('/api/posts/:id/repost', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
@@ -1288,10 +1304,10 @@ export function createApp({
       `SELECT p.* FROM posts p WHERE p.user_id = ?${visible.sql}
        ORDER BY p.pinned_at IS NULL, p.profile_position IS NOT NULL, p.profile_position, p.pinned_at DESC, p.id DESC`,
     ).all(user.id, ...visible.params);
-    // 轉分享的作品：照自己排的順序，還沒排過的（新分享）在最前面，再依轉分享的時間
+    // 轉分享的作品：釘選的在最前面，再照自己排的順序，還沒排過的（新分享）在最前面，再依轉分享的時間
     const reposts = blockedByMe ? [] : db.prepare(
-      `SELECT p.* FROM reposts r JOIN posts p ON p.id = r.post_id WHERE r.user_id = ?${visible.sql}
-       ORDER BY r.position IS NOT NULL, r.position, r.created_at DESC, r.rowid DESC`,
+      `SELECT p.*, r.pinned_at AS repost_pinned_at FROM reposts r JOIN posts p ON p.id = r.post_id WHERE r.user_id = ?${visible.sql}
+       ORDER BY r.pinned_at IS NULL, r.position IS NOT NULL, r.position, r.pinned_at DESC, r.created_at DESC, r.rowid DESC`,
     ).all(user.id, ...visible.params);
     res.json({
       user: {
@@ -1307,7 +1323,8 @@ export function createApp({
           : false,
       },
       posts: posts.map((p) => serializePost(p, req.user)),
-      reposts: reposts.map((p) => serializePost(p, req.user)),
+      // 分享分頁的 pinned 是「我把它釘在分享分頁」，不是作者自己的釘選
+      reposts: reposts.map((p) => ({ ...serializePost(p, req.user), pinned: Boolean(p.repost_pinned_at) })),
     });
   });
 

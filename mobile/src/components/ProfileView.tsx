@@ -77,18 +77,20 @@ export function ProfileView({ username }: { username: string }) {
     const target = index + delta;
     if (target < 0 || target >= list.length) return;
     // 釘選和沒釘選的各自排，不能互相越過
-    if (key === 'posts' && Boolean(list[index].pinned) !== Boolean(list[target].pinned)) {
-      return notify(list[index].pinned ? tr('釘選的作品會固定在最前面', 'Pinned projects always stay first') : tr('先釘選才能移到最前面', 'Pin it to move it to the top'));
+    if (Boolean(list[index].pinned) !== Boolean(list[target].pinned)) {
+      return notify(list[index].pinned ? tr('釘選的會固定在最前面', 'Pinned items always stay first') : tr('先釘選才能移到最前面', 'Pin it to move it to the top'));
     }
     [list[index], list[target]] = [list[target], list[index]];
     saveOrder(key, list);
   }
 
-  async function togglePin(post: Post) {
+  // 作品分頁釘選自己的貼文；分享分頁釘選的是「我分享的這則」，各自最多 3 則
+  async function togglePin(key: 'posts' | 'reposts', post: Post) {
     try {
-      await api(`/api/posts/${post.id}/pin`, { method: post.pinned ? 'DELETE' : 'PUT' });
-      const list = pinnedFirst(data!.posts.map((p) => (p.id === post.id ? { ...p, pinned: !post.pinned } : p)));
-      await saveOrder('posts', list);
+      const url = key === 'posts' ? `/api/posts/${post.id}/pin` : `/api/me/reposts/${post.id}/pin`;
+      await api(url, { method: post.pinned ? 'DELETE' : 'PUT' });
+      const list = pinnedFirst(data![key].map((p) => (p.id === post.id ? { ...p, pinned: !post.pinned } : p)));
+      await saveOrder(key, list);
     } catch (err) {
       notify((err as Error).message);
     }
@@ -203,21 +205,17 @@ export function ProfileView({ username }: { username: string }) {
           })}
         </View>
       ) : null}
-      {/* 作品至少一則就能釘選；分享至少兩則才需要排順序 */}
-      {isMe && (tab === 'posts' ? posts.length > 0 : reposts.length > 1) ? (
+      {/* 至少一則就能釘選、複製連結 */}
+      {isMe && (tab === 'posts' ? posts : reposts).length > 0 ? (
         <View style={styles.arrangeBar}>
           {/* 說明裡的圖示和格子上的按鈕一樣 */}
           <View style={styles.hint}>
             {arranging ? (
               <>
                 <Text style={[styles.hintText, { color: c.muted }]}>{tr('用箭頭移動', 'Arrows move')}</Text>
-                {tab === 'posts' ? (
-                  <>
-                    <Text style={[styles.hintText, { color: c.muted }]}>{tr('・', ' · ')}</Text>
-                    <PinIcon size={13} color={c.muted} />
-                    <Text style={[styles.hintText, { color: c.muted }]}>{tr(' 釘選（最多 3 則）', ' pin (up to 3)')}</Text>
-                  </>
-                ) : null}
+                <Text style={[styles.hintText, { color: c.muted }]}>{tr('・', ' · ')}</Text>
+                <PinIcon size={13} color={c.muted} />
+                <Text style={[styles.hintText, { color: c.muted }]}>{tr(' 釘選（最多 3 則）', ' pin (up to 3)')}</Text>
                 <Text style={[styles.hintText, { color: c.muted }]}>{tr('・', ' · ')}</Text>
                 <Ionicons name="copy-outline" size={13} color={c.muted} />
                 <Text style={[styles.hintText, { color: c.muted }]}>{tr(' 複製連結', ' copy link')}</Text>
@@ -236,7 +234,7 @@ export function ProfileView({ username }: { username: string }) {
       ) : null}
       {tab === 'reposts' && !user.blockedByMe ? (
         reposts.length ? (
-          <PostGrid posts={reposts} arrange={isMe && arranging ? { onMove: (i, d) => move('reposts', i, d) } : undefined} />
+          <PostGrid posts={reposts} pinned arrange={isMe && arranging ? { onMove: (i, d) => move('reposts', i, d), onTogglePin: (p) => togglePin('reposts', p) } : undefined} />
         ) : (
           <Empty
             message={isMe
@@ -245,7 +243,7 @@ export function ProfileView({ username }: { username: string }) {
           />
         )
       ) : posts.length ? (
-        <PostGrid posts={posts} pinned arrange={isMe && arranging ? { onMove: (i, d) => move('posts', i, d), onTogglePin: togglePin } : undefined} />
+        <PostGrid posts={posts} pinned arrange={isMe && arranging ? { onMove: (i, d) => move('posts', i, d), onTogglePin: (p) => togglePin('posts', p) } : undefined} />
       ) : (
         <Empty message={user.blockedByMe ? tr('你已封鎖這位使用者', "You've blocked this user") : isMe ? tr('你還沒有分享任何 AI 工具', "You haven't shared any AI tools yet") : tr('還沒有作品', 'No projects yet')}>
           {isMe ? <Button title={tr('分享第一個作品', 'Share your first project')} variant="primary" onPress={() => router.push('/new')} /> : null}

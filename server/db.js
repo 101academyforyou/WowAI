@@ -274,6 +274,10 @@ export function openDatabase(file) {
   if (!db.prepare('PRAGMA table_info(reposts)').all().some((c) => c.name === 'position')) {
     db.exec('ALTER TABLE reposts ADD COLUMN position INTEGER');
   }
+  if (!db.prepare('PRAGMA table_info(reposts)').all().some((c) => c.name === 'pinned_at')) {
+    // 「分享」分頁的釘選（和作品的釘選分開算，各最多 3 則）
+    db.exec('ALTER TABLE reposts ADD COLUMN pinned_at TEXT');
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS comment_cools (
       comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
