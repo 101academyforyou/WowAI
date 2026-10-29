@@ -46,7 +46,8 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
         const image = p.media.find((m) => m.kind === 'image');
         const cover = image ? mediaUri(image.url) : p.youtube ? youtubeThumbnail(p.youtube.id) : null;
         const count = p.media.length + (p.youtube ? 1 : 0);
-        const badge = count > 1 ? 'copy-outline' : p.youtube || p.media[0]?.kind === 'video' ? 'play' : null;
+        // 多張截圖／影片的標記放右下角，右上角留給「複製連結」
+        const badge = count > 1 ? 'albums-outline' : p.youtube || p.media[0]?.kind === 'video' ? 'play' : null;
         return (
           <Pressable
             key={p.id}
@@ -84,16 +85,6 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
                     <PinIcon size={16} filled={Boolean(p.pinned)} color={p.pinned ? '#000' : '#fff'} />
                   </Pressable>
                 ) : null}
-                {/* 右上角：複製這則貼文的連結 */}
-                <Pressable
-                  onPress={() => copyLink(p)}
-                  hitSlop={4}
-                  style={[styles.control, styles.move, styles.copy]}
-                  accessibilityRole="button"
-                  accessibilityLabel={tr(`複製「${p.title}」的連結`, `Copy link to "${p.title}"`)}
-                >
-                  <Ionicons name="copy-outline" size={16} color="#fff" />
-                </Pressable>
                 {/* 上下左右：上下一次跨一列（3 格），左右一次一格 */}
                 {([
                   ['up', -COLUMNS, 'chevron-up', styles.up, tr('往上移', 'up')],
@@ -118,6 +109,16 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
                 })}
               </View>
             ) : null}
+            {/* 右上角：複製這則貼文的連結（平常和排列模式都有） */}
+            <Pressable
+              onPress={() => copyLink(p)}
+              hitSlop={4}
+              style={[styles.control, styles.copy, !arrange && styles.copySmall]}
+              accessibilityRole="button"
+              accessibilityLabel={tr(`複製「${p.title}」的連結`, `Copy link to "${p.title}"`)}
+            >
+              <Ionicons name="copy-outline" size={arrange ? 16 : 14} color="#fff" />
+            </Pressable>
           </Pressable>
         );
       })}
@@ -137,13 +138,14 @@ const styles = StyleSheet.create({
   control: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   pinControl: { alignSelf: 'flex-start' },
   move: { position: 'absolute' },
-  copy: { top: 6, right: 6 },
+  copy: { position: 'absolute', top: 6, right: 6 },
+  copySmall: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.5)' },
   up: { top: 6, left: '50%', marginLeft: -16 },
   down: { bottom: 6, left: '50%', marginLeft: -16 },
   left: { left: 6, top: '50%', marginTop: -16 },
   right: { right: 6, top: '50%', marginTop: -16 },
   disabled: { opacity: 0.25 },
-  badge: { position: 'absolute', top: 6, right: 6, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
+  badge: { position: 'absolute', bottom: 6, right: 6, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
   videoTile: { backgroundColor: '#2a1f4a', alignItems: 'center', justifyContent: 'center', padding: 8, gap: 6 },
   videoTitle: { color: '#fff', fontSize: 12, fontWeight: '600', textAlign: 'center' },
 });
