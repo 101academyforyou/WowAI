@@ -168,7 +168,11 @@ export function ProfileView({ username }: { username: string }) {
       ) : null}
       <View style={styles.actions}>
         {isMe ? (
-          <Button title={tr('編輯個人檔案', 'Edit profile')} onPress={() => router.push('/settings')} style={{ flex: 1 }} />
+          <>
+            <Button title={tr('編輯個人檔案', 'Edit profile')} onPress={() => router.push('/settings')} style={{ flex: 1 }} />
+            {/* 管理員：檢舉處理的入口放在自己的個人頁 */}
+            {me?.isAdmin ? <Button title={tr('管理員：檢舉處理', 'Admin: reports')} variant="primary" onPress={() => router.push('/admin')} style={{ flex: 1 }} /> : null}
+          </>
         ) : (
           <>
             {!user.blockedByMe ? (
