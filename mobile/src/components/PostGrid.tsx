@@ -85,6 +85,16 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
                     <PinIcon size={16} filled={Boolean(p.pinned)} color={p.pinned ? '#000' : '#fff'} />
                   </Pressable>
                 ) : null}
+                {/* 右上角：複製這則貼文的連結 */}
+                <Pressable
+                  onPress={() => copyLink(p)}
+                  hitSlop={4}
+                  style={[styles.control, styles.move, styles.copy]}
+                  accessibilityRole="button"
+                  accessibilityLabel={tr(`複製「${p.title}」的連結`, `Copy link to "${p.title}"`)}
+                >
+                  <Ionicons name="copy-outline" size={16} color="#fff" />
+                </Pressable>
                 {/* 上下左右：上下一次跨一列（3 格），左右一次一格 */}
                 {([
                   ['up', -COLUMNS, 'chevron-up', styles.up, tr('往上移', 'up')],
