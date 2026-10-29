@@ -14,13 +14,20 @@ export function createResendMailer({ apiKey, from, fetch = globalThis.fetch }) {
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 
-// 驗證碼信件內容（依 App 的語言）
-export function verificationEmail(code, lang) {
+// 驗證碼信件內容（依 App 的語言）；purpose：signup 註冊、reset 重設密碼
+export function verificationEmail(code, lang, purpose = 'signup') {
   const en = lang === 'en';
-  const subject = en ? `Your YourWowAI code: ${code}` : `YourWowAI 驗證碼：${code}`;
-  const lines = en
-    ? ['Enter this code to finish signing up for YourWowAI:', code, 'It expires in 10 minutes. If you didn\'t sign up, you can ignore this email.']
-    : ['請輸入這組驗證碼完成 YourWowAI 註冊：', code, '驗證碼 10 分鐘內有效。如果不是你本人註冊，請忽略這封信。'];
+  const reset = purpose === 'reset';
+  const subject = reset
+    ? (en ? `Reset your YourWowAI password: ${code}` : `YourWowAI 重設密碼驗證碼：${code}`)
+    : (en ? `Your YourWowAI code: ${code}` : `YourWowAI 驗證碼：${code}`);
+  const lines = reset
+    ? (en
+      ? ['Enter this code to set a new YourWowAI password:', code, "It expires in 10 minutes. If you didn't ask to reset your password, you can ignore this email; your password stays the same."]
+      : ['請輸入這組驗證碼，設定新的 YourWowAI 密碼：', code, '驗證碼 10 分鐘內有效。如果不是你本人要重設密碼，請忽略這封信，你的密碼不會改變。'])
+    : (en
+      ? ['Enter this code to finish signing up for YourWowAI:', code, 'It expires in 10 minutes. If you didn\'t sign up, you can ignore this email.']
+      : ['請輸入這組驗證碼完成 YourWowAI 註冊：', code, '驗證碼 10 分鐘內有效。如果不是你本人註冊，請忽略這封信。']);
   const text = lines.join('\n\n');
   const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;color:#222;line-height:1.6">
 <p>${escapeHtml(lines[0])}</p>
