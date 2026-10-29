@@ -606,7 +606,10 @@ test('應用領域分類：分享時選、編輯時改、依分類瀏覽、分�
   const created = await (await createPost(cookie, { title: '單字卡', categories: 'games, education, games' }, png)).json();
   assert.deepEqual(created.post.categories, ['education', 'games'], '依固定順序、去除重複');
 
-  for (const [categories, message] of [['cooking', /分類/], ['education,finance,health,games', /分類/]]) {
+  // 最多 10 個：10 個可以，11 個不行
+  const ten = 'education,productivity,work,finance,health,lifestyle,marketing,design,developer,data';
+  assert.equal((await (await createPost(cookie, { title: '十個分類', categories: ten }, png)).json()).post.categories.length, 10);
+  for (const [categories, message] of [['cooking', /分類/], [`${ten},games`, /分類最多 10 個/]]) {
     const res = await createPost(cookie, { title: 'x', categories }, png);
     assert.equal(res.status, 400, categories);
     assert.match((await res.json()).error, message);
