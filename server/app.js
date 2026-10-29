@@ -304,6 +304,8 @@ export function createApp({
       commentCount: q.commentCount.get(post.id).n,
       ...repostState(post.id, viewer),
       pinned: Boolean(post.pinned_at),
+      // 被檢舉或管理員隱藏（只有作者和管理員看得到這種貼文）
+      hidden: Boolean(post.hidden),
     };
   }
 

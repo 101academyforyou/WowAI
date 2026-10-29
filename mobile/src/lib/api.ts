@@ -71,6 +71,8 @@ export type Post = {
   repostedByMe: boolean;
   // 釘選在作者個人頁最上方（最多 3 則）
   pinned?: boolean;
+  // 被隱藏（只有作者和管理員會拿到這種貼文）
+  hidden?: boolean;
 };
 export type Vote = 'cool' | 'notcool';
 // parentId：回覆哪一則留言（null 是直接留言）；coolCount／cooledByMe：留言的 ⚡ 數（舊版伺服器沒有這些欄位）
