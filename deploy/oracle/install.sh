@@ -100,6 +100,7 @@ grep -q '^PUBLIC_URL=' "$ENV_FILE" || echo "PUBLIC_URL=https://$DOMAIN" >> "$ENV
 # GITHUB_TOKEN（選填）：任何不勾權限的 GitHub 個人權杖，讓作品星星數的查詢上限從每小時 60 次提高到 5000 次
 # RESEND_API_KEY（選填）：填了之後註冊要驗證 Email；MAIL_FROM 預設 YourWowAI <no-reply@onepointzeroone.org>
 # REQUIRE_EMAIL_FOR_APP=1：iPhone App 1.1 上架後再打開，舊版 App 也一律要驗證
+grep -Eq '^#? ?ADMIN_EMAILS=' "$ENV_FILE" || echo '# ADMIN_EMAILS=' >> "$ENV_FILE"
 for key in GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GITHUB_TOKEN RESEND_API_KEY MAIL_FROM REQUIRE_EMAIL_FOR_APP; do
   grep -Eq "^#? ?$key=" "$ENV_FILE" || echo "# $key=" >> "$ENV_FILE"
 done

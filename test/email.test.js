@@ -158,3 +158,20 @@ test('忘記密碼：用註冊時驗證的 Email 收驗證碼、設定新密碼�
     close();
   }
 });
+
+test('ADMIN_EMAILS：註冊時驗證過的 Email 是管理員，其他人不是', async () => {
+  const { base, post, sent, close } = await start({ adminEmails: ['Boss@Example.com'] });
+  try {
+    await post('/api/auth/email-code', { email: 'boss@example.com' }, WEB);
+    const boss = (await (await post('/api/auth/register', signup({ username: 'boss', email: 'boss@example.com', emailCode: lastCode(sent) }), WEB)).json()).token;
+    await post('/api/auth/email-code', { email: 'someone@example.com' }, WEB);
+    const someone = (await (await post('/api/auth/register', signup({ username: 'someone', email: 'someone@example.com', emailCode: lastCode(sent) }), WEB)).json()).token;
+    const me = async (token) => (await (await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${token}` } })).json()).user;
+    assert.equal((await me(boss)).isAdmin, true);
+    assert.equal((await me(someone)).isAdmin, false);
+    assert.equal((await fetch(`${base}/api/admin/reports`, { headers: { authorization: `Bearer ${boss}` } })).status, 200);
+    assert.equal((await fetch(`${base}/api/admin/reports`, { headers: { authorization: `Bearer ${someone}` } })).status, 403);
+  } finally {
+    close();
+  }
+});

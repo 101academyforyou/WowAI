@@ -151,7 +151,7 @@ const STATIC_FILE = /\.(?:html?|js|mjs|css|map|json|txt|xml|ico|png|jpe?g|gif|we
 // oauth：第三方登入設定 { publicUrl, github: { clientId, clientSecret }, google: {…}, appleAudiences, fetch }
 // githubFetch：查 GitHub 星星數用的 fetch（不給就不查）；githubToken：選填，讓查詢上限從每小時 60 次提高到 5000 次
 export function createApp({
-  db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], pushSender = expoPushSender, oauth = {},
+  db, uploadDir, publicDir, webAppDir, devCors = false, adminUsernames = [], adminEmails = [], pushSender = expoPushSender, oauth = {},
   githubFetch = null, githubToken = '', mailer = null, requireEmailForApp = false,
 }) {
   const starCache = createStarCache({ db, fetch: githubFetch, token: githubToken });
@@ -160,6 +160,7 @@ export function createApp({
   const verifyApple = createAppleVerifier({ audiences: oauth.appleAudiences ?? ['com.yourwowai.app'], fetch: oauthFetch });
   const notifier = createNotifier({ db, pushSender });
   const admins = new Set(adminUsernames.map((u) => u.toLowerCase()));
+  const adminEmailSet = new Set(adminEmails.map((e) => e.trim().toLowerCase()));
   fs.mkdirSync(uploadDir, { recursive: true });
 
   const app = express();
@@ -222,7 +223,8 @@ export function createApp({
     blocked: db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?'),
   };
 
-  const isAdmin = (user) => Boolean(user && admins.has(user.username.toLowerCase()));
+  // 管理員：帳號名稱在 ADMIN_USERNAMES，或註冊時驗證過的 Email 在 ADMIN_EMAILS
+  const isAdmin = (user) => Boolean(user && (admins.has(user.username.toLowerCase()) || (user.email && adminEmailSet.has(user.email.toLowerCase()))));
 
   // 貼文對某位使用者是否可見：被隱藏、作者被封鎖、或自己檢舉過的貼文都不顯示
   // 被停權的作者，貼文對所有人隱藏
