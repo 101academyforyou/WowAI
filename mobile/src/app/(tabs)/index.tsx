@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { api, type Post } from '../../lib/api';
@@ -8,6 +8,7 @@ import { PostCard } from '../../components/PostCard';
 import { Button, Empty, Loading, notify } from '../../components/ui';
 import { tr } from '../../lib/i18n';
 import { CategoryFilter } from '../../components/CategoryChips';
+import { onHomeTop } from '../../lib/homeEvents';
 
 // foryou：打亂順序，每次重新整理都不一樣；top：Cool 排行榜
 type Feed = 'foryou' | 'latest' | 'top' | 'following';
@@ -41,6 +42,7 @@ export default function HomeScreen() {
   const [next, setNext] = useState<{ before: number | null; offset: number | null }>({ before: null, offset: null });
   const [refreshing, setRefreshing] = useState(false);
   const loadingMore = useRef(false);
+  const listRef = useRef<FlatList<Post>>(null);
 
   const load = useCallback(async (reset: boolean, cursor?: { before: number | null; offset: number | null }) => {
     const qs = new URLSearchParams();
@@ -73,6 +75,12 @@ export default function HomeScreen() {
     load(true);
   }, [load]));
 
+  // 點 Logo 或再點一次首頁按鈕：捲回最上面並重新整理（推薦會換一個順序）
+  useEffect(() => onHomeTop(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    load(true);
+  }), [load]);
+
   function selectFeed(f: Feed) {
     if (f === 'following' && !user) return router.push('/login');
     setPosts(null);
@@ -101,6 +109,7 @@ export default function HomeScreen() {
         <Loading />
       ) : (
         <FlatList
+          ref={listRef}
           data={posts}
           keyExtractor={(p) => String(p.id)}
           ListHeaderComponent={feed === 'top' ? (
