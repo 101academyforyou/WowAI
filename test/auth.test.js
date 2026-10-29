@@ -23,7 +23,7 @@ async function fakeFetch(url, init = {}) {
   }
   if (u === 'https://api.github.com/user') return init.headers.Authorization === 'Bearer gh-token' ? json(githubUser) : json({}, 401);
   if (u === 'https://oauth2.googleapis.com/token') return json({ access_token: 'g-token' });
-  if (u === 'https://openidconnect.googleapis.com/v1/userinfo') return json({ sub: 'g-1', email: 'amy.lin@example.com', name: 'Amy Lin' });
+  if (u === 'https://openidconnect.googleapis.com/v1/userinfo') return json({ sub: 'g-1', email: 'amy.lin@example.com', email_verified: true, name: 'Amy Lin' });
   if (u === 'https://appleid.apple.com/auth/keys') return json({ keys: [appleJwk] });
   if (u === 'https://avatars.example/octo.png') return new Response(PNG);
   throw new Error(`unexpected fetch ${u}`);
@@ -46,6 +46,7 @@ before(async () => {
   const app = createApp({
     db: openDatabase(':memory:'),
     uploadDir: path.join(tmpDir, 'uploads'),
+    adminEmails: ['Amy.Lin@example.com'],
     oauth: {
       publicUrl: 'https://yourwowai.example',
       github: { clientId: 'gh-id', clientSecret: 'gh-secret' },
@@ -139,6 +140,8 @@ test('Google 登入用 email 前半段當帳號；已登入的人可以綁定 Gi
   const { location } = await oauthRound('google');
   const google = await (await jsonPost('/api/auth/oauth/exchange', { code: new URL(location, base).searchParams.get('code') })).json();
   assert.equal(google.user.username, 'amy.lin');
+  // Google 驗證過的 email 在 ADMIN_EMAILS 裡：登入就是管理員
+  assert.equal((await (await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${google.token}` } })).json()).user.isAdmin, true);
 
   assert.equal((await jsonPost('/api/auth/oauth/github/start', { link: true })).status, 401);
   githubUser = { ...githubUser, id: 7, login: 'amy' };

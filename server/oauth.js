@@ -46,7 +46,8 @@ const PROVIDERS = {
       const userRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: `Bearer ${accessToken}` } });
       if (!userRes.ok) throw new Error('Google profile request failed');
       const u = await userRes.json();
-      return { subject: String(u.sub), usernameHint: (u.email ?? '').split('@')[0], displayName: u.name || '', avatarUrl: u.picture };
+      // email 只在 Google 驗證過時才帶出來（用來比對管理員，一般使用者不會存）
+      return { subject: String(u.sub), usernameHint: (u.email ?? '').split('@')[0], displayName: u.name || '', avatarUrl: u.picture, email: u.email_verified === true ? u.email : '' };
     },
   },
 };
