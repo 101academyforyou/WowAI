@@ -267,6 +267,13 @@ export function openDatabase(file) {
     // 回覆哪一則留言（只有一層：回覆的回覆也掛在最上層那則）；NULL 代表直接留言在貼文下
     db.exec('ALTER TABLE comments ADD COLUMN parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE');
   }
+  // 個人頁上自己排的順序（作品與分享各自排）；NULL 代表還沒排過，新的排在最前面
+  if (!db.prepare('PRAGMA table_info(posts)').all().some((c) => c.name === 'profile_position')) {
+    db.exec('ALTER TABLE posts ADD COLUMN profile_position INTEGER');
+  }
+  if (!db.prepare('PRAGMA table_info(reposts)').all().some((c) => c.name === 'position')) {
+    db.exec('ALTER TABLE reposts ADD COLUMN position INTEGER');
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS comment_cools (
       comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,

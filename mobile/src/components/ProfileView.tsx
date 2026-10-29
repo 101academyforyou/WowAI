@@ -18,6 +18,8 @@ export function ProfileView({ username }: { username: string }) {
   const [tab, setTab] = useState<'posts' | 'reposts'>('posts');
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // 排列模式：自己的個人頁可以調整作品／分享的順序，也能直接釘選
+  const [arranging, setArranging] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +51,42 @@ export function ProfileView({ username }: { username: string }) {
         reposts,
         user: { ...user, followedByMe: res.followedByMe, followerCount: user.followerCount + (res.followedByMe ? 1 : -1) },
       });
+    } catch (err) {
+      notify((err as Error).message);
+    }
+  }
+
+  // 釘選的永遠排在最前面（排序穩定，不會打亂其他順序）
+  const pinnedFirst = (list: Post[]) => [...list.filter((p) => p.pinned), ...list.filter((p) => !p.pinned)];
+
+  async function saveOrder(key: 'posts' | 'reposts', list: Post[]) {
+    const prev = data;
+    setData((d) => (d ? { ...d, [key]: list } : d));
+    try {
+      await api(`/api/me/${key}/order`, { method: 'PUT', body: { ids: list.map((p) => p.id) } });
+    } catch (err) {
+      setData(prev);
+      notify((err as Error).message);
+    }
+  }
+
+  function move(key: 'posts' | 'reposts', index: number, delta: -1 | 1) {
+    const list = [...data![key]];
+    const target = index + delta;
+    if (target < 0 || target >= list.length) return;
+    // 釘選和沒釘選的各自排，不能互相越過
+    if (key === 'posts' && Boolean(list[index].pinned) !== Boolean(list[target].pinned)) {
+      return notify(list[index].pinned ? tr('釘選的作品會固定在最前面', 'Pinned projects always stay first') : tr('先釘選才能移到最前面', 'Pin it to move it to the top'));
+    }
+    [list[index], list[target]] = [list[target], list[index]];
+    saveOrder(key, list);
+  }
+
+  async function togglePin(post: Post) {
+    try {
+      await api(`/api/posts/${post.id}/pin`, { method: post.pinned ? 'DELETE' : 'PUT' });
+      const list = pinnedFirst(data!.posts.map((p) => (p.id === post.id ? { ...p, pinned: !post.pinned } : p)));
+      await saveOrder('posts', list);
     } catch (err) {
       notify((err as Error).message);
     }
@@ -152,9 +190,25 @@ export function ProfileView({ username }: { username: string }) {
           })}
         </View>
       ) : null}
+      {/* 作品至少一則就能釘選；分享至少兩則才需要排順序 */}
+      {isMe && (tab === 'posts' ? posts.length > 0 : reposts.length > 1) ? (
+        <View style={styles.arrangeBar}>
+          <Text style={{ color: c.muted, fontSize: 12, flex: 1 }} numberOfLines={2}>
+            {arranging ? (tab === 'posts' ? tr('用 ‹ › 調整順序，點 📌 釘選（最多 3 則）', 'Use ‹ › to reorder, tap 📌 to pin (up to 3)') : tr('用 ‹ › 調整順序', 'Use ‹ › to reorder')) : ''}
+          </Text>
+          <Pressable
+            onPress={() => setArranging(!arranging)}
+            style={[styles.arrangeButton, { borderColor: arranging ? c.accent : c.border, backgroundColor: arranging ? c.accent : c.surface }]}
+            accessibilityRole="button"
+          >
+            <Ionicons name={arranging ? 'checkmark' : 'swap-horizontal'} size={15} color={arranging ? '#000' : c.text} />
+            <Text style={{ color: arranging ? '#000' : c.text, fontWeight: '800', fontSize: 13 }}>{arranging ? tr('完成', 'Done') : tr('排列', 'Arrange')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {tab === 'reposts' && !user.blockedByMe ? (
         reposts.length ? (
-          <PostGrid posts={reposts} />
+          <PostGrid posts={reposts} arrange={isMe && arranging ? { onMove: (i, d) => move('reposts', i, d) } : undefined} />
         ) : (
           <Empty
             message={isMe
@@ -163,7 +217,7 @@ export function ProfileView({ username }: { username: string }) {
           />
         )
       ) : posts.length ? (
-        <PostGrid posts={posts} pinned />
+        <PostGrid posts={posts} pinned arrange={isMe && arranging ? { onMove: (i, d) => move('posts', i, d), onTogglePin: togglePin } : undefined} />
       ) : (
         <Empty message={user.blockedByMe ? tr('你已封鎖這位使用者', "You've blocked this user") : isMe ? tr('你還沒有分享任何 AI 工具', "You haven't shared any AI tools yet") : tr('還沒有作品', 'No projects yet')}>
           {isMe ? <Button title={tr('分享第一個作品', 'Share your first project')} variant="primary" onPress={() => router.push('/new')} /> : null}
@@ -183,6 +237,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
   tabs: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderBottomWidth: 2 },
+  arrangeBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  arrangeButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   contacts: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
   contactsTitle: { fontFamily: fonts.mono, fontSize: 12, fontWeight: '700' },
   contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

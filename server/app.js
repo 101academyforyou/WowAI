@@ -954,6 +954,34 @@ export function createApp({
     res.json({ pinned: false });
   });
 
+  // 個人頁排列順序：ids 是貼文 id，照畫面上的順序送來；只能排自己的作品／自己分享的
+  function cleanOrder(value) {
+    if (!Array.isArray(value) || value.length > 1000) throw new HttpError(400, '順序格式不正確');
+    const ids = value.map(Number);
+    if (ids.some((id) => !Number.isInteger(id)) || new Set(ids).size !== ids.length) throw new HttpError(400, '順序格式不正確');
+    return ids;
+  }
+  app.put('/api/me/posts/order', requireAuth, (req, res) => {
+    const ids = cleanOrder(req.body?.ids);
+    const mine = new Set(db.prepare('SELECT id FROM posts WHERE user_id = ?').all(req.user.id).map((r) => r.id));
+    if (ids.some((id) => !mine.has(id))) throw new HttpError(403, '只能排列自己的作品');
+    transaction(db, () => {
+      const set = db.prepare('UPDATE posts SET profile_position = ? WHERE id = ?');
+      ids.forEach((id, i) => set.run(i, id));
+    });
+    res.json({ ok: true });
+  });
+  app.put('/api/me/reposts/order', requireAuth, (req, res) => {
+    const ids = cleanOrder(req.body?.ids);
+    const mine = new Set(db.prepare('SELECT post_id FROM reposts WHERE user_id = ?').all(req.user.id).map((r) => r.post_id));
+    if (ids.some((id) => !mine.has(id))) throw new HttpError(403, '只能排列自己分享的作品');
+    transaction(db, () => {
+      const set = db.prepare('UPDATE reposts SET position = ? WHERE user_id = ? AND post_id = ?');
+      ids.forEach((id, i) => set.run(i, req.user.id, id));
+    });
+    res.json({ ok: true });
+  });
+
   // 在 YourWowAI 裡轉分享別人的作品（顯示在自己個人頁的「分享」分頁）
   app.put('/api/posts/:id/repost', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
@@ -1256,12 +1284,14 @@ export function createApp({
     const blockedByMe = req.user ? Boolean(q.blocked.get(req.user.id, user.id)) : false;
     const visible = visibleSql(req.user);
     const posts = blockedByMe ? [] : db.prepare(
-      // 釘選的排最前面（最近釘選的在前），其他照新到舊
-      `SELECT p.* FROM posts p WHERE p.user_id = ?${visible.sql} ORDER BY p.pinned_at IS NULL, p.pinned_at DESC, p.id DESC`,
+      // 釘選的排最前面；同一組裡照作者自己排的順序，還沒排過的（新作品）在最前面，再來是最近釘選、新到舊
+      `SELECT p.* FROM posts p WHERE p.user_id = ?${visible.sql}
+       ORDER BY p.pinned_at IS NULL, p.profile_position IS NOT NULL, p.profile_position, p.pinned_at DESC, p.id DESC`,
     ).all(user.id, ...visible.params);
-    // 轉分享的作品，依轉分享的時間排序
+    // 轉分享的作品：照自己排的順序，還沒排過的（新分享）在最前面，再依轉分享的時間
     const reposts = blockedByMe ? [] : db.prepare(
-      `SELECT p.* FROM reposts r JOIN posts p ON p.id = r.post_id WHERE r.user_id = ?${visible.sql} ORDER BY r.created_at DESC, r.rowid DESC`,
+      `SELECT p.* FROM reposts r JOIN posts p ON p.id = r.post_id WHERE r.user_id = ?${visible.sql}
+       ORDER BY r.position IS NOT NULL, r.position, r.created_at DESC, r.rowid DESC`,
     ).all(user.id, ...visible.params);
     res.json({
       user: {
