@@ -6,7 +6,7 @@ import { api, type Post, type Profile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { contactField } from '../lib/contacts';
 import { fonts, useColors } from '../lib/theme';
-import { PostGrid } from './PostGrid';
+import { PinIcon, PostGrid } from './PostGrid';
 import { Avatar, Button, Empty, Loading, confirmAction, notify } from './ui';
 import { tr } from '../lib/i18n';
 
@@ -194,9 +194,24 @@ export function ProfileView({ username }: { username: string }) {
       {/* 作品至少一則就能釘選；分享至少兩則才需要排順序 */}
       {isMe && (tab === 'posts' ? posts.length > 0 : reposts.length > 1) ? (
         <View style={styles.arrangeBar}>
-          <Text style={{ color: c.muted, fontSize: 12, flex: 1 }} numberOfLines={2}>
-            {arranging ? (tab === 'posts' ? tr('用箭頭上下左右移動，點 📌 釘選（最多 3 則）', 'Use the arrows to move, tap 📌 to pin (up to 3)') : tr('用箭頭上下左右移動', 'Use the arrows to move')) : ''}
-          </Text>
+          {/* 說明裡的圖示和格子上的按鈕一樣 */}
+          <View style={styles.hint}>
+            {arranging ? (
+              <>
+                <Text style={[styles.hintText, { color: c.muted }]}>{tr('用箭頭移動', 'Arrows move')}</Text>
+                {tab === 'posts' ? (
+                  <>
+                    <Text style={[styles.hintText, { color: c.muted }]}>{tr('・', ' · ')}</Text>
+                    <PinIcon size={13} color={c.muted} />
+                    <Text style={[styles.hintText, { color: c.muted }]}>{tr(' 釘選（最多 3 則）', ' pin (up to 3)')}</Text>
+                  </>
+                ) : null}
+                <Text style={[styles.hintText, { color: c.muted }]}>{tr('・', ' · ')}</Text>
+                <Ionicons name="copy-outline" size={13} color={c.muted} />
+                <Text style={[styles.hintText, { color: c.muted }]}>{tr(' 複製連結', ' copy link')}</Text>
+              </>
+            ) : null}
+          </View>
           <Pressable
             onPress={() => setArranging(!arranging)}
             style={[styles.arrangeButton, { borderColor: arranging ? c.accent : c.border, backgroundColor: arranging ? c.accent : c.surface }]}
@@ -238,6 +253,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
   tabs: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderBottomWidth: 2 },
+  hint: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  hintText: { fontSize: 12 },
   arrangeBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
   arrangeButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   contacts: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },

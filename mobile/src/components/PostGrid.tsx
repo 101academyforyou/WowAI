@@ -3,10 +3,27 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { mediaUri, type Post } from '../lib/api';
+import * as Clipboard from 'expo-clipboard';
+import { mediaUri, siteUrl, type Post } from '../lib/api';
 import { youtubeThumbnail } from '../lib/youtube';
 import { useColors, useContentWidth } from '../lib/theme';
 import { tr } from '../lib/i18n';
+import { notify } from './ui';
+
+// 釘選圖示：格子左上角和排列說明共用，斜 45 度
+export function PinIcon({ size = 14, color = '#fff', filled = true }: { size?: number; color?: string; filled?: boolean }) {
+  return <Ionicons name={filled ? 'pin' : 'pin-outline'} size={size} color={color} style={{ transform: [{ rotate: '45deg' }] }} />;
+}
+
+async function copyLink(post: Post) {
+  const url = siteUrl(`/post/${post.id}`);
+  try {
+    await Clipboard.setStringAsync(url);
+    notify(tr('已複製連結', 'Link copied'), url);
+  } catch (err) {
+    notify((err as Error).message);
+  }
+}
 
 // 排列模式：每格出現左右移動按鈕，作品分頁還有釘選按鈕；點格子不會打開貼文
 export type ArrangeHandlers = {
@@ -45,12 +62,12 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
                 <Text style={styles.videoTitle} numberOfLines={2}>{p.title}</Text>
               </View>
             )}
-            {badge ? (
+            {badge && !arrange ? (
               <Ionicons name={badge} size={18} color="#fff" style={styles.badge} />
             ) : null}
             {pinned && p.pinned && !arrange ? (
               <View style={styles.pin} accessibilityLabel={tr('已釘選', 'Pinned')}>
-                <Ionicons name="pin" size={14} color="#fff" style={{ transform: [{ rotate: '45deg' }] }} />
+                <PinIcon />
               </View>
             ) : null}
             {arrange ? (
@@ -64,9 +81,19 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
                     accessibilityState={{ selected: Boolean(p.pinned) }}
                     accessibilityLabel={p.pinned ? tr(`取消釘選「${p.title}」`, `Unpin "${p.title}"`) : tr(`釘選「${p.title}」`, `Pin "${p.title}"`)}
                   >
-                    <Ionicons name={p.pinned ? 'pin' : 'pin-outline'} size={16} color={p.pinned ? '#000' : '#fff'} style={{ transform: [{ rotate: '45deg' }] }} />
+                    <PinIcon size={16} filled={Boolean(p.pinned)} color={p.pinned ? '#000' : '#fff'} />
                   </Pressable>
                 ) : null}
+                {/* 右上角：複製這則貼文的連結 */}
+                <Pressable
+                  onPress={() => copyLink(p)}
+                  hitSlop={4}
+                  style={[styles.control, styles.move, styles.copy]}
+                  accessibilityRole="button"
+                  accessibilityLabel={tr(`複製「${p.title}」的連結`, `Copy link to "${p.title}"`)}
+                >
+                  <Ionicons name="copy-outline" size={16} color="#fff" />
+                </Pressable>
                 {/* 上下左右：上下一次跨一列（3 格），左右一次一格 */}
                 {([
                   ['up', -COLUMNS, 'chevron-up', styles.up, tr('往上移', 'up')],
@@ -110,6 +137,7 @@ const styles = StyleSheet.create({
   control: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   pinControl: { alignSelf: 'flex-start' },
   move: { position: 'absolute' },
+  copy: { top: 6, right: 6 },
   up: { top: 6, left: '50%', marginLeft: -16 },
   down: { bottom: 6, left: '50%', marginLeft: -16 },
   left: { left: 6, top: '50%', marginTop: -16 },
