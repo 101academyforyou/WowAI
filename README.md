@@ -206,7 +206,7 @@ test/        API 測試（node:test）
 | POST | `/api/auth/oauth/exchange` | 用一次性 `code`（5 分鐘內有效）換登入 `token` |
 | POST | `/api/auth/apple` | Sign in with Apple：送 iPhone 拿到的 `identityToken`（伺服器用 Apple 公開金鑰驗證）與第一次登入時的 `fullName` |
 | PUT / DELETE | `/api/me/avatar` | 上傳或更換大頭貼（multipart `avatar`，5MB 內圖片）／移除 |
-| GET | `/api/categories` | 應用領域分類與公開作品數（教育、效率、職場、理財、健康、生活、行銷、設計、開發、資料、遊戲、其他）；`/api/posts?category=<slug>` 依分類瀏覽，分享／編輯時用 `categories`（逗號分隔，最多 3 個） |
+| GET | `/api/categories` | 應用領域分類與公開作品數（教育、效率、職場、理財、健康、生活、行銷、設計、開發、資料、遊戲、其他）；`/api/posts?category=<slug>` 依分類瀏覽，分享／編輯時用 `categories`（逗號分隔，最多 10 個） |
 | GET | `/api/stats` | 公開統計 `{ users, posts }`（註冊人數、公開作品數），允許任何網站讀取，官方介紹網站用來顯示人數 |
 | GET | `/api/health` | 健康檢查，回傳 `{ ok: true }` |
 | GET | `/api/posts?feed=following&tag=Claude&q=發票&before=<id>` | 動態牆（分頁）；`sort=random&seed=<數字>&offset=` 打亂順序（同一個 seed 順序固定，App 每次重新整理換 seed），`sort=top&period=week|month|all&offset=` 是 Cool 排行榜；不帶 `sort` 是新到舊；`q` 搜尋作品名稱、介紹、GitHub 專案、AI 標籤與作者，空白分隔的關鍵字要全部符合 |

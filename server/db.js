@@ -94,7 +94,7 @@ export function openDatabase(file) {
       PRIMARY KEY (post_id, name)
     );
 
-    -- 應用領域分類（教育、理財、遊戲…），每則最多 3 個
+    -- 應用領域分類（教育、理財、遊戲…），每則最多 10 個
     CREATE TABLE IF NOT EXISTS post_categories (
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
       slug    TEXT NOT NULL,

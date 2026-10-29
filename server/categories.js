@@ -4,7 +4,7 @@ export const CATEGORIES = [
   'marketing', 'design', 'developer', 'data', 'games', 'other',
 ];
 
-export const MAX_CATEGORIES = 3;
+export const MAX_CATEGORIES = 10;
 
 // 'education, games' → ['education', 'games']；依固定順序排列、去除重複
 export function parseCategories(value) {

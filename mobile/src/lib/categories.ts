@@ -19,7 +19,7 @@ export const CATEGORIES: Category[] = [
   { slug: 'other', icon: 'apps-outline', label: tr('其他', 'Other') },
 ];
 
-export const MAX_CATEGORIES = 3;
+export const MAX_CATEGORIES = 10;
 
 export function categoryOf(slug: string) {
   return CATEGORIES.find((c) => c.slug === slug);
