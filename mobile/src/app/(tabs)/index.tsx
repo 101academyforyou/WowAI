@@ -26,6 +26,12 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: 'month', label: tr('本月', 'This month') },
   { value: 'all', label: tr('全部', 'All time') },
 ];
+// 排行榜名次：Cool 數相同就同名次（例如 1、2、2、4）。列表已依 Cool 數由多到少排序
+function coolRank(posts: Post[], index: number) {
+  let i = index;
+  while (i > 0 && posts[i - 1].coolCount === posts[index].coolCount) i--;
+  return i + 1;
+}
 const newSeed = () => Math.floor(Math.random() * 2_000_000_000) + 1;
 
 export default function HomeScreen() {
@@ -130,7 +136,7 @@ export default function HomeScreen() {
             </View>
           ) : null}
           renderItem={({ item, index }) => (
-            <PostCard post={item} rank={feed === 'top' ? index + 1 : undefined} onRemoved={() => setPosts((ps) => ps?.filter((p) => p.id !== item.id) ?? null)} />
+            <PostCard post={item} rank={feed === 'top' ? coolRank(posts, index) : undefined} onRemoved={() => setPosts((ps) => ps?.filter((p) => p.id !== item.id) ?? null)} />
           )}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(true); setRefreshing(false); }} />}
           onEndReachedThreshold={0.5}
