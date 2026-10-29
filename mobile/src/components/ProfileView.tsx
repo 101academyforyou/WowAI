@@ -70,7 +70,8 @@ export function ProfileView({ username }: { username: string }) {
     }
   }
 
-  function move(key: 'posts' | 'reposts', index: number, delta: -1 | 1) {
+  // delta：左右 ±1、上下 ±3（跨一列）；和目標位置的那一格互換
+  function move(key: 'posts' | 'reposts', index: number, delta: number) {
     const list = [...data![key]];
     const target = index + delta;
     if (target < 0 || target >= list.length) return;
@@ -194,7 +195,7 @@ export function ProfileView({ username }: { username: string }) {
       {isMe && (tab === 'posts' ? posts.length > 0 : reposts.length > 1) ? (
         <View style={styles.arrangeBar}>
           <Text style={{ color: c.muted, fontSize: 12, flex: 1 }} numberOfLines={2}>
-            {arranging ? (tab === 'posts' ? tr('用 ‹ › 調整順序，點 📌 釘選（最多 3 則）', 'Use ‹ › to reorder, tap 📌 to pin (up to 3)') : tr('用 ‹ › 調整順序', 'Use ‹ › to reorder')) : ''}
+            {arranging ? (tab === 'posts' ? tr('用箭頭上下左右移動，點 📌 釘選（最多 3 則）', 'Use the arrows to move, tap 📌 to pin (up to 3)') : tr('用箭頭上下左右移動', 'Use the arrows to move')) : ''}
           </Text>
           <Pressable
             onPress={() => setArranging(!arranging)}
