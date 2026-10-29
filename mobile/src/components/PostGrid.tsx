@@ -10,7 +10,7 @@ import { tr } from '../lib/i18n';
 
 // 排列模式：每格出現左右移動按鈕，作品分頁還有釘選按鈕；點格子不會打開貼文
 export type ArrangeHandlers = {
-  onMove: (index: number, delta: -1 | 1) => void;
+  onMove: (index: number, delta: number) => void;
   onTogglePin?: (post: Post) => void;
 };
 
@@ -22,7 +22,7 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
   const [measured, setMeasured] = useState<number | null>(null);
   const width = measured ?? fallback;
   const c = useColors();
-  const size = Math.floor((width - GAP * 2) / 3);
+  const size = Math.floor((width - GAP * (COLUMNS - 1)) / COLUMNS);
   return (
     <View style={styles.grid} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
       {posts.map((p, index) => {
@@ -67,28 +67,28 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
                     <Ionicons name={p.pinned ? 'pin' : 'pin-outline'} size={16} color={p.pinned ? '#000' : '#fff'} style={{ transform: [{ rotate: '45deg' }] }} />
                   </Pressable>
                 ) : null}
-                <View style={styles.moves}>
-                  <Pressable
-                    onPress={() => arrange.onMove(index, -1)}
-                    disabled={index === 0}
-                    hitSlop={6}
-                    style={[styles.control, index === 0 && styles.disabled]}
-                    accessibilityRole="button"
-                    accessibilityLabel={tr(`「${p.title}」往前移`, `Move "${p.title}" earlier`)}
-                  >
-                    <Ionicons name="chevron-back" size={18} color="#fff" />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => arrange.onMove(index, 1)}
-                    disabled={index === posts.length - 1}
-                    hitSlop={6}
-                    style={[styles.control, index === posts.length - 1 && styles.disabled]}
-                    accessibilityRole="button"
-                    accessibilityLabel={tr(`「${p.title}」往後移`, `Move "${p.title}" later`)}
-                  >
-                    <Ionicons name="chevron-forward" size={18} color="#fff" />
-                  </Pressable>
-                </View>
+                {/* 上下左右：上下一次跨一列（3 格），左右一次一格 */}
+                {([
+                  ['up', -COLUMNS, 'chevron-up', styles.up, tr('往上移', 'up')],
+                  ['left', -1, 'chevron-back', styles.left, tr('往前移', 'earlier')],
+                  ['right', 1, 'chevron-forward', styles.right, tr('往後移', 'later')],
+                  ['down', COLUMNS, 'chevron-down', styles.down, tr('往下移', 'down')],
+                ] as const).map(([key, delta, icon, position, label]) => {
+                  const off = index + delta < 0 || index + delta >= posts.length;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => arrange.onMove(index, delta)}
+                      disabled={off}
+                      hitSlop={4}
+                      style={[styles.control, styles.move, position, off && styles.disabled]}
+                      accessibilityRole="button"
+                      accessibilityLabel={tr(`「${p.title}」${label}`, `Move "${p.title}" ${label}`)}
+                    >
+                      <Ionicons name={icon} size={18} color="#fff" />
+                    </Pressable>
+                  );
+                })}
               </View>
             ) : null}
           </Pressable>
@@ -99,16 +99,21 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
 }
 
 const GAP = 2;
+const COLUMNS = 3;
 
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   // 圖片只顯示在自己的格子裡
   tile: { overflow: 'hidden' },
   pin: { position: 'absolute', top: 6, left: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  arrange: { backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'space-between', padding: 6 },
+  arrange: { backgroundColor: 'rgba(0,0,0,0.35)', padding: 6 },
   control: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   pinControl: { alignSelf: 'flex-start' },
-  moves: { flexDirection: 'row', justifyContent: 'space-between' },
+  move: { position: 'absolute' },
+  up: { top: 6, left: '50%', marginLeft: -16 },
+  down: { bottom: 6, left: '50%', marginLeft: -16 },
+  left: { left: 6, top: '50%', marginTop: -16 },
+  right: { right: 6, top: '50%', marginTop: -16 },
   disabled: { opacity: 0.25 },
   badge: { position: 'absolute', top: 6, right: 6, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
   videoTile: { backgroundColor: '#2a1f4a', alignItems: 'center', justifyContent: 'center', padding: 8, gap: 6 },
