@@ -92,18 +92,55 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
     }
   }
 
+  // 管理員處理別人的貼文：隱藏／恢復、停權作者、刪除
+  async function openAdminMenu() {
+    const options = [
+      post.hidden ? tr('恢復顯示（清除檢舉）', 'Restore (clear reports)') : tr('隱藏貼文', 'Hide post'),
+      tr(`停權 @${post.author.username}`, `Suspend @${post.author.username}`),
+      tr('刪除貼文', 'Delete post'),
+    ];
+    const choice = await chooseOption(tr('管理員選項', 'Admin options'), options, { destructiveIndex: 2 });
+    if (choice === null) return;
+    try {
+      if (choice === 0) {
+        await api(`/api/admin/posts/${post.id}/${post.hidden ? 'restore' : 'hide'}`, { method: 'POST' });
+        if (post.hidden) {
+          setPost({ ...post, hidden: false });
+          notify(tr('已恢復顯示', 'Restored'));
+        } else {
+          notify(tr('已隱藏', 'Hidden'), tr('其他人看不到這則貼文了，可以在「管理員：檢舉處理」恢復。', 'Others can no longer see it. Restore it from Admin: reports.'));
+          onRemoved?.();
+        }
+        return;
+      }
+      if (choice === 1) {
+        if (!(await confirmAction(tr(`停權 @${post.author.username}？`, `Suspend @${post.author.username}?`), tr('對方會被登出、不能再登入，貼文和留言對其他人隱藏。之後可以在「管理員：檢舉處理」解除。', "They're signed out and can't sign in, and their posts and comments are hidden. You can undo this in Admin: reports."), tr('停權', 'Suspend')))) return;
+        await api(`/api/admin/users/${encodeURIComponent(post.author.username)}/ban`, { method: 'POST' });
+        notify(tr(`已停權 @${post.author.username}`, `Suspended @${post.author.username}`));
+        onRemoved?.();
+        return;
+      }
+      if (!(await confirmAction(tr('刪除這則分享？', 'Delete this post?'), tr('刪除後無法復原。', "This can't be undone."), tr('刪除', 'Delete')))) return;
+      await api(`/api/posts/${post.id}`, { method: 'DELETE' });
+      onRemoved?.();
+    } catch (err) {
+      notify((err as Error).message);
+    }
+  }
+
   async function openMenu() {
-    if (isMine || user?.isAdmin) {
-      // 作者可以編輯、釘選；管理員只能刪除別人的貼文
+    if (!isMine && user?.isAdmin) return openAdminMenu();
+    if (isMine) {
+      // 作者可以編輯、釘選、刪除
       const pinLabel = post.pinned ? tr('取消釘選', 'Unpin from profile') : tr('釘選到個人頁', 'Pin to profile');
-      const options = isMine ? [tr('編輯貼文', 'Edit post'), pinLabel, tr('刪除貼文', 'Delete post')] : [tr('刪除貼文', 'Delete post')];
+      const options = [tr('編輯貼文', 'Edit post'), pinLabel, tr('刪除貼文', 'Delete post')];
       const choice = await chooseOption(tr('貼文選項', 'Post options'), options, { destructiveIndex: options.length - 1 });
       if (choice === null) return;
-      if (isMine && choice === 0) {
+      if (choice === 0) {
         router.push(`/edit/${post.id}`);
         return;
       }
-      if (isMine && choice === 1) {
+      if (choice === 1) {
         try {
           const res = await api<{ pinned: boolean }>(`/api/posts/${post.id}/pin`, { method: post.pinned ? 'DELETE' : 'PUT' });
           setPost({ ...post, pinned: res.pinned });
