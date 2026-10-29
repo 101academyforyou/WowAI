@@ -6,7 +6,8 @@ import { AuthProvider, useAuth } from '../lib/auth';
 import { NotificationsProvider } from '../lib/notifications';
 import { MAX_CONTENT_WIDTH, fonts, useColors } from '../lib/theme';
 import { DialogHost, Loading } from '../components/ui';
-import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { tr } from '../lib/i18n';
 
 // 點 iPhone 推播 → 打開對應的貼文或個人頁（App 沒開時點進來也一樣）
@@ -23,6 +24,18 @@ function useOpenPushTarget(ready: boolean) {
   }, [ready]);
 }
 
+// 直接打開貼文、個人頁等網址（例如別人分享的連結）時沒有上一頁，左上角改成回首頁
+function HomeButton() {
+  const c = useColors();
+  return (
+    <Pressable onPress={() => router.replace('/')} hitSlop={10} style={styles.home} accessibilityRole="button" accessibilityLabel={tr('回到首頁', 'Back to home')}>
+      <Ionicons name="chevron-back" size={22} color={c.text} />
+      <Ionicons name="home-outline" size={20} color={c.text} />
+      <Text style={{ color: c.text, fontFamily: fonts.mono, fontWeight: '700', fontSize: 14 }}>{tr('首頁', 'Home')}</Text>
+    </Pressable>
+  );
+}
+
 function RootStack() {
   const { ready } = useAuth();
   const c = useColors();
@@ -30,13 +43,14 @@ function RootStack() {
   if (!ready) return <Loading />;
   return (
     <Stack
-      screenOptions={{
+      screenOptions={({ navigation }) => ({
         headerBackButtonDisplayMode: 'minimal',
         headerTintColor: c.text,
         headerStyle: { backgroundColor: c.bg },
         headerTitleStyle: { fontFamily: fonts.mono, fontWeight: '700' },
         contentStyle: { backgroundColor: c.bg },
-      }}
+        headerLeft: navigation.canGoBack() ? undefined : () => <HomeButton />,
+      })}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ title: tr('貼文', 'Post') }} />
@@ -80,4 +94,5 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   page: { flex: 1, alignItems: 'center' },
   column: { flex: 1, width: '100%', maxWidth: MAX_CONTENT_WIDTH + 2 },
+  home: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 12 },
 });
