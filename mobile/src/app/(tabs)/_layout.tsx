@@ -6,6 +6,7 @@ import { chooseOption, Logo } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { useNotifications } from '../../lib/notifications';
 import { lang, setWebLang, tr } from '../../lib/i18n';
+import { emitHomeTop } from '../../lib/homeEvents';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -55,9 +56,19 @@ export default function TabsLayout() {
         options={{
           title: tr('首頁', 'Home'),
           headerTitleAlign: 'left',
-          headerTitle: () => <Logo size={24} />,
+          headerTitle: () => (
+            <Pressable onPress={emitHomeTop} accessibilityRole="button" accessibilityLabel={tr('回到頂端並重新整理', 'Scroll to top and refresh')} hitSlop={8}>
+              <Logo size={24} />
+            </Pressable>
+          ),
           tabBarIcon: tabIcon('home-outline', 'home'),
         }}
+        // 已經在首頁時再點一次首頁按鈕：回到最上面並重新整理
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            if (navigation.isFocused()) emitHomeTop();
+          },
+        })}
       />
       <Tabs.Screen name="explore" options={{ title: tr('探索', 'Explore'), tabBarIcon: tabIcon('search-outline', 'search') }} />
       <Tabs.Screen
