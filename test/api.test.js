@@ -738,6 +738,47 @@ test('留言：自己可以編輯與刪除；貼文作者可以刪除別人在�
   assert.equal((await del(fan, c2.id)).status, 404);
 });
 
+test('回覆留言與對留言按 Cool：只有一層、通知被回覆的人與貼文作者、重複按 Cool 只通知一次、刪掉留言連回覆一起刪', async () => {
+  const author = await register('rp_author');
+  const amy = await register('rp_amy');
+  const bob = await register('rp_bob');
+  const { post } = await (await createPost(author, { title: '回覆測試' }, [{ name: 'a.png', data: PNG }])).json();
+  const add = async (cookie, body, parentId) => (await (await fetch(`${base}/api/posts/${post.id}/comments`, {
+    method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ body, parentId }),
+  })).json()).comment;
+  const notes = async (cookie) => (await (await fetch(`${base}/api/notifications`, { headers: { cookie } })).json()).notifications;
+  const cool = (cookie, id, on = true) => fetch(`${base}/api/comments/${id}/cool`, { method: on ? 'PUT' : 'DELETE', headers: { cookie } }).then((r) => r.json());
+
+  const top = await add(amy, '好酷');
+  assert.equal(top.parentId, null);
+  const r1 = await add(bob, '@rp_amy 同意', top.id);
+  assert.equal(r1.parentId, top.id);
+  // 回覆「回覆」也掛在最上層那則底下
+  const r2 = await add(amy, '@rp_bob 謝謝', r1.id);
+  assert.equal(r2.parentId, top.id);
+  const bad = await fetch(`${base}/api/posts/${post.id}/comments`, { method: 'POST', headers: { cookie: amy, 'Content-Type': 'application/json' }, body: JSON.stringify({ body: 'x', parentId: 999999 }) });
+  assert.equal(bad.status, 404);
+
+  // Amy 收到 Bob 的回覆；Bob 收到 Amy 回覆他；作者收到三則留言通知
+  assert.ok((await notes(amy)).some((n) => n.type === 'reply' && n.message.includes('同意')));
+  assert.ok((await notes(bob)).some((n) => n.type === 'reply' && n.message.includes('謝謝')));
+  assert.equal((await notes(author)).filter((n) => n.type === 'comment').length, 3);
+
+  assert.deepEqual(await cool(bob, top.id), { coolCount: 1, cooledByMe: true });
+  assert.deepEqual(await cool(author, top.id), { coolCount: 2, cooledByMe: true });
+  assert.deepEqual(await cool(bob, top.id, false), { coolCount: 1, cooledByMe: false });
+  await cool(bob, top.id);
+  assert.equal((await notes(amy)).filter((n) => n.type === 'comment_cool').length, 2, 'Bob 取消再按不重複通知');
+
+  const list = (await (await fetch(`${base}/api/posts/${post.id}/comments`, { headers: { cookie: bob } })).json()).comments;
+  assert.deepEqual(list.map((c) => [c.body, c.parentId, c.coolCount, c.cooledByMe]), [
+    ['好酷', null, 2, true], ['@rp_amy 同意', top.id, 0, false], ['@rp_bob 謝謝', top.id, 0, false],
+  ]);
+
+  // 刪掉最上層留言，回覆一起刪
+  assert.deepEqual(await (await fetch(`${base}/api/comments/${top.id}`, { method: 'DELETE', headers: { cookie: author } })).json(), { commentCount: 0 });
+});
+
 test('自己的 GitHub 帳號：沒有綁定 GitHub 時，用「聯繫我」填的 GitHub', async () => {
   const cookie = await register('gh_contact');
   const me = async () => (await (await fetch(`${base}/api/me`, { headers: { cookie } })).json()).user;

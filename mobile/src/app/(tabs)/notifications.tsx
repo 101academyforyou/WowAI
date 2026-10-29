@@ -16,6 +16,8 @@ const TYPE_ICON = {
   follow: 'person-add',
   new_post: 'sparkles',
   repost: 'paper-plane',
+  reply: 'arrow-undo',
+  comment_cool: 'flash',
 } as const;
 
 type Page = { notifications: AppNotification[]; nextBefore: number | null };
@@ -87,7 +89,7 @@ export default function NotificationsScreen() {
           <View>
             <Avatar user={item.actor} size={44} />
             <View style={[styles.typeBadge, { backgroundColor: c.surface2, borderColor: c.bg }]}>
-              <Ionicons name={TYPE_ICON[item.type]} size={11} color={item.type === 'cool' ? c.cool : c.accent} />
+              <Ionicons name={TYPE_ICON[item.type]} size={11} color={item.type === 'cool' || item.type === 'comment_cool' ? c.cool : c.accent} />
             </View>
           </View>
           <View style={styles.body}>

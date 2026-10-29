@@ -251,6 +251,30 @@ export function openDatabase(file) {
       db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id DESC)');
     });
   }
+  // 回覆與留言 Cool 的通知類型
+  const notificationsSql2 = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notifications'").get().sql;
+  if (!notificationsSql2.includes("'reply'")) {
+    transaction(db, () => {
+      db.exec(`ALTER TABLE notifications RENAME TO notifications_old`);
+      db.exec(notificationsSql2.replace("'repost')", "'repost', 'reply', 'comment_cool')"));
+      db.exec('INSERT INTO notifications SELECT * FROM notifications_old');
+      db.exec('DROP TABLE notifications_old');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id DESC)');
+    });
+  }
+  const commentColumns2 = db.prepare('PRAGMA table_info(comments)').all().map((c) => c.name);
+  if (!commentColumns2.includes('parent_id')) {
+    // 回覆哪一則留言（只有一層：回覆的回覆也掛在最上層那則）；NULL 代表直接留言在貼文下
+    db.exec('ALTER TABLE comments ADD COLUMN parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE');
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS comment_cools (
+      comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (comment_id, user_id)
+    )
+  `);
   // 舊版的「愛心」改成 Cool 票
   if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'likes'").get()) {
     transaction(db, () => {

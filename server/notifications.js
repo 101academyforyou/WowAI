@@ -33,6 +33,8 @@ export function notificationText({ type, actorName, postTitle, text }, lang = 'z
       case 'follow': return `${actorName} started following you`;
       case 'new_post': return `${actorName} shared a new project: "${postTitle}"`;
       case 'repost': return `${actorName} shared your "${postTitle}" on their profile`;
+      case 'reply': return `${actorName} replied to your comment: ${excerpt(text)}`;
+      case 'comment_cool': return `${actorName} thinks your comment is Cool ⚡: ${excerpt(text)}`;
       default: return '';
     }
   }
@@ -42,6 +44,8 @@ export function notificationText({ type, actorName, postTitle, text }, lang = 'z
     case 'follow': return `${actorName} 開始追蹤你`;
     case 'new_post': return `${actorName} 分享了新作品「${postTitle}」`;
     case 'repost': return `${actorName} 把你的「${postTitle}」分享到個人頁`;
+    case 'reply': return `${actorName} 回覆了你的留言：${excerpt(text)}`;
+    case 'comment_cool': return `${actorName} 覺得你的留言很 Cool ⚡：${excerpt(text)}`;
     default: return '';
   }
 }
@@ -59,6 +63,9 @@ export function createNotifier({ db, pushSender = expoPushSender, log = console 
     ),
     existing: db.prepare(
       'SELECT 1 FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND post_id IS ?',
+    ),
+    existingText: db.prepare(
+      'SELECT 1 FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND post_id IS ? AND text = ?',
     ),
     insert: db.prepare(
       'INSERT INTO notifications (user_id, actor_id, type, post_id, text) VALUES (?, ?, ?, ?, ?)',
@@ -115,6 +122,8 @@ export function createNotifier({ db, pushSender = expoPushSender, log = console 
     if (q.blockedEither.get(userId, actorId, actorId, userId)) return Promise.resolve();
     // 同一個人重複按 Cool、取消再追蹤，不重複通知
     if ((type === 'cool' || type === 'follow' || type === 'repost') && q.existing.get(userId, actorId, type, postId)) return Promise.resolve();
+    // 同一則留言重複按 Cool 也只通知一次（用留言內容辨認）
+    if (type === 'comment_cool' && q.existingText.get(userId, actorId, type, postId, text)) return Promise.resolve();
     q.insert.run(userId, actorId, type, postId, text);
     broadcast(userId);
     return push(userId, { type, actorId, postId, text });

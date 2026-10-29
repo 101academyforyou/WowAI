@@ -73,6 +73,7 @@ const MESSAGES = {
   'Apple 登入驗證失敗': 'Apple sign-in could not be verified',
   請輸入你的帳號確認刪除: 'Enter your username to confirm',
   找不到這則留言: 'Comment not found',
+  找不到要回覆的留言: "The comment you're replying to was not found",
   只能編輯自己的留言: 'You can only edit your own comments',
   只能刪除自己的留言或自己貼文下的留言: 'You can only delete your own comments or comments on your posts',
   伺服器發生錯誤: 'Server error',
