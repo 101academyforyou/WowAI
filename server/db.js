@@ -206,6 +206,32 @@ export function openDatabase(file) {
     // 作者附上的教學連結（部落格、YouTube 教學、Notion…），卡片上顯示成「Learn it」
     db.exec("ALTER TABLE posts ADD COLUMN learn_url TEXT NOT NULL DEFAULT ''");
   }
+  if (!postColumns.includes('learn_video_url')) {
+    // Learn it 教學：免費試看影片、完整教學影片和文字教學（解鎖後才看得到）、價格（美分，0 = 免費）
+    db.exec(`
+      ALTER TABLE posts ADD COLUMN learn_preview_url TEXT NOT NULL DEFAULT '';
+      ALTER TABLE posts ADD COLUMN learn_video_url TEXT NOT NULL DEFAULT '';
+      ALTER TABLE posts ADD COLUMN learn_notes TEXT NOT NULL DEFAULT '';
+      ALTER TABLE posts ADD COLUMN learn_price INTEGER NOT NULL DEFAULT 0;
+    `);
+  }
+  db.exec(`
+    -- 誰解鎖了哪則貼文的完整教學（Beta 期間免費，先記錄有多少人想學）
+    CREATE TABLE IF NOT EXISTS learn_unlocks (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, post_id)
+    );
+    -- 學習者問 AI 家教的問題（AI 還沒接上前先收集，了解大家想學什麼）
+    CREATE TABLE IF NOT EXISTS tutor_questions (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      question   TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
   const identityColumns = db.prepare('PRAGMA table_info(user_identities)').all().map((c) => c.name);
   if (!identityColumns.includes('username')) {
     // 第三方帳號的名稱（例如 GitHub 的 login），用來列出自己的 GitHub 專案

@@ -117,6 +117,27 @@ function cleanYouTubeUrl(value) {
   return video.url;
 }
 
+// 價格：美元，最多兩位小數，0 到 500；存成美分
+function cleanPrice(value) {
+  const text = typeof value === 'string' ? value.trim().replace(/^\$/, '') : value == null ? '' : String(value);
+  if (!text) return 0;
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) throw new HttpError(400, '價格請填數字，例如 9.99');
+  const cents = Math.round(Number(text) * 100);
+  if (cents > 50000) throw new HttpError(400, '價格最高 500 美元');
+  return cents;
+}
+
+// Learn it 欄位；old 是編輯時原本的貼文：沒送的欄位（舊版 App、Webhook）保留原本的值
+function cleanLearn(body, old) {
+  const keep = (key, column, clean) => (body[key] === undefined && old ? old[column] : clean(body[key]));
+  return {
+    previewUrl: keep('learnPreviewUrl', 'learn_preview_url', (v) => cleanYouTubeUrl(v)),
+    videoUrl: keep('learnVideoUrl', 'learn_video_url', (v) => cleanYouTubeUrl(v)),
+    notes: keep('learnNotes', 'learn_notes', (v) => cleanText(v, { max: 10000, field: '教學內容' })),
+    price: keep('learnPrice', 'learn_price', cleanPrice),
+  };
+}
+
 function cleanGitHubUrl(value) {
   const text = cleanText(value, { max: 300, field: 'GitHub 專案' });
   if (!text) return '';
@@ -217,6 +238,9 @@ export function createApp({
     commentCount: db.prepare('SELECT COUNT(*) AS n FROM comments WHERE post_id = ?'),
     repostCount: db.prepare('SELECT COUNT(*) AS n FROM reposts WHERE post_id = ?'),
     myRepost: db.prepare('SELECT 1 FROM reposts WHERE user_id = ? AND post_id = ?'),
+    learnUnlocked: db.prepare('SELECT 1 FROM learn_unlocks WHERE user_id = ? AND post_id = ?'),
+    learnUnlockCount: db.prepare('SELECT COUNT(*) AS n FROM learn_unlocks WHERE post_id = ?'),
+    tutorQuestionCount: db.prepare('SELECT COUNT(*) AS n FROM tutor_questions WHERE post_id = ?'),
     myVote: db.prepare('SELECT value FROM votes WHERE user_id = ? AND post_id = ?'),
     userById: db.prepare('SELECT id, username, display_name, avatar FROM users WHERE id = ?'),
     isBanned: db.prepare('SELECT 1 FROM users WHERE id = ? AND banned_at IS NOT NULL'),
@@ -281,6 +305,28 @@ export function createApp({
     };
   }
 
+  // Learn it：試看影片大家都看得到；完整教學影片和文字教學要解鎖（作者、管理員、免費的教學不用）
+  function learnState(post, viewer) {
+    const preview = post.learn_preview_url ? { url: post.learn_preview_url, id: parseYouTube(post.learn_preview_url).id } : null;
+    const hasFull = Boolean(post.learn_video_url || post.learn_notes);
+    if (!preview && !hasFull) return null;
+    const isAuthor = viewer?.id === post.user_id;
+    const unlocked = !hasFull || post.learn_price === 0 || isAuthor || isAdmin(viewer)
+      || Boolean(viewer && q.learnUnlocked.get(viewer.id, post.id));
+    return {
+      preview,
+      hasFull,
+      hasVideo: Boolean(post.learn_video_url),
+      hasNotes: Boolean(post.learn_notes),
+      price: post.learn_price,
+      unlocked,
+      video: unlocked && post.learn_video_url ? { url: post.learn_video_url, id: parseYouTube(post.learn_video_url).id } : null,
+      notes: unlocked ? post.learn_notes : null,
+      // 作者自己看得到有多少人解鎖、問了多少問題
+      ...(isAuthor ? { unlockCount: q.learnUnlockCount.get(post.id).n, questionCount: q.tutorQuestionCount.get(post.id).n } : {}),
+    };
+  }
+
   function serializePost(post, viewer) {
     return {
       id: post.id,
@@ -288,6 +334,7 @@ export function createApp({
       description: post.description,
       toolUrl: post.tool_url,
       learnUrl: post.learn_url ?? '',
+      learn: learnState(post, viewer),
       githubUrl: post.github_url,
       githubStars: post.github_url ? starCache.stars(post.github_url) : null,
       youtube: post.youtube_url ? { url: post.youtube_url, id: parseYouTube(post.youtube_url).id } : null,
@@ -782,6 +829,7 @@ export function createApp({
     const description = cleanText(body.description, { max: 2000, field: '介紹' });
     const toolUrl = cleanToolUrl(body.toolUrl);
     const learnUrl = cleanToolUrl(body.learnUrl, '教學連結');
+    const learn = cleanLearn(body);
     const githubUrl = cleanGitHubUrl(body.githubUrl);
     const aiTools = parseAiTools(body.aiTools);
     const categories = parseCategories(body.categories);
@@ -790,8 +838,9 @@ export function createApp({
 
     const postId = transaction(db, () => {
       const { lastInsertRowid } = db
-        .prepare('INSERT INTO posts (user_id, title, description, tool_url, learn_url, github_url, youtube_url, category_other) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(user.id, title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther);
+        .prepare(`INSERT INTO posts (user_id, title, description, tool_url, learn_url, github_url, youtube_url, category_other,
+          learn_preview_url, learn_video_url, learn_notes, learn_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(user.id, title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther, learn.previewUrl, learn.videoUrl, learn.notes, learn.price);
       saveMedia(lastInsertRowid, media);
       const insertTool = db.prepare('INSERT INTO post_ai_tools (post_id, name) VALUES (?, ?)');
       aiTools.forEach((name) => insertTool.run(lastInsertRowid, name));
@@ -879,6 +928,7 @@ export function createApp({
       const toolUrl = cleanToolUrl(req.body.toolUrl);
       // 舊版 App 不會送 learnUrl：沒送就保留原本的
       const learnUrl = req.body.learnUrl === undefined ? post.learn_url : cleanToolUrl(req.body.learnUrl, '教學連結');
+      const learn = cleanLearn(req.body, post);
       const githubUrl = cleanGitHubUrl(req.body.githubUrl);
       const aiTools = parseAiTools(req.body.aiTools);
       const categories = parseCategories(req.body.categories);
@@ -887,8 +937,9 @@ export function createApp({
       const keptNames = new Set(plan.filter((m) => m.kept).map((m) => m.kept.filename));
       const removed = [...existing.values()].filter((m) => !keptNames.has(m.filename));
       transaction(db, () => {
-        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, learn_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
-          .run(title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther, post.id);
+        db.prepare(`UPDATE posts SET title = ?, description = ?, tool_url = ?, learn_url = ?, github_url = ?, youtube_url = ?, category_other = ?,
+          learn_preview_url = ?, learn_video_url = ?, learn_notes = ?, learn_price = ? WHERE id = ?`)
+          .run(title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther, learn.previewUrl, learn.videoUrl, learn.notes, learn.price, post.id);
         db.prepare('DELETE FROM post_media WHERE post_id = ?').run(post.id);
         const insertMedia = db.prepare('INSERT INTO post_media (post_id, filename, kind, position) VALUES (?, ?, ?, ?)');
         plan.forEach((m, i) => {
@@ -1034,6 +1085,23 @@ export function createApp({
     const post = getPostOr404(req.params.id, req.user);
     db.prepare('DELETE FROM reposts WHERE user_id = ? AND post_id = ?').run(req.user.id, post.id);
     res.json(repostState(post.id, req.user));
+  });
+
+  // 解鎖完整教學：Beta 期間不收費，先記錄有多少人想學
+  app.post('/api/posts/:id/learn/unlock', requireAuth, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    if (!post.learn_video_url && !post.learn_notes) throw new HttpError(400, '這則貼文沒有完整教學');
+    db.prepare('INSERT OR IGNORE INTO learn_unlocks (user_id, post_id) VALUES (?, ?)').run(req.user.id, post.id);
+    res.json({ post: serializePost(post, req.user) });
+  });
+
+  // AI 家教：AI 還沒接上，先把問題存下來（作者看得到問題數），回覆「即將推出」
+  app.post('/api/posts/:id/learn/tutor', requireAuth, (req, res) => {
+    const post = getPostOr404(req.params.id, req.user);
+    if (!learnState(post, req.user)) throw new HttpError(400, '這則貼文沒有 Learn it 教學');
+    const question = cleanText(req.body?.question, { max: 1000, field: '問題', required: true });
+    db.prepare('INSERT INTO tutor_questions (user_id, post_id, question) VALUES (?, ?, ?)').run(req.user.id, post.id, question);
+    res.json({ comingSoon: true });
   });
 
   app.get('/api/posts/:id/comments', (req, res) => {
@@ -1202,6 +1270,10 @@ export function createApp({
           description: 'optional, max 2000 chars',
           toolUrl: 'optional, http(s) link where people can try it',
           learnUrl: 'optional, http(s) link to a tutorial or write-up on how it was built (blog, YouTube, Notion…)',
+          learnPreviewUrl: 'optional, YouTube link to a free preview of how it was built (everyone can watch)',
+          learnVideoUrl: 'optional, YouTube link to the full tutorial video (use an unlisted video; only shown after unlocking)',
+          learnNotes: 'optional, max 10000 chars, the full written tutorial: prompts, steps, gotchas (only shown after unlocking)',
+          learnPrice: 'optional, price in USD to unlock the full tutorial (0 = free; unlocking is free during beta)',
           githubUrl: 'optional, owner/repo or a github.com repo URL',
           aiTools: 'optional, AI tools used, array or comma-separated string, max 10 (e.g. ["Claude Code", "Cursor"])',
           categories: `optional, up to ${MAX_CATEGORIES} of: ${CATEGORIES.join(', ')}`,
@@ -1263,6 +1335,7 @@ export function createApp({
       const description = has('description') ? cleanText(body.description, { max: 2000, field: '介紹' }) : post.description;
       const toolUrl = has('toolUrl') ? cleanToolUrl(body.toolUrl) : post.tool_url;
       const learnUrl = has('learnUrl') ? cleanToolUrl(body.learnUrl, '教學連結') : post.learn_url;
+      const learn = cleanLearn(body, post);
       const githubUrl = has('githubUrl') ? cleanGitHubUrl(body.githubUrl) : post.github_url;
       const aiTools = has('aiTools') ? parseAiTools(body.aiTools) : null;
       const categories = has('categories') ? parseCategories(body.categories) : q.categoriesForPost.all(post.id).map((r) => r.slug);
@@ -1271,8 +1344,9 @@ export function createApp({
       const media = replaceMedia ? files.map(checkImage) : null;
 
       transaction(db, () => {
-        db.prepare('UPDATE posts SET title = ?, description = ?, tool_url = ?, learn_url = ?, github_url = ?, youtube_url = ?, category_other = ? WHERE id = ?')
-          .run(title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther, post.id);
+        db.prepare(`UPDATE posts SET title = ?, description = ?, tool_url = ?, learn_url = ?, github_url = ?, youtube_url = ?, category_other = ?,
+          learn_preview_url = ?, learn_video_url = ?, learn_notes = ?, learn_price = ? WHERE id = ?`)
+          .run(title, description, toolUrl, learnUrl, githubUrl, youtubeUrl, categoryOther, learn.previewUrl, learn.videoUrl, learn.notes, learn.price, post.id);
         if (media) {
           db.prepare('DELETE FROM post_media WHERE post_id = ?').run(post.id);
           saveMedia(post.id, media);
