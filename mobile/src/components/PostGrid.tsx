@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -6,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { mediaUri, siteUrl, type Post } from '../lib/api';
 import { youtubeThumbnail } from '../lib/youtube';
-import { useColors, useContentWidth } from '../lib/theme';
+import { useColors } from '../lib/theme';
 import { tr } from '../lib/i18n';
 import { notify } from './ui';
 
@@ -34,104 +33,110 @@ export type ArrangeHandlers = {
 // IG 風格的三欄九宮格
 // pinned：顯示釘選圖示（只有個人頁的「作品」分頁用）
 export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pinned?: boolean; arrange?: ArrangeHandlers }) {
-  // 用格子實際的寬度（網頁版有捲軸、邊框，視窗寬度會多算），取整數避免第三格被擠到下一行
-  const fallback = useContentWidth();
-  const [measured, setMeasured] = useState<number | null>(null);
-  const width = measured ?? fallback;
   const c = useColors();
-  const size = Math.floor((width - GAP * (COLUMNS - 1)) / COLUMNS);
+  // 一列一列排，格子用 flex 平分寬度、保持正方形；不靠量寬度＋換行，
+  // 網頁寬度有小數（捲軸、縮放）時第三格才不會被擠到下一行
+  const rows: Post[][] = [];
+  for (let i = 0; i < posts.length; i += COLUMNS) rows.push(posts.slice(i, i + COLUMNS));
   return (
-    <View style={styles.grid} onLayout={(e) => setMeasured(e.nativeEvent.layout.width)}>
-      {posts.map((p, index) => {
-        const image = p.media.find((m) => m.kind === 'image');
-        const cover = image ? mediaUri(image.url) : p.youtube ? youtubeThumbnail(p.youtube.id) : null;
-        const count = p.media.length + (p.youtube ? 1 : 0);
-        // 多張截圖／影片的標記放右下角，右上角留給「複製連結」
-        const badge = count > 1 ? 'albums-outline' : p.youtube || p.media[0]?.kind === 'video' ? 'play' : null;
-        return (
-          <Pressable
-            key={p.id}
-            onPress={arrange ? undefined : () => router.push(`/post/${p.id}`)}
-            style={[styles.tile, { width: size, height: size, backgroundColor: c.surface2 }]}
-            accessibilityLabel={p.title}
-          >
-            {cover ? (
-              <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, styles.videoTile]}>
-                <Ionicons name="videocam" size={28} color="#fff" />
-                <Text style={styles.videoTitle} numberOfLines={2}>{p.title}</Text>
-              </View>
-            )}
-            {badge && !arrange ? (
-              <Ionicons name={badge} size={18} color="#fff" style={styles.badge} />
-            ) : null}
-            {pinned && p.pinned && !arrange ? (
-              <View style={styles.pin} accessibilityLabel={tr('已釘選', 'Pinned')}>
-                <PinIcon />
-              </View>
-            ) : null}
-            {arrange ? (
-              <View style={[StyleSheet.absoluteFill, styles.arrange]}>
-                {arrange.onTogglePin ? (
-                  <Pressable
-                    onPress={() => arrange.onTogglePin!(p)}
-                    hitSlop={6}
-                    style={[styles.control, styles.pinControl, p.pinned && { backgroundColor: c.accent }]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: Boolean(p.pinned) }}
-                    accessibilityLabel={p.pinned ? tr(`取消釘選「${p.title}」`, `Unpin "${p.title}"`) : tr(`釘選「${p.title}」`, `Pin "${p.title}"`)}
-                  >
-                    <PinIcon size={16} filled={Boolean(p.pinned)} color={p.pinned ? '#000' : '#fff'} />
-                  </Pressable>
+    <View style={styles.grid}>
+      {rows.map((row, r) => (
+        <View key={r} style={styles.row}>
+          {row.map((p, col) => {
+            const index = r * COLUMNS + col;
+            const image = p.media.find((m) => m.kind === 'image');
+            const cover = image ? mediaUri(image.url) : p.youtube ? youtubeThumbnail(p.youtube.id) : null;
+            const count = p.media.length + (p.youtube ? 1 : 0);
+            // 多張截圖／影片的標記放右下角，右上角留給「複製連結」
+            const badge = count > 1 ? 'albums-outline' : p.youtube || p.media[0]?.kind === 'video' ? 'play' : null;
+            return (
+              <Pressable
+                key={p.id}
+                onPress={arrange ? undefined : () => router.push(`/post/${p.id}`)}
+                style={[styles.cell, styles.tile, { backgroundColor: c.surface2 }]}
+                accessibilityLabel={p.title}
+              >
+                {cover ? (
+                  <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, styles.videoTile]}>
+                    <Ionicons name="videocam" size={28} color="#fff" />
+                    <Text style={styles.videoTitle} numberOfLines={2}>{p.title}</Text>
+                  </View>
+                )}
+                {badge && !arrange ? (
+                  <Ionicons name={badge} size={18} color="#fff" style={styles.badge} />
                 ) : null}
-                {/* 右上角：複製這則貼文的連結 */}
+                {pinned && p.pinned && !arrange ? (
+                  <View style={styles.pin} accessibilityLabel={tr('已釘選', 'Pinned')}>
+                    <PinIcon />
+                  </View>
+                ) : null}
+                {arrange ? (
+                  <View style={[StyleSheet.absoluteFill, styles.arrange]}>
+                    {arrange.onTogglePin ? (
+                      <Pressable
+                        onPress={() => arrange.onTogglePin!(p)}
+                        hitSlop={6}
+                        style={[styles.control, styles.pinControl, p.pinned && { backgroundColor: c.accent }]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: Boolean(p.pinned) }}
+                        accessibilityLabel={p.pinned ? tr(`取消釘選「${p.title}」`, `Unpin "${p.title}"`) : tr(`釘選「${p.title}」`, `Pin "${p.title}"`)}
+                      >
+                        <PinIcon size={16} filled={Boolean(p.pinned)} color={p.pinned ? '#000' : '#fff'} />
+                      </Pressable>
+                    ) : null}
+                    {/* 右上角：複製這則貼文的連結 */}
+                    <Pressable
+                      onPress={() => copyLink(p)}
+                      hitSlop={4}
+                      style={[styles.control, styles.move, styles.copy]}
+                      accessibilityRole="button"
+                      accessibilityLabel={tr(`複製「${p.title}」的連結`, `Copy link to "${p.title}"`)}
+                    >
+                      <Ionicons name="copy-outline" size={16} color="#fff" />
+                    </Pressable>
+                    {/* 上下左右：上下一次跨一列（3 格），左右一次一格 */}
+                    {([
+                      ['up', -COLUMNS, 'chevron-up', styles.up, tr('往上移', 'up')],
+                      ['left', -1, 'chevron-back', styles.left, tr('往前移', 'earlier')],
+                      ['right', 1, 'chevron-forward', styles.right, tr('往後移', 'later')],
+                      ['down', COLUMNS, 'chevron-down', styles.down, tr('往下移', 'down')],
+                    ] as const).map(([key, delta, icon, position, label]) => {
+                      const off = index + delta < 0 || index + delta >= posts.length;
+                      return (
+                        <Pressable
+                          key={key}
+                          onPress={() => arrange.onMove(index, delta)}
+                          disabled={off}
+                          hitSlop={4}
+                          style={[styles.control, styles.move, position, off && styles.disabled]}
+                          accessibilityRole="button"
+                          accessibilityLabel={tr(`「${p.title}」${label}`, `Move "${p.title}" ${label}`)}
+                        >
+                          <Ionicons name={icon} size={18} color="#fff" />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
+                {/* 右上角：複製這則貼文的連結（平常和排列模式都有） */}
                 <Pressable
                   onPress={() => copyLink(p)}
                   hitSlop={4}
-                  style={[styles.control, styles.move, styles.copy]}
+                  style={[styles.control, styles.copy, !arrange && styles.copySmall]}
                   accessibilityRole="button"
                   accessibilityLabel={tr(`複製「${p.title}」的連結`, `Copy link to "${p.title}"`)}
                 >
-                  <Ionicons name="copy-outline" size={16} color="#fff" />
+                  <Ionicons name="copy-outline" size={arrange ? 16 : 14} color="#fff" />
                 </Pressable>
-                {/* 上下左右：上下一次跨一列（3 格），左右一次一格 */}
-                {([
-                  ['up', -COLUMNS, 'chevron-up', styles.up, tr('往上移', 'up')],
-                  ['left', -1, 'chevron-back', styles.left, tr('往前移', 'earlier')],
-                  ['right', 1, 'chevron-forward', styles.right, tr('往後移', 'later')],
-                  ['down', COLUMNS, 'chevron-down', styles.down, tr('往下移', 'down')],
-                ] as const).map(([key, delta, icon, position, label]) => {
-                  const off = index + delta < 0 || index + delta >= posts.length;
-                  return (
-                    <Pressable
-                      key={key}
-                      onPress={() => arrange.onMove(index, delta)}
-                      disabled={off}
-                      hitSlop={4}
-                      style={[styles.control, styles.move, position, off && styles.disabled]}
-                      accessibilityRole="button"
-                      accessibilityLabel={tr(`「${p.title}」${label}`, `Move "${p.title}" ${label}`)}
-                    >
-                      <Ionicons name={icon} size={18} color="#fff" />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
-            {/* 右上角：複製這則貼文的連結（平常和排列模式都有） */}
-            <Pressable
-              onPress={() => copyLink(p)}
-              hitSlop={4}
-              style={[styles.control, styles.copy, !arrange && styles.copySmall]}
-              accessibilityRole="button"
-              accessibilityLabel={tr(`複製「${p.title}」的連結`, `Copy link to "${p.title}"`)}
-            >
-              <Ionicons name="copy-outline" size={arrange ? 16 : 14} color="#fff" />
-            </Pressable>
-          </Pressable>
-        );
-      })}
+              </Pressable>
+            );
+          })}
+          {/* 最後一列不滿 3 格時補空格，格子大小才會一致 */}
+          {Array.from({ length: COLUMNS - row.length }, (_, i) => <View key={`empty-${i}`} style={styles.cell} />)}
+        </View>
+      ))}
     </View>
   );
 }
@@ -140,7 +145,9 @@ const GAP = 2;
 const COLUMNS = 3;
 
 const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
+  grid: { gap: GAP },
+  row: { flexDirection: 'row', gap: GAP },
+  cell: { flex: 1, aspectRatio: 1 },
   // 圖片只顯示在自己的格子裡
   tile: { overflow: 'hidden' },
   pin: { position: 'absolute', top: 6, left: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
