@@ -17,6 +17,9 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
   const c = useColors();
   const { user } = useAuth();
   const [post, setPost] = useState(initial);
+  const [expanded, setExpanded] = useState(false);
+  // 大約超過 3 行（字數多或換行多）才需要「更多」
+  const longDescription = post.description.length > 60 || (post.description.match(/\n/g)?.length ?? 0) >= 3;
   // 列表重新載入（例如編輯完回來）時，換成最新的貼文內容
   const [source, setSource] = useState(initial);
   if (initial !== source) {
@@ -289,7 +292,13 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
       <View style={styles.body}>
         <Text style={[styles.title, { color: c.text }]}>{post.title}</Text>
         {post.description ? (
-          <Text style={{ color: c.text, lineHeight: 21 }} numberOfLines={full ? undefined : 3}>{post.description}</Text>
+          // 動態牆只顯示 3 行；介紹比較長時可以點「更多」展開
+          <Pressable onPress={() => setExpanded((e) => !e)} disabled={full || !longDescription} accessibilityRole={full || !longDescription ? undefined : 'button'}>
+            <Text style={{ color: c.text, lineHeight: 21 }} numberOfLines={full || expanded ? undefined : 3}>{post.description}</Text>
+            {!full && longDescription ? (
+              <Text style={{ color: c.muted, fontWeight: '700', marginTop: 2 }}>{expanded ? tr('收起', 'Show less') : tr('…更多', '…more')}</Text>
+            ) : null}
+          </Pressable>
         ) : null}
         {post.categories?.length ? (
           <CategoryBadges slugs={post.categories} other={post.categoryOther} onPress={(slug) => router.push({ pathname: '/explore', params: { category: slug, tag: '' } })} />
