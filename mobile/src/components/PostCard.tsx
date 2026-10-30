@@ -307,37 +307,44 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
         {post.aiTools.length ? (
           <AiToolBadges tools={post.aiTools} onPress={(t) => router.push({ pathname: '/explore', params: { tag: t } })} />
         ) : null}
-        {post.toolUrl || post.learnUrl || post.learn || post.githubUrl ? (
-          <View style={styles.links}>
-            {post.toolUrl ? (
-              <Pressable style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]} onPress={() => Linking.openURL(post.toolUrl)}>
-                <Text style={[styles.tryText, { color: c.accent }]}>{'>'} {tr('試用工具', 'Try it')}</Text>
-                <Ionicons name="open-outline" size={15} color={c.accent} />
-              </Pressable>
-            ) : null}
-            {/* 有 Learn it 教學（試看、完整教學、AI 家教）就進教學頁；只有教學連結就直接打開連結 */}
-            {post.learn || post.learnUrl ? (
-              <Pressable
-                style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]}
-                onPress={() => (post.learn ? router.push(`/learn/${post.id}`) : Linking.openURL(post.learnUrl!))}
-                accessibilityLabel={tr('看教學：怎麼做出來的', 'Learn how it was built')}
-              >
-                <Text style={[styles.tryText, { color: c.accent }]}>{'>'} {tr('看教學', 'Learn it')}</Text>
-                <Ionicons name="book-outline" size={15} color={c.accent} />
-              </Pressable>
-            ) : null}
-            {post.githubUrl ? (
-              <Pressable
-                style={[styles.tryButton, styles.githubButton, { borderColor: c.border, backgroundColor: c.surface }]}
-                onPress={() => Linking.openURL(post.githubUrl)}
-                accessibilityLabel={tr(`在 GitHub 查看 ${repoName(post.githubUrl)}`, `View ${repoName(post.githubUrl)} on GitHub`)}
-              >
-                <Ionicons name="logo-github" size={16} color={c.text} />
-                <Text style={[styles.tryText, { color: c.text, flexShrink: 1 }]} numberOfLines={1}>{repoName(post.githubUrl)}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
+        {/* 每則貼文都有 AI 學習助教，所以這一列一定會顯示 */}
+        <View style={styles.links}>
+          <Pressable
+            style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]}
+            onPress={() => router.push({ pathname: '/learn/[id]', params: { id: String(post.id), tutor: '1' } })}
+            accessibilityLabel={tr('問 AI 學習助教怎麼做出來', 'Ask the AI tutor how it was built')}
+          >
+            <Ionicons name="sparkles" size={15} color={c.accent} />
+            <Text style={[styles.tryText, { color: c.accent }]}>{tr('AI 學習助教', 'AI tutor')}</Text>
+          </Pressable>
+          {post.toolUrl ? (
+            <Pressable style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]} onPress={() => Linking.openURL(post.toolUrl)}>
+              <Text style={[styles.tryText, { color: c.accent }]}>{'>'} {tr('試用工具', 'Try it')}</Text>
+              <Ionicons name="open-outline" size={15} color={c.accent} />
+            </Pressable>
+          ) : null}
+          {/* 有 Learn it 教學（試看、完整教學）就進教學頁；只有教學連結就直接打開連結 */}
+          {post.learn || post.learnUrl ? (
+            <Pressable
+              style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]}
+              onPress={() => (post.learn ? router.push(`/learn/${post.id}`) : Linking.openURL(post.learnUrl!))}
+              accessibilityLabel={tr('看教學：怎麼做出來的', 'Learn how it was built')}
+            >
+              <Text style={[styles.tryText, { color: c.accent }]}>{'>'} {tr('看教學', 'Learn it')}</Text>
+              <Ionicons name="book-outline" size={15} color={c.accent} />
+            </Pressable>
+          ) : null}
+          {post.githubUrl ? (
+            <Pressable
+              style={[styles.tryButton, styles.githubButton, { borderColor: c.border, backgroundColor: c.surface }]}
+              onPress={() => Linking.openURL(post.githubUrl)}
+              accessibilityLabel={tr(`在 GitHub 查看 ${repoName(post.githubUrl)}`, `View ${repoName(post.githubUrl)} on GitHub`)}
+            >
+              <Ionicons name="logo-github" size={16} color={c.text} />
+              <Text style={[styles.tryText, { color: c.text, flexShrink: 1 }]} numberOfLines={1}>{repoName(post.githubUrl)}</Text>
+            </Pressable>
+          ) : null}
+        </View>
         {!full && post.commentCount ? (
           <Pressable onPress={openPost}>
             <Text style={{ color: c.muted, fontFamily: fonts.mono, fontSize: 13 }}>{'//'} {tr(`查看全部 ${post.commentCount} 則留言`, `View ${plural(post.commentCount, 'comment')}`)}</Text>

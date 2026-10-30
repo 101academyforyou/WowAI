@@ -1098,10 +1098,9 @@ export function createApp({
     res.json({ post: serializePost(post, req.user) });
   });
 
-  // AI 家教：AI 還沒接上，先把問題存下來（作者看得到問題數），回覆「即將推出」
+  // AI 學習助教：每則貼文都能問。AI 還沒接上，先把問題存下來（作者看得到問題數），回覆「即將推出」
   app.post('/api/posts/:id/learn/tutor', requireAuth, (req, res) => {
     const post = getPostOr404(req.params.id, req.user);
-    if (!learnState(post, req.user)) throw new HttpError(400, '這則貼文沒有 Learn it 教學');
     const question = cleanText(req.body?.question, { max: 1000, field: '問題', required: true });
     db.prepare('INSERT INTO tutor_questions (user_id, post_id, question) VALUES (?, ?, ?)').run(req.user.id, post.id, question);
     res.json({ comingSoon: true });
