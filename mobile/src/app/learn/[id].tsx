@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -53,11 +53,13 @@ function Video({ video, label }: { video: { id: string | null; url: string }; la
   );
 }
 
-// Learn it：試看影片、解鎖完整教學（Beta 免費）、AI 家教（還沒接上 AI，先收集問題）
+// Learn it：試看影片、解鎖完整教學（Beta 免費）、AI 學習助教（還沒接上 AI，先收集問題）
 export default function LearnScreen() {
   const c = useColors();
   const { user } = useAuth();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // tutor=1：從貼文的「AI 學習助教」按鈕進來，直接捲到助教、游標放在輸入框
+  const { id, tutor } = useLocalSearchParams<{ id: string; tutor?: string }>();
+  const scrollRef = useRef<ScrollView>(null);
   const [post, setPost] = useState<Post | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,6 +80,11 @@ export default function LearnScreen() {
   useFocusEffect(useCallback(() => {
     load();
   }, [load]));
+
+  const loaded = post !== null;
+  useEffect(() => {
+    if (loaded && tutor === '1') setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+  }, [loaded, tutor]);
 
   if (error && !post) return <Empty title={tr('糟糕', 'Oops')} message={error} />;
   if (!post) return <Loading />;
@@ -123,6 +130,7 @@ export default function LearnScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
       <Stack.Screen options={{ title: `Learn it · ${post.title}` }} />
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
@@ -135,7 +143,7 @@ export default function LearnScreen() {
           </Pressable>
         </Pressable>
 
-        {!learn && !post.learnUrl ? <Empty message={tr('這則貼文還沒有教學', "This post doesn't have a tutorial yet")} /> : null}
+        {!learn && !post.learnUrl ? <Text style={{ color: c.muted }}>{tr('作者還沒有放教學，不過你可以先問 AI 學習助教。', "The creator hasn't added a tutorial yet, but you can ask the AI tutor.")}</Text> : null}
 
         {learn?.preview ? (
           <View style={styles.section}>
@@ -149,7 +157,7 @@ export default function LearnScreen() {
             {sectionTitle(learn.unlocked ? 'lock-open-outline' : 'lock-closed-outline', tr('完整教學', 'Full tutorial'))}
             {isAuthor ? (
               <Text style={{ color: c.muted }}>
-                {tr(`${learn.unlockCount ?? 0} 人解鎖 · ${learn.questionCount ?? 0} 個 AI 家教提問`, `${learn.unlockCount ?? 0} unlocked · ${learn.questionCount ?? 0} AI tutor questions`)}
+                {tr(`${learn.unlockCount ?? 0} 人解鎖 · ${learn.questionCount ?? 0} 個 AI 學習助教提問`, `${learn.unlockCount ?? 0} unlocked · ${learn.questionCount ?? 0} AI tutor questions`)}
               </Text>
             ) : null}
             {learn.unlocked ? (
@@ -187,35 +195,35 @@ export default function LearnScreen() {
           </Pressable>
         ) : null}
 
-        {learn ? (
-          <View style={styles.section}>
-            {sectionTitle('sparkles-outline', tr('AI 家教', 'AI tutor'))}
-            <Text style={{ color: c.muted, lineHeight: 20 }}>
-              {tr('卡住了？問 AI 家教，它會根據這個作品的教學內容回答你。', 'Stuck? Ask the AI tutor. It answers from this project’s tutorial.')}
-            </Text>
-            {asked.map((q, i) => (
-              <View key={i} style={styles.chat}>
-                <Text style={[styles.bubble, styles.mine, { backgroundColor: c.accent, color: '#000' }]}>{q}</Text>
-                <Text style={[styles.bubble, { backgroundColor: c.surface, borderColor: c.border, color: c.text }]}>
-                  {tr('AI 家教即將推出！已經記下你的問題，也會讓作者知道大家想學什麼。', "The AI tutor is coming soon! We saved your question and we'll let the creator know what people want to learn.")}
-                </Text>
-              </View>
-            ))}
-            <View style={styles.askRow}>
-              <TextInput
-                style={[styles.input, { color: c.text, backgroundColor: c.surface, borderColor: c.border }]}
-                value={question}
-                onChangeText={setQuestion}
-                maxLength={1000}
-                placeholder={tr('例如：一開始用的 prompt 是什麼？', 'e.g. What prompt did you start with?')}
-                placeholderTextColor={c.muted}
-                onSubmitEditing={ask}
-                accessibilityLabel={tr('問 AI 家教', 'Ask the AI tutor')}
-              />
-              <Button title={tr('發問', 'Ask')} variant="primary" onPress={ask} loading={asking} disabled={!question.trim()} />
+        {/* AI 學習助教：每則貼文都有 */}
+        <View style={styles.section}>
+          {sectionTitle('sparkles-outline', tr('AI 學習助教', 'AI tutor'))}
+          <Text style={{ color: c.muted, lineHeight: 20 }}>
+            {tr('想做類似的東西？問 AI 學習助教，它會根據這個作品的介紹和教學內容回答你。', 'Want to build something like this? Ask the AI tutor. It answers from this project’s description and tutorial.')}
+          </Text>
+          {asked.map((q, i) => (
+            <View key={i} style={styles.chat}>
+              <Text style={[styles.bubble, styles.mine, { backgroundColor: c.accent, color: '#000' }]}>{q}</Text>
+              <Text style={[styles.bubble, { backgroundColor: c.surface, borderColor: c.border, color: c.text }]}>
+                {tr('AI 學習助教即將推出！已經記下你的問題，也會讓作者知道大家想學什麼。', "The AI tutor is coming soon! We saved your question and we'll let the creator know what people want to learn.")}
+              </Text>
             </View>
+          ))}
+          <View style={styles.askRow}>
+            <TextInput
+              style={[styles.input, { color: c.text, backgroundColor: c.surface, borderColor: c.border }]}
+              value={question}
+              onChangeText={setQuestion}
+              maxLength={1000}
+              placeholder={tr('例如：一開始用的 prompt 是什麼？', 'e.g. What prompt did you start with?')}
+              placeholderTextColor={c.muted}
+              onSubmitEditing={ask}
+              autoFocus={tutor === '1'}
+              accessibilityLabel={tr('問 AI 學習助教', 'Ask the AI tutor')}
+            />
+            <Button title={tr('發問', 'Ask')} variant="primary" onPress={ask} loading={asking} disabled={!question.trim()} />
           </View>
-        ) : null}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

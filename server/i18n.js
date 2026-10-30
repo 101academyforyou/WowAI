@@ -33,7 +33,6 @@ const MESSAGES = {
   '價格請填數字，例如 9.99': 'Enter the price as a number, e.g. 9.99',
   '價格最高 500 美元': 'The price can be at most $500',
   這則貼文沒有完整教學: "This post doesn't have a full tutorial",
-  '這則貼文沒有 Learn it 教學': "This post doesn't have a Learn it tutorial",
   '教學連結必須是 http 或 https': 'The learn link must start with http or https',
   'YouTube 影片連結格式不正確，請貼上 youtube.com 或 youtu.be 的影片網址': 'Invalid YouTube link. Paste a youtube.com or youtu.be video URL',
   'GitHub 專案請輸入 owner/repo 或 github.com 的專案網址': 'For the GitHub repo, enter owner/repo or a github.com repo URL',
