@@ -148,6 +148,11 @@ test('完整流程：分享、動態牆、Cool／Not Cool、留言、追蹤', as
   const profile = await (await fetch(`${base}/api/users/alice`, { headers: { cookie: bob } })).json();
   assert.equal(profile.user.followerCount, 1);
   assert.equal(profile.user.followedByMe, true);
+  const followers = await (await fetch(`${base}/api/users/alice/followers`)).json();
+  assert.deepEqual(followers.users.map((u) => u.username), ['bob']);
+  const following = await (await fetch(`${base}/api/users/bob/following`)).json();
+  assert.deepEqual(following.users.map((u) => u.username), ['alice']);
+  assert.equal((await (await fetch(`${base}/api/users/alice/following`)).json()).users.length, 0);
   assert.equal(profile.posts.length, 1);
 
   // 只有作者能刪除，刪除時會一併移除媒體檔

@@ -127,15 +127,25 @@ export function ProfileView({ username }: { username: string }) {
       <View style={styles.head}>
         <Avatar user={user} size={84} />
         <View style={styles.stats}>
-          {[
-            [user.postCount, tr('作品', 'Projects')],
-            [user.followerCount, tr('粉絲', 'Followers')],
-            [user.followingCount, tr('追蹤中', 'Following')],
-          ].map(([n, label]) => (
-            <View key={label} style={styles.stat}>
+          <View style={styles.stat}>
+            <Text style={[styles.statNumber, { color: c.accent, fontFamily: fonts.mono }]}>{user.postCount}</Text>
+            <Text style={{ color: c.muted, fontSize: 13 }}>{tr('作品', 'Projects')}</Text>
+          </View>
+          {/* 點粉絲／追蹤中，看是哪些人 */}
+          {([
+            ['followers', user.followerCount, tr('粉絲', 'Followers')],
+            ['following', user.followingCount, tr('追蹤中', 'Following')],
+          ] as const).map(([type, n, label]) => (
+            <Pressable
+              key={type}
+              onPress={() => router.push({ pathname: '/follows/[username]', params: { username: user.username, type } })}
+              style={({ pressed }) => [styles.stat, pressed && { opacity: 0.6 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`${n} ${label}`}
+            >
               <Text style={[styles.statNumber, { color: c.accent, fontFamily: fonts.mono }]}>{n}</Text>
               <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>
