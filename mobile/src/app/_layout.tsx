@@ -56,6 +56,7 @@ function RootStack() {
       <Stack.Screen name="post/[id]" options={{ title: tr('貼文', 'Post') }} />
       <Stack.Screen name="edit/[id]" options={{ title: tr('編輯貼文', 'Edit post') }} />
       <Stack.Screen name="user/[username]" options={{ title: '' }} />
+      <Stack.Screen name="follows/[username]" options={{ title: '' }} />
       <Stack.Screen name="settings" options={{ title: tr('編輯個人檔案', 'Edit profile') }} />
       <Stack.Screen name="admin" options={{ title: tr('管理員：檢舉處理', 'Admin: reports') }} />
       <Stack.Screen name="login" options={{ presentation: 'modal', title: '' }} />

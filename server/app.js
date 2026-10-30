@@ -1339,8 +1339,8 @@ export function createApp({
         bio: user.bio,
         contacts: serializeContacts(user.contacts),
         postCount: posts.length,
-        followerCount: count('SELECT COUNT(*) AS n FROM follows WHERE followee_id = ?'),
-        followingCount: count('SELECT COUNT(*) AS n FROM follows WHERE follower_id = ?'),
+        followerCount: count('SELECT COUNT(*) AS n FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.followee_id = ? AND u.banned_at IS NULL'),
+        followingCount: count('SELECT COUNT(*) AS n FROM follows f JOIN users u ON u.id = f.followee_id WHERE f.follower_id = ? AND u.banned_at IS NULL'),
         blockedByMe,
         followedByMe: req.user
           ? Boolean(db.prepare('SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?').get(req.user.id, user.id))
@@ -1351,6 +1351,22 @@ export function createApp({
       reposts: reposts.map((p) => ({ ...serializePost(p, req.user), pinned: Boolean(p.repost_pinned_at) })),
     });
   });
+
+  // 粉絲／追蹤中名單：最近追蹤的在最前面；不列出停權帳號和我封鎖的人
+  for (const [type, me, them] of [['followers', 'followee_id', 'follower_id'], ['following', 'follower_id', 'followee_id']]) {
+    app.get(`/api/users/:username/${type}`, (req, res) => {
+      const user = getUserOr404(req.params.username);
+      if (user.banned_at && !isAdmin(req.user)) throw new HttpError(404, '找不到這位使用者');
+      let sql = `SELECT u.* FROM follows f JOIN users u ON u.id = f.${them} WHERE f.${me} = ? AND u.banned_at IS NULL`;
+      const params = [user.id];
+      if (req.user) {
+        sql += ' AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)';
+        params.push(req.user.id);
+      }
+      sql += ' ORDER BY f.rowid DESC LIMIT 1000';
+      res.json({ users: db.prepare(sql).all(...params).map(publicUser) });
+    });
+  }
 
   app.patch('/api/me', requireAuth, (req, res) => {
     const displayName = cleanText(req.body?.displayName, { max: 50, field: '名稱', required: true });
