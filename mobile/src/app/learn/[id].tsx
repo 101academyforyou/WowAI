@@ -14,10 +14,36 @@ import { tr } from '../../lib/i18n';
 const price = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 // 先顯示縮圖，點了才載入播放器（避免一進頁面就開始播）
-function Video({ id, label }: { id: string; label: string }) {
+// 不是 YouTube 的影片（Vimeo、Loom…）：顯示一個打開連結的按鈕
+function Video({ video, label }: { video: { id: string | null; url: string }; label: string }) {
+  const c = useColors();
   const width = useContentWidth() - 32;
   const size = { width, height: Math.round((width * 9) / 16) };
   const [playing, setPlaying] = useState(false);
+  const id = video.id;
+  if (!id) {
+    let host = video.url;
+    try {
+      host = new URL(video.url).hostname.replace(/^www\./, '');
+    } catch {
+      // 保留原本的網址
+    }
+    return (
+      <Pressable
+        onPress={() => Linking.openURL(video.url)}
+        style={[styles.link, { borderColor: c.accent, backgroundColor: c.surface }]}
+        accessibilityRole="link"
+        accessibilityLabel={label}
+      >
+        <Ionicons name="play-circle" size={28} color={c.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: c.text, fontWeight: '700' }}>{label}</Text>
+          <Text style={{ color: c.muted }} numberOfLines={1}>{host}</Text>
+        </View>
+        <Ionicons name="open-outline" size={16} color={c.muted} />
+      </Pressable>
+    );
+  }
   if (playing) return <View style={[styles.video, size]}><YouTubePlayer id={id} size={size} /></View>;
   return (
     <Pressable onPress={() => setPlaying(true)} style={[styles.video, size]} accessibilityRole="button" accessibilityLabel={label}>
@@ -114,7 +140,7 @@ export default function LearnScreen() {
         {learn?.preview ? (
           <View style={styles.section}>
             {sectionTitle('play-circle-outline', tr('免費試看', 'Free preview'))}
-            <Video id={learn.preview.id} label={tr('播放試看影片', 'Play preview video')} />
+            <Video video={learn.preview} label={tr('播放試看影片', 'Play preview video')} />
           </View>
         ) : null}
 
@@ -128,7 +154,7 @@ export default function LearnScreen() {
             ) : null}
             {learn.unlocked ? (
               <>
-                {learn.video ? <Video id={learn.video.id} label={tr('播放完整教學影片', 'Play full tutorial video')} /> : null}
+                {learn.video ? <Video video={learn.video} label={tr('播放完整教學影片', 'Play full tutorial video')} /> : null}
                 {learn.notes ? (
                   <Text selectable style={[styles.notes, { color: c.text, backgroundColor: c.surface, borderColor: c.border }]}>{learn.notes}</Text>
                 ) : null}

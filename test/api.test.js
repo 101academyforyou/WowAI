@@ -185,8 +185,9 @@ test('Learn it 教學：試看大家看得到，完整教學要解鎖（Beta 免
   const author = await register('teacher');
   const student = await register('student');
   assert.equal((await createPost(author, { title: 'x', learnPrice: 'abc' }, [{ name: 'a.png', data: PNG }])).status, 400);
+  assert.equal((await createPost(author, { title: 'x', learnVideoUrl: 'javascript:alert(1)' }, [{ name: 'a.png', data: PNG }])).status, 400);
   const { post } = await (await createPost(author, {
-    title: 'Course', learnPreviewUrl: 'https://youtu.be/dQw4w9WgXcQ', learnVideoUrl: 'https://www.youtube.com/watch?v=9bZkp7q19f0',
+    title: 'Course', learnPreviewUrl: 'https://youtu.be/dQw4w9WgXcQ', learnVideoUrl: 'https://www.loom.com/share/abc123',
     learnNotes: 'Step 1: prompt', learnPrice: '9.99',
   }, [{ name: 'a.png', data: PNG }])).json();
   assert.equal(post.learn.price, 999);
@@ -209,7 +210,7 @@ test('Learn it 教學：試看大家看得到，完整教學要解鎖（Beta 免
   assert.equal((await fetch(`${base}/api/posts/${post.id}/learn/unlock`, { method: 'POST' })).status, 401);
   const unlocked = await (await fetch(`${base}/api/posts/${post.id}/learn/unlock`, { method: 'POST', headers: { cookie: student } })).json();
   assert.equal(unlocked.post.learn.unlocked, true);
-  assert.equal(unlocked.post.learn.video.id, '9bZkp7q19f0');
+  assert.deepEqual(unlocked.post.learn.video, { url: 'https://www.loom.com/share/abc123', id: null });
   assert.equal(unlocked.post.learn.notes, 'Step 1: prompt');
 
   const ask = (body) => fetch(`${base}/api/posts/${post.id}/learn/tutor`, { method: 'POST', headers: { cookie: student, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

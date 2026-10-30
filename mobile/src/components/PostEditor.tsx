@@ -309,12 +309,12 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
           </View>
           <Text style={{ color: c.muted, fontSize: 12 }}>{tr('教別人怎麼做出類似的東西。試看影片大家都能看，完整教學解鎖後才看得到。', 'Teach others how to build something similar. Everyone can watch the preview; the full tutorial unlocks.')}</Text>
 
-          <Text style={[styles.label, { color: c.text }]}>{tr('試看影片（YouTube，免費）', 'Free preview video (YouTube)')}</Text>
-          <TextInput style={inputStyle} value={learnPreviewUrl} onChangeText={setLearnPreviewUrl} placeholder="https://youtu.be/…" placeholderTextColor={c.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} accessibilityLabel={tr('試看影片', 'Preview video')} />
+          <Text style={[styles.label, { color: c.text }]}>{tr('免費試看影片連結', 'Free preview video link')}</Text>
+          <TextInput style={inputStyle} value={learnPreviewUrl} onChangeText={setLearnPreviewUrl} placeholder="https://…" placeholderTextColor={c.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} accessibilityLabel={tr('試看影片', 'Preview video')} />
 
-          <Text style={[styles.label, { color: c.text }]}>{tr('完整教學影片（YouTube）', 'Full tutorial video (YouTube)')}</Text>
-          <TextInput style={inputStyle} value={learnVideoUrl} onChangeText={setLearnVideoUrl} placeholder="https://youtu.be/…" placeholderTextColor={c.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} accessibilityLabel={tr('完整教學影片', 'Full tutorial video')} />
-          <Text style={{ color: c.muted, fontSize: 12 }}>{tr('建議在 YouTube 設成「不公開」，只有解鎖的人拿得到連結', 'Tip: make it Unlisted on YouTube so only people who unlock get the link')}</Text>
+          <Text style={[styles.label, { color: c.text }]}>{tr('完整教學影片連結', 'Full tutorial video link')}</Text>
+          <TextInput style={inputStyle} value={learnVideoUrl} onChangeText={setLearnVideoUrl} placeholder="https://…" placeholderTextColor={c.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} accessibilityLabel={tr('完整教學影片', 'Full tutorial video')} />
+          <Text style={{ color: c.muted, fontSize: 12 }}>{tr('YouTube、Vimeo、Loom、Google Drive… 都可以；YouTube 會直接在頁面播放。建議設成「不公開」，只有解鎖的人拿得到連結', 'YouTube, Vimeo, Loom, Google Drive… all work; YouTube plays right on the page. Make it unlisted so only people who unlock get the link')}</Text>
 
           <Text style={[styles.label, { color: c.text }]}>{tr('完整教學內容', 'Full tutorial notes')}</Text>
           <TextInput

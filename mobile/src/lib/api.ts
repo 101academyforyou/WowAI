@@ -77,14 +77,15 @@ export type Post = {
   hidden?: boolean;
 };
 export type LearnInfo = {
-  preview: { id: string; url: string } | null;
+  // id：YouTube 影片才有，App 直接播放；其他網址（Vimeo、Loom…）用連結打開
+  preview: { id: string | null; url: string } | null;
   hasFull: boolean;
   hasVideo: boolean;
   hasNotes: boolean;
   // 美分，0 = 免費
   price: number;
   unlocked: boolean;
-  video: { id: string; url: string } | null;
+  video: { id: string | null; url: string } | null;
   notes: string | null;
   // 只有作者拿得到
   unlockCount?: number;
