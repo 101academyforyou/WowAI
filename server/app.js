@@ -131,8 +131,8 @@ function cleanPrice(value) {
 function cleanLearn(body, old) {
   const keep = (key, column, clean) => (body[key] === undefined && old ? old[column] : clean(body[key]));
   return {
-    previewUrl: keep('learnPreviewUrl', 'learn_preview_url', (v) => cleanYouTubeUrl(v)),
-    videoUrl: keep('learnVideoUrl', 'learn_video_url', (v) => cleanYouTubeUrl(v)),
+    previewUrl: keep('learnPreviewUrl', 'learn_preview_url', (v) => cleanToolUrl(v, '試看影片連結')),
+    videoUrl: keep('learnVideoUrl', 'learn_video_url', (v) => cleanToolUrl(v, '完整教學影片連結')),
     notes: keep('learnNotes', 'learn_notes', (v) => cleanText(v, { max: 10000, field: '教學內容' })),
     price: keep('learnPrice', 'learn_price', cleanPrice),
   };
@@ -306,8 +306,11 @@ export function createApp({
   }
 
   // Learn it：試看影片大家都看得到；完整教學影片和文字教學要解鎖（作者、管理員、免費的教學不用）
+  // 影片連結可以是任何網址；YouTube 的會附上 id，App 直接在頁面裡播放，其他的用連結打開
+  const videoLink = (url) => (url ? { url, id: parseYouTube(url)?.id ?? null } : null);
+
   function learnState(post, viewer) {
-    const preview = post.learn_preview_url ? { url: post.learn_preview_url, id: parseYouTube(post.learn_preview_url).id } : null;
+    const preview = videoLink(post.learn_preview_url);
     const hasFull = Boolean(post.learn_video_url || post.learn_notes);
     if (!preview && !hasFull) return null;
     const isAuthor = viewer?.id === post.user_id;
@@ -320,7 +323,7 @@ export function createApp({
       hasNotes: Boolean(post.learn_notes),
       price: post.learn_price,
       unlocked,
-      video: unlocked && post.learn_video_url ? { url: post.learn_video_url, id: parseYouTube(post.learn_video_url).id } : null,
+      video: unlocked ? videoLink(post.learn_video_url) : null,
       notes: unlocked ? post.learn_notes : null,
       // 作者自己看得到有多少人解鎖、問了多少問題
       ...(isAuthor ? { unlockCount: q.learnUnlockCount.get(post.id).n, questionCount: q.tutorQuestionCount.get(post.id).n } : {}),
@@ -1270,8 +1273,8 @@ export function createApp({
           description: 'optional, max 2000 chars',
           toolUrl: 'optional, http(s) link where people can try it',
           learnUrl: 'optional, http(s) link to a tutorial or write-up on how it was built (blog, YouTube, Notion…)',
-          learnPreviewUrl: 'optional, YouTube link to a free preview of how it was built (everyone can watch)',
-          learnVideoUrl: 'optional, YouTube link to the full tutorial video (use an unlisted video; only shown after unlocking)',
+          learnPreviewUrl: 'optional, http(s) link to a free preview video of how it was built (YouTube links play inline; everyone can watch)',
+          learnVideoUrl: 'optional, http(s) link to the full tutorial video (YouTube unlisted, Vimeo, Loom, Google Drive…; only shown after unlocking)',
           learnNotes: 'optional, max 10000 chars, the full written tutorial: prompts, steps, gotchas (only shown after unlocking)',
           learnPrice: 'optional, price in USD to unlock the full tutorial (0 = free; unlocking is free during beta)',
           githubUrl: 'optional, owner/repo or a github.com repo URL',
