@@ -53,6 +53,8 @@ export type Post = {
   toolUrl: string;
   // 教學連結（Learn it）；舊版伺服器沒有這個欄位
   learnUrl?: string;
+  // Learn it 教學：試看影片大家都看得到；完整影片和文字教學解鎖後才有（作者自己一定看得到）
+  learn?: LearnInfo | null;
   githubUrl: string;
   // GitHub 上的星星數（伺服器每幾小時更新一次）；還沒查到或找不到是 null
   githubStars?: number | null;
@@ -73,6 +75,20 @@ export type Post = {
   pinned?: boolean;
   // 被隱藏（只有作者和管理員會拿到這種貼文）
   hidden?: boolean;
+};
+export type LearnInfo = {
+  preview: { id: string; url: string } | null;
+  hasFull: boolean;
+  hasVideo: boolean;
+  hasNotes: boolean;
+  // 美分，0 = 免費
+  price: number;
+  unlocked: boolean;
+  video: { id: string; url: string } | null;
+  notes: string | null;
+  // 只有作者拿得到
+  unlockCount?: number;
+  questionCount?: number;
 };
 export type Vote = 'cool' | 'notcool';
 // parentId：回覆哪一則留言（null 是直接留言）；coolCount／cooledByMe：留言的 ⚡ 數（舊版伺服器沒有這些欄位）
@@ -192,7 +208,7 @@ export async function uploadAvatar(file: Pick<PickedMedia, 'uri' | 'name' | 'mim
   return data.user;
 }
 
-export type PostFields = { title: string; description: string; toolUrl: string; learnUrl: string; githubUrl: string; youtubeUrl: string; aiTools: string; categories: string; categoryOther: string };
+export type PostFields = { title: string; description: string; toolUrl: string; learnUrl: string; learnPreviewUrl: string; learnVideoUrl: string; learnNotes: string; learnPrice: string; githubUrl: string; youtubeUrl: string; aiTools: string; categories: string; categoryOther: string };
 // 表單裡的截圖：existingUrl 有值代表是貼文原本就有的圖（編輯時）
 export type EditorMedia = PickedMedia & { existingUrl?: string };
 

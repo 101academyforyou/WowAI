@@ -181,6 +181,54 @@ test('教學連結（Learn it）：分享時填、只接受 http/https、編輯�
   assert.equal((await patch({ learnUrl: '' })).post.learnUrl, '');
 });
 
+test('Learn it 教學：試看大家看得到，完整教學要解鎖（Beta 免費），AI 家教先收集問題', async () => {
+  const author = await register('teacher');
+  const student = await register('student');
+  assert.equal((await createPost(author, { title: 'x', learnPrice: 'abc' }, [{ name: 'a.png', data: PNG }])).status, 400);
+  const { post } = await (await createPost(author, {
+    title: 'Course', learnPreviewUrl: 'https://youtu.be/dQw4w9WgXcQ', learnVideoUrl: 'https://www.youtube.com/watch?v=9bZkp7q19f0',
+    learnNotes: 'Step 1: prompt', learnPrice: '9.99',
+  }, [{ name: 'a.png', data: PNG }])).json();
+  assert.equal(post.learn.price, 999);
+  assert.equal(post.learn.notes, 'Step 1: prompt'); // 作者自己看得到
+  assert.equal(post.learn.unlockCount, 0);
+
+  const get = async (cookie) => (await (await fetch(`${base}/api/posts/${post.id}`, { headers: cookie ? { cookie } : {} })).json()).post.learn;
+  for (const learn of [await get(), await get(student)]) {
+    assert.equal(learn.preview.id, 'dQw4w9WgXcQ');
+    assert.equal(learn.hasFull, true);
+    assert.equal(learn.unlocked, false);
+    assert.equal(learn.video, null);
+    assert.equal(learn.notes, null);
+    assert.equal(learn.unlockCount, undefined);
+  }
+  // 不能在 feed 或個人頁偷看完整內容
+  const feed = await (await fetch(`${base}/api/posts`, { headers: { cookie: student } })).json();
+  assert.equal(feed.posts.find((p) => p.id === post.id).learn.notes, null);
+
+  assert.equal((await fetch(`${base}/api/posts/${post.id}/learn/unlock`, { method: 'POST' })).status, 401);
+  const unlocked = await (await fetch(`${base}/api/posts/${post.id}/learn/unlock`, { method: 'POST', headers: { cookie: student } })).json();
+  assert.equal(unlocked.post.learn.unlocked, true);
+  assert.equal(unlocked.post.learn.video.id, '9bZkp7q19f0');
+  assert.equal(unlocked.post.learn.notes, 'Step 1: prompt');
+
+  const ask = (body) => fetch(`${base}/api/posts/${post.id}/learn/tutor`, { method: 'POST', headers: { cookie: student, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await ask({ question: '' })).status, 400);
+  assert.deepEqual(await (await ask({ question: 'Which prompt did you start with?' })).json(), { comingSoon: true });
+  const mine = await get(author);
+  assert.equal(mine.unlockCount, 1);
+  assert.equal(mine.questionCount, 1);
+
+  // 編輯時沒送 Learn it 欄位（舊版 App）就保留；價格 0 = 免費，大家直接看得到
+  const layout = JSON.stringify(post.media.map((m) => m.url));
+  const patch = (fields) => fetch(`${base}/api/posts/${post.id}`, { method: 'PATCH', headers: { cookie: author }, body: postForm({ title: 'x', layout, ...fields }) }).then((r) => r.json());
+  assert.equal((await patch({})).post.learn.price, 999);
+  await patch({ learnPrice: '0' });
+  assert.equal((await get()).notes, 'Step 1: prompt');
+  // 全部清掉就沒有 Learn it
+  assert.equal((await patch({ learnPreviewUrl: '', learnVideoUrl: '', learnNotes: '' })).post.learn, null);
+});
+
 test('註冊必須同意使用條款', async () => {
   const res = await fetch(`${base}/api/auth/register`, {
     method: 'POST',

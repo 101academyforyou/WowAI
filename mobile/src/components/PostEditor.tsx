@@ -39,6 +39,10 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
   const [description, setDescription] = useState(initial?.description ?? '');
   const [toolUrl, setToolUrl] = useState(initial?.toolUrl ?? '');
   const [learnUrl, setLearnUrl] = useState(initial?.learnUrl ?? '');
+  const [learnPreviewUrl, setLearnPreviewUrl] = useState(initial?.learn?.preview?.url ?? '');
+  const [learnVideoUrl, setLearnVideoUrl] = useState(initial?.learn?.video?.url ?? '');
+  const [learnNotes, setLearnNotes] = useState(initial?.learn?.notes ?? '');
+  const [learnPrice, setLearnPrice] = useState(initial?.learn?.price ? (initial.learn.price / 100).toFixed(2) : '');
   const [githubUrl, setGithubUrl] = useState(initial?.githubUrl ?? '');
   const [youtubeUrl, setYoutubeUrl] = useState(initial?.youtube?.url ?? '');
   const [importing, setImporting] = useState(false);
@@ -135,7 +139,7 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
     if (!title.trim()) return notify(tr('請填寫工具名稱', 'Please enter a tool name'));
     setProgress(0);
     try {
-      const post = await onSubmit({ title, description, toolUrl, learnUrl, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools: allTools.join(', '), categories: categories.join(','), categoryOther: categories.includes('other') ? categoryOther : '' }, media, setProgress);
+      const post = await onSubmit({ title, description, toolUrl, learnUrl, learnPreviewUrl, learnVideoUrl, learnNotes, learnPrice, githubUrl, youtubeUrl: youtube?.url ?? '', aiTools: allTools.join(', '), categories: categories.join(','), categoryOther: categories.includes('other') ? categoryOther : '' }, media, setProgress);
       onDone(post);
     } catch (err) {
       notify(initial ? tr('儲存失敗', "Couldn't save") : tr('分享失敗', "Couldn't share"), (err as Error).message);
@@ -297,19 +301,51 @@ export function PostEditor({ initial, submitLabel, onSubmit, onDone }: {
           autoCorrect={false}
         />
 
-        <Text style={[styles.label, { color: c.text }]}>{tr('教學連結（選填）', 'Link to learn how (optional)')}</Text>
-        <TextInput
-          style={inputStyle}
-          value={learnUrl}
-          onChangeText={setLearnUrl}
-          placeholder="https://…"
-          placeholderTextColor={c.muted}
-          keyboardType="url"
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel={tr('教學連結', 'Learn link')}
-        />
-        <Text style={{ color: c.muted, fontSize: 12 }}>{tr('分享你怎麼做出來的：部落格文章、YouTube 教學、Notion 筆記都可以', 'Show how you built it: a blog post, YouTube tutorial or Notion page')}</Text>
+        {/* Learn it：教別人怎麼做出來（全部選填） */}
+        <View style={[styles.learnBox, { borderColor: c.border, backgroundColor: c.surface }]}>
+          <View style={styles.requiredRow}>
+            <Ionicons name="school-outline" size={18} color={c.accent} />
+            <Text style={[styles.learnTitle, { color: c.text }]}>{tr('Learn it 教學（選填）', 'Learn it tutorial (optional)')}</Text>
+          </View>
+          <Text style={{ color: c.muted, fontSize: 12 }}>{tr('教別人怎麼做出類似的東西。試看影片大家都能看，完整教學解鎖後才看得到。', 'Teach others how to build something similar. Everyone can watch the preview; the full tutorial unlocks.')}</Text>
+
+          <Text style={[styles.label, { color: c.text }]}>{tr('試看影片（YouTube，免費）', 'Free preview video (YouTube)')}</Text>
+          <TextInput style={inputStyle} value={learnPreviewUrl} onChangeText={setLearnPreviewUrl} placeholder="https://youtu.be/…" placeholderTextColor={c.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} accessibilityLabel={tr('試看影片', 'Preview video')} />
+
+          <Text style={[styles.label, { color: c.text }]}>{tr('完整教學影片（YouTube）', 'Full tutorial video (YouTube)')}</Text>
+          <TextInput style={inputStyle} value={learnVideoUrl} onChangeText={setLearnVideoUrl} placeholder="https://youtu.be/…" placeholderTextColor={c.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} accessibilityLabel={tr('完整教學影片', 'Full tutorial video')} />
+          <Text style={{ color: c.muted, fontSize: 12 }}>{tr('建議在 YouTube 設成「不公開」，只有解鎖的人拿得到連結', 'Tip: make it Unlisted on YouTube so only people who unlock get the link')}</Text>
+
+          <Text style={[styles.label, { color: c.text }]}>{tr('完整教學內容', 'Full tutorial notes')}</Text>
+          <TextInput
+            style={[inputStyle, { minHeight: 110, textAlignVertical: 'top' }]}
+            value={learnNotes}
+            onChangeText={setLearnNotes}
+            maxLength={10000}
+            multiline
+            placeholder={tr('用了哪些 prompt、步驟、踩過的坑…', 'The prompts you used, the steps, the gotchas…')}
+            placeholderTextColor={c.muted}
+            accessibilityLabel={tr('完整教學內容', 'Full tutorial notes')}
+          />
+
+          <Text style={[styles.label, { color: c.text }]}>{tr('解鎖價格（美元）', 'Unlock price (USD)')}</Text>
+          <TextInput style={inputStyle} value={learnPrice} onChangeText={setLearnPrice} placeholder={tr('空白 = 免費', 'Blank = free')} placeholderTextColor={c.muted} keyboardType="decimal-pad" accessibilityLabel={tr('解鎖價格', 'Unlock price')} />
+          <Text style={{ color: c.muted, fontSize: 12 }}>{tr('Beta 期間解鎖都免費，先看看有多少人想學', "Unlocking is free during beta, so you can see how many people want to learn")}</Text>
+
+          <Text style={[styles.label, { color: c.text }]}>{tr('其他教學連結', 'Other tutorial link')}</Text>
+          <TextInput
+            style={inputStyle}
+            value={learnUrl}
+            onChangeText={setLearnUrl}
+            placeholder="https://…"
+            placeholderTextColor={c.muted}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel={tr('教學連結', 'Learn link')}
+          />
+          <Text style={{ color: c.muted, fontSize: 12 }}>{tr('部落格文章、Notion 筆記都可以', 'A blog post or Notion page')}</Text>
+        </View>
 
         <Text style={[styles.label, { color: c.text }]}>{tr(`用了哪些 AI 開發（最多 ${MAX_AI_TOOLS} 個）`, `AI tools used (up to ${MAX_AI_TOOLS})`)}</Text>
         <AiToolPicker
@@ -361,6 +397,8 @@ const styles = StyleSheet.create({
   kind: { position: 'absolute', left: 4, bottom: 4, color: '#fff', fontSize: 11, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' },
   remove: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
   label: { fontWeight: '700', marginTop: 10, fontFamily: fonts.mono, fontSize: 13 },
+  learnBox: { gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, marginTop: 10 },
+  learnTitle: { fontWeight: '800', fontFamily: fonts.mono, fontSize: 14 },
   youtubePreview: { width: 160, height: 90, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   youtubePlay: { width: 40, height: 28, borderRadius: 8, backgroundColor: '#ff0033', alignItems: 'center', justifyContent: 'center' },
   githubRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -307,7 +307,7 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
         {post.aiTools.length ? (
           <AiToolBadges tools={post.aiTools} onPress={(t) => router.push({ pathname: '/explore', params: { tag: t } })} />
         ) : null}
-        {post.toolUrl || post.learnUrl || post.githubUrl ? (
+        {post.toolUrl || post.learnUrl || post.learn || post.githubUrl ? (
           <View style={styles.links}>
             {post.toolUrl ? (
               <Pressable style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]} onPress={() => Linking.openURL(post.toolUrl)}>
@@ -315,10 +315,11 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
                 <Ionicons name="open-outline" size={15} color={c.accent} />
               </Pressable>
             ) : null}
-            {post.learnUrl ? (
+            {/* 有 Learn it 教學（試看、完整教學、AI 家教）就進教學頁；只有教學連結就直接打開連結 */}
+            {post.learn || post.learnUrl ? (
               <Pressable
                 style={[styles.tryButton, { borderColor: c.accent, backgroundColor: `${c.accent}12` }]}
-                onPress={() => Linking.openURL(post.learnUrl!)}
+                onPress={() => (post.learn ? router.push(`/learn/${post.id}`) : Linking.openURL(post.learnUrl!))}
                 accessibilityLabel={tr('看教學：怎麼做出來的', 'Learn how it was built')}
               >
                 <Text style={[styles.tryText, { color: c.accent }]}>{'>'} {tr('看教學', 'Learn it')}</Text>
