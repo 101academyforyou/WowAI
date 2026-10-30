@@ -18,8 +18,9 @@ export function PostCard({ post: initial, full = false, rank, onRemoved }: { pos
   const { user } = useAuth();
   const [post, setPost] = useState(initial);
   const [expanded, setExpanded] = useState(false);
-  // 大約超過 3 行（字數多或換行多）才需要「更多」
-  const longDescription = post.description.length > 60 || (post.description.match(/\n/g)?.length ?? 0) >= 3;
+  // 大約超過 3 行才需要「更多」：中日韓文字算 2 格、其他算 1 格，手機一行約 44 格，換行也算一行
+  const longDescription = post.description.split('\n')
+    .reduce((lines, line) => lines + Math.max(1, Math.ceil([...line].reduce((w, ch) => w + (/[\u2e80-\uffff]/.test(ch) ? 2 : 1), 0) / 44)), 0) > 3;
   // 列表重新載入（例如編輯完回來）時，換成最新的貼文內容
   const [source, setSource] = useState(initial);
   if (initial !== source) {
