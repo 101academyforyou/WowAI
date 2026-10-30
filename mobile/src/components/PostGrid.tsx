@@ -24,10 +24,11 @@ async function copyLink(post: Post) {
   }
 }
 
-// 排列模式：每格出現左右移動按鈕，作品分頁還有釘選按鈕；點格子不會打開貼文
+// 排列模式：每格出現上下左右移動、釘選按鈕，分享分頁還有右下角的取消分享；點格子不會打開貼文
 export type ArrangeHandlers = {
   onMove: (index: number, delta: number) => void;
   onTogglePin?: (post: Post) => void;
+  onRemove?: (post: Post) => void;
 };
 
 // IG 風格的三欄九宮格
@@ -96,6 +97,18 @@ export function PostGrid({ posts, pinned = false, arrange }: { posts: Post[]; pi
                     >
                       <Ionicons name="copy-outline" size={16} color="#fff" />
                     </Pressable>
+                    {/* 右下角：取消分享（只有分享分頁） */}
+                    {arrange.onRemove ? (
+                      <Pressable
+                        onPress={() => arrange.onRemove!(p)}
+                        hitSlop={4}
+                        style={[styles.control, styles.move, styles.remove]}
+                        accessibilityRole="button"
+                        accessibilityLabel={tr(`取消分享「${p.title}」`, `Unshare "${p.title}"`)}
+                      >
+                        <Ionicons name="close" size={18} color="#ff5c7a" />
+                      </Pressable>
+                    ) : null}
                     {/* 上下左右：上下一次跨一列（3 格），左右一次一格 */}
                     {([
                       ['up', -COLUMNS, 'chevron-up', styles.up, tr('往上移', 'up')],
@@ -161,6 +174,7 @@ const styles = StyleSheet.create({
   down: { bottom: 6, left: '50%', marginLeft: -16 },
   left: { left: 6, top: '50%', marginTop: -16 },
   right: { right: 6, top: '50%', marginTop: -16 },
+  remove: { bottom: 6, right: 6 },
   disabled: { opacity: 0.25 },
   badge: { position: 'absolute', bottom: 6, right: 6, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
   videoTile: { backgroundColor: '#2a1f4a', alignItems: 'center', justifyContent: 'center', padding: 8, gap: 6 },

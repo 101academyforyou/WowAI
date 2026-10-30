@@ -96,6 +96,17 @@ export function ProfileView({ username }: { username: string }) {
     }
   }
 
+  // 取消分享：從分享分頁拿掉，原作者的貼文不受影響
+  async function unshare(post: Post) {
+    if (!(await confirmAction(tr(`取消分享「${post.title}」？`, `Unshare "${post.title}"?`), tr('會從你的分享分頁移除，原作者的貼文不受影響。', "It's removed from your Shared tab. The original post isn't affected."), tr('取消分享', 'Unshare')))) return;
+    try {
+      await api(`/api/posts/${post.id}/repost`, { method: 'DELETE' });
+      setData((d) => (d ? { ...d, reposts: d.reposts.filter((p) => p.id !== post.id) } : d));
+    } catch (err) {
+      notify((err as Error).message);
+    }
+  }
+
   // Email 直接複製（不一定有設定郵件 App）；其他聯繫方式打開連結
   async function openContact(ct: Profile['contacts'][number]) {
     if (ct.type !== 'email') return Linking.openURL(ct.url);
@@ -233,6 +244,13 @@ export function ProfileView({ username }: { username: string }) {
                 <Text style={[styles.hintText, { color: c.muted }]}>{tr('・', ' · ')}</Text>
                 <Ionicons name="copy-outline" size={13} color={c.muted} />
                 <Text style={[styles.hintText, { color: c.muted }]}>{tr(' 複製連結', ' copy link')}</Text>
+                {tab === 'reposts' ? (
+                  <>
+                    <Text style={[styles.hintText, { color: c.muted }]}>{tr('・', ' · ')}</Text>
+                    <Ionicons name="close" size={13} color={c.muted} />
+                    <Text style={[styles.hintText, { color: c.muted }]}>{tr(' 取消分享', ' unshare')}</Text>
+                  </>
+                ) : null}
               </>
             ) : null}
           </View>
@@ -248,7 +266,7 @@ export function ProfileView({ username }: { username: string }) {
       ) : null}
       {tab === 'reposts' && !user.blockedByMe ? (
         reposts.length ? (
-          <PostGrid posts={reposts} pinned arrange={isMe && arranging ? { onMove: (i, d) => move('reposts', i, d), onTogglePin: (p) => togglePin('reposts', p) } : undefined} />
+          <PostGrid posts={reposts} pinned arrange={isMe && arranging ? { onMove: (i, d) => move('reposts', i, d), onTogglePin: (p) => togglePin('reposts', p), onRemove: unshare } : undefined} />
         ) : (
           <Empty
             message={isMe
