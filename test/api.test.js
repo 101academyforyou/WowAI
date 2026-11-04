@@ -230,6 +230,19 @@ test('Learn it 教學：試看大家看得到，完整教學要解鎖（Beta 免
   assert.equal((await patch({ learnPreviewUrl: '', learnVideoUrl: '', learnNotes: '' })).post.learn, null);
 });
 
+test('Learn it 分頁：只列出有附教學的作品', async () => {
+  const cookie = await register('learnfeed');
+  const img = [{ name: 'a.png', data: PNG }];
+  const plain = (await (await createPost(cookie, { title: 'plain' }, img)).json()).post;
+  const link = (await (await createPost(cookie, { title: 'link', learnUrl: 'https://example.com/how' }, img)).json()).post;
+  const notes = (await (await createPost(cookie, { title: 'notes', learnNotes: 'Step 1' }, img)).json()).post;
+  const ids = async (qs) => (await (await fetch(`${base}/api/posts?feed=learn${qs}`)).json()).posts.map((p) => p.id);
+  const latest = await ids('');
+  assert.ok(latest.includes(link.id) && latest.includes(notes.id));
+  assert.ok(!latest.includes(plain.id));
+  assert.ok(latest.indexOf(notes.id) < latest.indexOf(link.id)); // 新到舊
+});
+
 test('註冊必須同意使用條款', async () => {
   const res = await fetch(`${base}/api/auth/register`, {
     method: 'POST',

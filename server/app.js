@@ -753,6 +753,7 @@ export function createApp({
   //   latest（預設）：新到舊，用 before（貼文 id）分頁
   //   random：打亂順序（每次重新整理換一個 seed 就是新的順序；同一個 seed 分頁不會重複或漏掉），用 offset 分頁
   //   top：Cool 排行榜，依收到的 Cool 數排序，period＝week／month／all，用 offset 分頁
+  // feed=learn：只看附了 Learn it 教學（教學連結、試看影片、完整教學影片或教學內容）的貼文，可以搭配任何 sort
   app.get('/api/posts', (req, res) => {
     const sort = ['random', 'top'].includes(req.query.sort) ? req.query.sort : 'latest';
     const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
@@ -760,6 +761,7 @@ export function createApp({
     const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
     const category = typeof req.query.category === 'string' ? req.query.category.trim().toLowerCase() : '';
     const following = req.query.feed === 'following';
+    const learnOnly = req.query.feed === 'learn';
     if (following && !req.user) throw new HttpError(401, '請先登入');
 
     const visible = visibleSql(req.user);
@@ -780,6 +782,9 @@ export function createApp({
         OR EXISTS (SELECT 1 FROM post_ai_tools t WHERE t.post_id = p.id AND t.name LIKE ? ESCAPE '\\')
         OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND (u.username LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\')))`;
       params.push(...Array(7).fill(likePattern(word)));
+    }
+    if (learnOnly) {
+      where += " AND (p.learn_url != '' OR p.learn_preview_url != '' OR p.learn_video_url != '' OR p.learn_notes != '')";
     }
     if (following) {
       where += ' AND (p.user_id = ? OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))';
