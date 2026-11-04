@@ -10,15 +10,16 @@ import { tr } from '../../lib/i18n';
 import { CategoryFilter } from '../../components/CategoryChips';
 import { onHomeTop } from '../../lib/homeEvents';
 
-// foryou：打亂順序，每次重新整理都不一樣；top：Cool 排行榜
-type Feed = 'foryou' | 'latest' | 'top' | 'following';
+// foryou：打亂順序，每次重新整理都不一樣；top：Cool 排行榜；learn：有附教學的作品，新到舊
+type Feed = 'foryou' | 'latest' | 'top' | 'learn' | 'following';
 type Period = 'week' | 'month' | 'all';
 
-const FEEDS: Feed[] = ['foryou', 'latest', 'top', 'following'];
+const FEEDS: Feed[] = ['foryou', 'latest', 'top', 'learn', 'following'];
 const feedLabel = (f: Feed) => ({
   foryou: tr('推薦', 'For you'),
   latest: tr('最新', 'Latest'),
   top: tr('排行', 'Top'),
+  learn: 'Learn it',
   following: tr('追蹤中', 'Following'),
 })[f];
 const PERIODS: { value: Period; label: string }[] = [
@@ -52,7 +53,7 @@ export default function HomeScreen() {
 
   const load = useCallback(async (reset: boolean, cursor?: { before: number | null; offset: number | null }) => {
     const qs = new URLSearchParams();
-    if (feed === 'following') qs.set('feed', 'following');
+    if (feed === 'following' || feed === 'learn') qs.set('feed', feed);
     if (feed === 'foryou') {
       // 每次重新載入換一個順序；載入下一頁時沿用同一個 seed，才不會重複或漏掉
       if (reset) seed.current = newSeed();
@@ -102,7 +103,7 @@ export default function HomeScreen() {
       <View style={[styles.tabs, { borderColor: c.border }]}>
         {FEEDS.map((f) => (
           <Pressable key={f} onPress={() => selectFeed(f)} style={[styles.tab, feed === f && { borderColor: c.accent }]} accessibilityRole="tab" accessibilityState={{ selected: feed === f }}>
-            <Text style={{ color: feed === f ? c.accent : c.muted, fontWeight: '700', fontFamily: fonts.mono, fontSize: 13 }} numberOfLines={1}>{feedLabel(f)}</Text>
+            <Text style={{ color: feed === f ? c.accent : c.muted, fontWeight: '700', fontFamily: fonts.mono, fontSize: 12 }} numberOfLines={1}>{feedLabel(f)}</Text>
           </Pressable>
         ))}
       </View>
@@ -123,7 +124,11 @@ export default function HomeScreen() {
           ref={listRef}
           data={posts}
           keyExtractor={(p) => String(p.id)}
-          ListHeaderComponent={feed === 'top' ? (
+          ListHeaderComponent={feed === 'learn' ? (
+            <View style={styles.periods}>
+              <Text style={{ color: c.muted, fontFamily: fonts.mono, fontSize: 12 }}>{tr('// 附教學的作品，看看是怎麼做的', '// Posts with a tutorial')}</Text>
+            </View>
+          ) : feed === 'top' ? (
             <View style={styles.periods}>
               <Text style={{ color: c.muted, fontFamily: fonts.mono, fontSize: 12 }}>{tr('// Cool 排行', '// Cool rank')}</Text>
               <View style={{ flex: 1 }} />
@@ -157,7 +162,7 @@ export default function HomeScreen() {
           }}
           ListEmptyComponent={
             <Empty
-              title={category ? tr('這個領域還沒有作品', 'Nothing in this category yet') : feed === 'top' && period !== 'all' ? tr('這段期間還沒有作品', 'Nothing from this period yet') : feed === 'following' ? tr('追蹤的人還沒有分享', 'Nothing from people you follow yet') : tr('還沒有人分享', 'Nothing shared yet')}
+              title={category ? tr('這個領域還沒有作品', 'Nothing in this category yet') : feed === 'top' && period !== 'all' ? tr('這段期間還沒有作品', 'Nothing from this period yet') : feed === 'following' ? tr('追蹤的人還沒有分享', 'Nothing from people you follow yet') : feed === 'learn' ? tr('還沒有人附上教學', 'No tutorials yet') : tr('還沒有人分享', 'Nothing shared yet')}
               message={tr('用 AI 做了什麼好玩的工具嗎？附上截圖或 YouTube 影片秀給大家看！', 'Built something fun with AI? Show everyone with a screenshot or a YouTube demo!')}
             >
               <Button title={tr('分享我的 AI 工具', 'Share my AI tool')} variant="primary" onPress={() => router.push('/new')} />
@@ -174,5 +179,5 @@ const styles = StyleSheet.create({
   categories: { borderBottomWidth: StyleSheet.hairlineWidth },
   periods: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
   period: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 2, borderColor: 'transparent' },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 2, borderBottomWidth: 2, borderColor: 'transparent' },
 });
