@@ -97,8 +97,12 @@ eas submit --platform ios --latest     # 上傳到 App Store Connect
 - **審查備註**：提供一組測試帳號密碼，並說明檢舉（貼文 ⋯ → 檢舉）、封鎖、刪除帳號的位置
 
 ### 6. 之後更新
-- 只改 JavaScript：`eas update` 可以直接推送更新（需先設定 [EAS Update](https://docs.expo.dev/eas-update/introduction/)）
-- 改了原生設定或套件：重新 `eas build` + `eas submit`，版本號由 EAS 自動遞增
+App 已經裝好 EAS Update（`expo-updates`，設定在 `app.config.js`），打開 App 時會自動下載新版：
+
+- **只改 JavaScript**（畫面、功能、文字）：在 `mobile/` 執行 `npm run update:ios`，iPhone 使用者下次打開 App（再關掉重開一次）就會換成新版，不用送審
+- **改了原生設定或套件**（`app.json` 的權限、新增原生套件、Expo SDK 升級）：把 `app.json` 的 `version` 往上加，再 `eas build --platform ios --profile production` + `eas submit --platform ios --latest`。build 號由 EAS 自動遞增
+- 推送的更新只會送到「App 版本號相同」的安裝（`runtimeVersion` 跟著 `version`），所以舊版 App 不會拿到不相容的程式
+- `app.json` 要有 `extra.eas.projectId`（`eas init` 會寫進去）才會啟用更新；沒有的話 App 照常運作，只是不會自動更新
 
 ## 專案結構
 
