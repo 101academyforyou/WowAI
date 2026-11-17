@@ -10,10 +10,12 @@
       "env": { "EXPO_PUBLIC_API_URL": "http://localhost:3000" }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {
